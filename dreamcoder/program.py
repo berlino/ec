@@ -139,6 +139,7 @@ class Program(object):
 
     @staticmethod
     def parse(s):
+        print(s)
         s = parseSExpression(s)
         def p(e):
             if isinstance(e,list):
@@ -1181,3 +1182,4 @@ if __name__ == "__main__":
     from dreamcoder.domains.arithmetic.arithmeticPrimitives import *
     e = Program.parse("(#(lambda (?? (+ 1 $0))) (lambda (?? (+ 1 $0))) (lambda (?? (+ 1 $0))) - * (+ +))")
     eprint(e)
+    #grammar.loglikelihood(e)

@@ -7,6 +7,7 @@ import sys
 import os
 import subprocess
 import math
+import dill
 import pickle as pickle
 from itertools import chain
 import heapq
@@ -387,7 +388,7 @@ def get_data_dir():
 
 
 def callCompiled(f, *arguments, **keywordArguments):
-    import dill
+    # import dill
 
     pypyArgs = []
     profile = keywordArguments.pop('profile', None)

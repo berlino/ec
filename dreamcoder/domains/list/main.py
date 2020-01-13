@@ -407,4 +407,5 @@ def main(args):
         train = tasks
         test = []
 
+    print(args)
     explorationCompression(baseGrammar, train, testingTasks=test, **args)

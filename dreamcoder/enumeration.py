@@ -393,7 +393,7 @@ def enumerateForTasks(g, tasks, likelihoodModel, _=None,
     from time import time
 
     request = tasks[0].request
-    assert all(t.request == request for t in tasks), \
+    assert all([t.request == request for t in tasks]), \
         "enumerateForTasks: Expected tasks to all have the same type"
 
     maximumFrontiers = [maximumFrontiers[t] for t in tasks]
