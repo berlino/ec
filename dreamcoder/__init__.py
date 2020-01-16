@@ -48,10 +48,10 @@ from dreamcoder.domains.tower import makeTowerTasks
 from dreamcoder.domains.tower import towerPrimitives
 from dreamcoder.domains.tower import tower_common
 from dreamcoder.domains.tower import main as tower_main
-from dreamcoder.domains.regex import groundtruthRegexes
-from dreamcoder.domains.regex import regexPrimitives
-from dreamcoder.domains.regex import makeRegexTasks
-from dreamcoder.domains.regex import main as regex_main
+# from dreamcoder.domains.regex import groundtruthRegexes
+# from dreamcoder.domains.regex import regexPrimitives
+# from dreamcoder.domains.regex import makeRegexTasks
+# from dreamcoder.domains.regex import main as regex_main
 from dreamcoder.domains.logo import logoPrimitives
 from dreamcoder.domains.logo import makeLogoTasks
 from dreamcoder.domains.logo import main as logo_main
