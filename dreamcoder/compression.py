@@ -181,7 +181,7 @@ def rustInduce(g0, frontiers, _=None,
     # check which version of python we are using
     # if >=3.6 do:
     if sys.version_info[1] >= 6:
-        directory = '/'.join(os.path.abspath(__file__).split('/')[:-4])
+        directory = '/'.join(os.path.abspath(__file__).split('/')[:-2])
         p = subprocess.Popen(
             [directory + '/rust_compressor/rust_compressor'],
             encoding='utf-8',
