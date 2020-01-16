@@ -460,11 +460,11 @@ def ecIterator(grammar, tasks,
         
         # Sleep-G
         if useDSL and not(noConsolidation):
-            eprint(f"Currently using this much memory: {getThisMemoryUsage()}")
+            eprint("Currently using this much memory: {getThisMemoryUsage()}")
             grammar = consolidate(result, grammar, topK=topK, pseudoCounts=pseudoCounts, arity=arity, aic=aic,
                                   structurePenalty=structurePenalty, compressor=compressor, CPUs=CPUs,
                                   iteration=j)
-            eprint(f"Currently using this much memory: {getThisMemoryUsage()}")
+            eprint("Currently using this much memory: {getThisMemoryUsage()}")
         else:
             eprint("Skipping consolidation.")
             result.grammars.append(grammar)
@@ -575,7 +575,7 @@ def sleep_recognition(result, grammar, taskBatch, tasks, testingTasks, allFronti
                                     contextual=contextual,
                                     previousRecognitionModel=previousRecognitionModel,
                                     id=i) for i in range(ensembleSize)]
-    eprint(f"Currently using this much memory: {getThisMemoryUsage()}")
+    eprint("Currently using this much memory: {getThisMemoryUsage()}")
     trainedRecognizers = parallelMap(min(CPUs,len(recognizers)),
                                      lambda recognizer: recognizer.train(allFrontiers,
                                                                          biasOptimal=biasOptimal,
