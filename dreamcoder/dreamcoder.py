@@ -273,7 +273,7 @@ def ecIterator(grammar, tasks,
         assert resume is not None, "--addFullTaskMetrics requires --resume"
 
     def reportMemory():
-        eprint(f"Currently using this much memory: {getThisMemoryUsage()}")
+        eprint("Currently using this much memory: ".format({getThisMemoryUsage()}))
     
     # Restore checkpoint
     if resume is not None:
