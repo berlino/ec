@@ -65,6 +65,16 @@ class Object:
         pprint(temp)
         return temp.tolist()
 
+    def reflect(self, horizontal):
+
+        res = {}
+        for y,x in self.points.keys():
+            if horizontal:
+                res[(self.getNumRows()-1 - y, x)] = self.points[(y,x)]
+            else:
+                res[(y, self.getNumCols()-1 - x)] = self.points[(y,x)]
+
+        return Object(points=res)
 
     def move(self, y, x):
         newPoints = {}
@@ -91,21 +101,21 @@ class Object:
             newPoints[(yPos, xPos)] = object.points[(yPos, xPos)]
         return Object(points=newPoints)
 
-    def split(self, isHorizontal, keepFirst):
+    def split(self, isHorizontal):
         if isHorizontal:
             halfway = self.getNumRows() // 2
             topHalf = Object(points={(y,x): self.points[(y,x)] for y,x in self.points.keys() if y < halfway})
             if self.getNumRows() % 2 == 1:
                 halfway += 1
             bottomHalf = Object(points={(y-halfway,x): self.points[(y,x)] for y,x in self.points.keys() if y >= halfway})
-            return topHalf if keepFirst else bottomHalf
+            return topHalf,bottomHalf
         else:
             halfway = self.getNumCols() // 2
             leftHalf = Object(points={(y,x): self.points[(y,x)] for y,x in self.points.keys() if x < halfway})
             if self.getNumCols() % 2 == 1:
                 halfway += 1
             rightHalf = Object(points={(y,x-halfway): self.points[(y,x)] for y,x in self.points.keys() if x >= halfway})
-            return leftHalf if keepFirst else rightHalf
+            return leftHalf,rightHalf
 
 
     def concat(self, object, direction):
@@ -121,6 +131,7 @@ class Object:
             return object.merge(self.move(object.numRows, 0))
 
         else:
+            print(direction)
             raise NotImplementedError
 
     def zipGrids(self, object, f):
@@ -154,15 +165,20 @@ _maroon = 9
 def _keepNonBlacks(c): return lambda c2: c2 if c != 0 else 0
 def _replaceOverlapping(c): return lambda c2: _red if (c == c2 and c != _black) else _black
 
-def _split(a): return lambda isHorizontal: lambda keepFirst: a.split(isHorizontal, keepFirst)
+def _reflect(a): return lambda isHorizontal: a.reflect(isHorizontal)
+def _split(a): return lambda isHorizontal: a.split(isHorizontal)
 def _move(a): return lambda y: lambda x: a.move(y,x)
 def _grow(a): return lambda n: a.grow(n)
-def _concatN(a): return lambda b: lambda dir: lambda n: a.concat(b, dir) if n == 1 else _concatN(a.concat(b, dir))(b)(dir)(n-1)
-def _duplicateN(a): return lambda dir: lambda n: _concatN(a)(a)(dir)(n)
-def _zipGrids(a): return lambda b: lambda f: a.zipGrids(b, f)
-def _solve1(a): return _zipGrids(_grow(a)(3))(_duplicateN(_duplicateN(a)('right')(2))('down')(2))(_keepNonBlacks)
-def _solve6(a): return _zipGrids(_split(a)(False)(True))(_split(a)(False)(False))(_replaceOverlapping)
+def _concatN(a): return lambda b: lambda dir: lambda n: a.concat(b, dir) if n <= 1 else _concatN(a.concat(b, dir))(b)(dir)(n-1)
+def _duplicateN(a): return lambda isHorizontal: lambda n: _concatN(a)(a)('down' if isHorizontal else 'right')(n)
+def _duplicate2dN(a): return lambda n: _duplicateN(_duplicateN(a)(True)(n))(False)(n)
+def _zipGrids(a): return lambda b: lambda f: a.zipGrids(b,f)
+def _solve1(a): return _zipGrids(_grow(a)(3))(_duplicate2dN(a)(2))(_keepNonBlacks)
+def _solveX(a): return _concatNAndReflect(a)(1)(False)('right')
+def _concatNAndReflect(a): return lambda n: lambda isHorizontal: lambda dir: _concatN(a)(_reflect(a)(isHorizontal))(dir)(n)
 
+def _solve6(a): return lambda f: _zipGrids2(_split(a)(False))(f)
+def _zipGrids2(grids): return lambda f: grids[0].zipGrids(grids[1], f)
 
 class RecursionDepthExceeded(Exception):
     pass
@@ -171,13 +187,14 @@ if runFull:
     tdirection = baseType('direction')
     tcolor = baseType('color')
     tgrid = baseType('tgrid')
+    tgrids = tlist(tgrid)
 
 def basePrimitives():
 
 
     return [
     #
-    Primitive('0', tint, 0),
+    # Primitive('0', tint, 0),
     Primitive('1', tint, 1),
     Primitive('2', tint, 2),
     Primitive('3', tint, 3),
@@ -206,15 +223,27 @@ def basePrimitives():
     Primitive("teal", tcolor, _teal),
     Primitive("maroon", tcolor, _maroon),
 
-    Primitive('split', arrow(tgrid, tbool, tbool, tgrid), _split),
-    Primitive('move', arrow(tgrid, tint, tint, tgrid), _move),
     Primitive('keepNonBlacks', arrow(tcolor, tcolor, tcolor), _keepNonBlacks),
+    Primitive('replaceOverlapping', arrow(tcolor, tcolor, tcolor), _replaceOverlapping),
+
+    Primitive('split', arrow(tgrid, tbool, tgrids), _split),
+
+    Primitive('reflect', arrow(tgrid, tbool, tgrid), _reflect),
+    # Primitive('diagReflect', arrow(tgrid, tgrid), _diagReflect),
+    Primitive('move', arrow(tgrid, tint, tint, tgrid), _move),
     Primitive('grow', arrow(tgrid, tint, tgrid), _grow),
     Primitive('concatN', arrow(tgrid, tgrid, tdirection, tint, tgrid), _concatN),
-    Primitive('duplicateN', arrow(tgrid, tdirection, tint, tgrid), _duplicateN),
+    Primitive('duplicateN', arrow(tgrid, tbool, tint, tgrid), _duplicateN),
+    # Primitive('duplicate2dN', arrow(tgrid, tint, tgrid), _duplicate2dN),
     Primitive('zipGrids', arrow(tgrid, tgrid, arrow(tcolor, tcolor, tcolor), tgrid), _zipGrids),
-    Primitive('solve6', arrow(tgrid, tgrid), _solve6),
-    Primitive('solve1', arrow(tgrid, tgrid), _solve1)]
+    Primitive('zipGrids2', arrow(tgrids, arrow(tcolor, tcolor, tcolor), tgrid), _zipGrids2),
+    Primitive('concatNAndReflect', arrow(tgrid, tint, tbool, tdirection, tgrid), _concatNAndReflect),
+
+    Primitive('solve6', arrow(tgrid, arrow(tcolor, tcolor, tcolor), tgrid), _solve6),
+    Primitive('solve1', arrow(tgrid, tgrid), _solve1),
+    # Primitive('solveX', arrow(tgrid, tgrid), _solveX),
+
+    ]
 
 
 # def retrieveARCJSONTask(filename, directory):
@@ -251,17 +280,25 @@ def pprint(arr):
     #
     # print(a(1))
 
+def getTask(filename, directory):
+    with open(directory + '/' + filename, "r") as f:
+        loaded = json.load(f)
+
+    train = [(Object(mask=example['input']), Object(mask=example['output'])) for example in loaded['train']]
+    test = [(Object(mask=example['input']), Object(mask=example['output'])) for example in loaded['test']]
+
+    return train, test
+
 if __name__ == "__main__":
 
-    input6 = [[1, 0, 0, 5, 0, 1, 0], [0, 1, 0, 5, 1, 1, 1], [1, 0, 0, 5, 0, 0, 0]]
-    input7 = [[0, 0, 0, 0, 0, 0, 0], [1, 0, 0, 5, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0]]
+    directory = '/Users/theo/Development/program_induction/ec/ARC/data/training'
+    train,test = getTask('0520fde7.json', directory)
 
-    input1 = [[0, 7, 7], [7, 7, 7], [0, 7, 7]]
-    input2 = [[0, 0, 0], [0, 0, 0], [3, 3, 0]]
-
-    a = Object(input6)
-    b = Object(input2)
-
-    a.pprint()
-    res = _solve6(a)
-    res.pprint()
+    for i in range(len(train)):
+        print('\nExample {}'.format(i))
+        inputGrid, outputGrid = train[i]
+        got = _solve6(inputGrid)(_replaceOverlapping)
+        print('Got: ')
+        got.pprint()
+        print('Expected: ')
+        outputGrid.pprint()

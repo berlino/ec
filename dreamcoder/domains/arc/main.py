@@ -12,7 +12,7 @@ from dreamcoder.task import Task
 from dreamcoder.type import Context, arrow, tbool, tlist, tint, t0, UnificationFailure
 # from dreamcoder.domains.list.listPrimitives import basePrimitives, primitives, McCarthyPrimitives, bootstrapTarget_extra, no_length
 # from dreamcoder.domains.arc.arcPrimitives2 import _solve6, basePrimitives, pprint, tcolor
-from dreamcoder.domains.arc.arcPrimitives import _solve1, _solve6, basePrimitives, pprint, tcolor, Object, tgrid
+from dreamcoder.domains.arc.arcPrimitives import _solve1, _solve6, _solveX, basePrimitives, pprint, Object, tcolor, tgrid, tgrids, tdirection
 
 from dreamcoder.recognition import RecurrentFeatureExtractor
 from dreamcoder.domains.list.makeListTasks import make_list_bootstrap_tasks, sortBootstrap, EASYLISTTASKS
@@ -251,7 +251,7 @@ def list_options(parser):
     # parser.add_argument("-i", type=int, default=10)
 
 def check(filename, f):
-    train, test = retrieveARCJSONTask(filename, directory='/Users/theo/Development/program_induction/ARC/data/training')
+    train, test = retrieveARCJSONTask(filename, directory='/Users/theo/Development/program_induction/ec/ARC/data/training')
     print(train)
 
     for input, output in train.examples:
@@ -274,18 +274,24 @@ def main(args):
     random.seed(args.pop("random_seed"))
 
     samples = ['007bbfb7.json',
-'00d62c1b.json',
-'017c7c7b.json',
-'025d127b.json',
-'045e512c.json',
+# '00d62c1b.json',
+# '017c7c7b.json',
+# '025d127b.json',
+# '045e512c.json',
 '0520fde7.json',
-'05269061.json',
-'05f2a901.json',
-'06df4c85.json',
-'08ed6ac7.json']
+# '05269061.json',
+# '05f2a901.json',
+# '06df4c85.json',
+# '6fa7a44f.json',
+# '08ed6ac7.json',
+# 'c9e6f938.json'
+               ]
+
+    # check('0520fde7.json', _solve6)
 
     directory = '/Users/theo/Development/program_induction/ec/ARC/data/training'
-    trainTasks = retrieveARCJSONTasks(directory, None)
+    # trainTasks = retrieveARCJSONTasks(directory, None)
+    trainTasks = retrieveARCJSONTasks(directory, samples)
 
     baseGrammar = Grammar.uniform(basePrimitives())
     print('base Grammar {}'.format(baseGrammar))
@@ -296,17 +302,16 @@ def main(args):
     
     args.update({
         "outputPrefix": "%s/list"%outputDirectory,
-        "evaluationTimeout": 1,
+        "evaluationTimeout": 60,
     })
 
-    # check('0520fde7.json', _solve6)
+
     # #
-    # request = arrow(tgrid,tgrid)
-    #
-    # for ll,_,p in baseGrammar.enumeration(Context.EMPTY, [], request, 15):
+    # request = arrow(tgrid, arrow(tcolor, tcolor, tcolor), tgrid)
+    # #
+    # for ll,_,p in baseGrammar.enumeration(Context.EMPTY, [], request, 10):
     #     ll_ = baseGrammar.logLikelihood(request,p)
     #     print(ll, p, ll_)
-    #     print('got here')
 
     # print(baseGrammar.buildCandidates(request, Context.EMPTY, [], returnTable=True))
     # print(baseGrammar.bestFirstEnumeration(request))
