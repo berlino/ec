@@ -589,7 +589,7 @@ def sleep_recognition(result, grammar, taskBatch, tasks, testingTasks, allFronti
                                                                          vectorized=True),
                                      recognizers,
                                      seedRandom=True)
-    eprint(f"Currently using this much memory: {getThisMemoryUsage()}")
+    eprint("Currently using this much memory: {getThisMemoryUsage()}")
     # Enumerate frontiers for each of the recognizers.
     eprint("Trained an ensemble of %d recognition models, now enumerating." % len(trainedRecognizers))
     ensembleFrontiers, ensembleTimes, ensembleRecognitionTimes = [], [], []
@@ -631,7 +631,7 @@ def sleep_recognition(result, grammar, taskBatch, tasks, testingTasks, allFronti
                                  'startProductions')
 
     result.hitsAtEachWake.append(len(totalTasksHitBottomUp))
-    eprint(f"Currently using this much memory: {getThisMemoryUsage()}")
+    eprint("Currently using this much memory: {getThisMemoryUsage()}")
 
     """ Rescore and combine the frontiers across the ensemble of recognition models."""
     eprint("Recognition model enumeration results for the best recognizer.")
@@ -665,7 +665,7 @@ def consolidate(result, grammar, _=None, topK=None, arity=None, pseudoCounts=Non
     for f in result.allFrontiers.values():
         if f.empty:
             continue
-        eprint(f.task)
+        eprint(.task)
         for e in f.normalize().topK(5):
             eprint("%.02f\t%s" % (e.logPosterior, e.program))
         eprint()
@@ -1007,8 +1007,8 @@ def addTaskMetrics_(result, path):
     for t in result.recognitionTaskMetrics:
         if isinstance(t, Task) and t not in everyTask: everyTask.add(t)
 
-    eprint(f"Found {len(tasks)} training tasks.")
-    eprint(f"Scrounged up {len(everyTask) - len(tasks)} testing tasks.")
+    eprint("Found {len(tasks)} training tasks.")
+    eprint("Scrounged up {len(everyTask) - len(tasks)} testing tasks.")
     if not hasattr(result, "recognitionTaskMetrics") or result.recognitionTaskMetrics is None:
         result.recognitionTaskMetrics = {}
 
@@ -1043,7 +1043,7 @@ def addTaskMetrics_(result, path):
                                                              if len(f) > 0},
                              'every_expectedProductionUses')
     if False:
-        eprint(f"About to do an expensive Monte Carlo simulation w/ {len(tasks)} tasks")
+        eprint("About to do an expensive Monte Carlo simulation w/ {len(tasks)} tasks")
         updateTaskSummaryMetrics(result.recognitionTaskMetrics,
                                  {task: result.recognitionModel.grammarOfTask(task).untorch().expectedUsesMonteCarlo(task.request, debug=False)
                                   for task in tasks },
