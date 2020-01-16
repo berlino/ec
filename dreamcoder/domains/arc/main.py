@@ -45,7 +45,7 @@ from dreamcoder.domains.list.makeListTasks import make_list_bootstrap_tasks, sor
 
 def retrieveARCJSONTasks(directory, filenames=None):
 
-    directory = '/Users/theo/Development/program_induction/ec/ARC/data/training'
+    # directory = '/Users/theo/Development/program_induction/ec/ARC/data/training'
     trainingData = []
 
     for filename in os.listdir(directory):
@@ -289,8 +289,14 @@ def main(args):
 
     # check('0520fde7.json', _solve6)
 
-    directory = '/Users/theo/Development/program_induction/ec/ARC/data/training'
-    # trainTasks = retrieveARCJSONTasks(directory, None)
+
+    # directory = '/Users/theo/Development/program_induction/ec/ARC/data/training'
+
+    import os
+
+    directory = '/'.join(os.path.abspath(__file__).split('/')[:-4]) + '/arc-data/data/training'
+    print(directory)
+
     trainTasks = retrieveARCJSONTasks(directory, samples)
 
     baseGrammar = Grammar.uniform(basePrimitives())
