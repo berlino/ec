@@ -665,7 +665,7 @@ def consolidate(result, grammar, _=None, topK=None, arity=None, pseudoCounts=Non
     for f in result.allFrontiers.values():
         if f.empty:
             continue
-        eprint(.task)
+        eprint(f.task)
         for e in f.normalize().topK(5):
             eprint("%.02f\t%s" % (e.logPosterior, e.program))
         eprint()
