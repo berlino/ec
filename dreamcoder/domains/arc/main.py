@@ -12,7 +12,18 @@ from dreamcoder.task import Task
 from dreamcoder.type import Context, arrow, tbool, tlist, tint, t0, UnificationFailure
 # from dreamcoder.domains.list.listPrimitives import basePrimitives, primitives, McCarthyPrimitives, bootstrapTarget_extra, no_length
 # from dreamcoder.domains.arc.arcPrimitives2 import _solve6, basePrimitives, pprint, tcolor
-from dreamcoder.domains.arc.arcPrimitives import _solve1, _solve6, _solveX, basePrimitives, pprint, Object, tcolor, tgrid, tgrids, tdirection
+from dreamcoder.domains.arc.arcPrimitives import leafPrimitives, basePrimitives, pprint, tcolor, tgrid, tgrids, tdirection, Grid
+from dreamcoder.domains.arc.arcPrimitives import \
+    _solvefcb5c309,\
+    _solve50cb2852, \
+    _solve007bbfb7,\
+    _solve0520fde7, \
+    _solvec9e6f938,\
+    _solvef25fbde4, \
+    _solve97999447, \
+    _solve72ca375d, \
+    _solve5521c0d9, \
+    _solvece4f8723
 
 from dreamcoder.recognition import RecurrentFeatureExtractor
 from dreamcoder.domains.list.makeListTasks import make_list_bootstrap_tasks, sortBootstrap, EASYLISTTASKS
@@ -62,8 +73,8 @@ def retrieveARCJSONTask(filename, directory):
     with open(directory + '/' + filename, "r") as f:
         loaded = json.load(f)
 
-    train = Task(filename, arrow(tgrid, tgrid), [((Object(mask=example['input']),), Object(mask=example['output'])) for example in loaded['train']])
-    test = Task(filename, arrow(tgrid, tgrid), [((Object(mask=example['input']),), Object(mask=example['output'])) for example in loaded['test']])
+    train = Task(filename, arrow(tgrid, tgrid), [((Grid(gridArray=example['input']),), Grid(gridArray=example['output'])) for example in loaded['train']])
+    test = Task(filename, arrow(tgrid, tgrid), [((Grid(gridArray=example['input']),), Grid(gridArray=example['output'])) for example in loaded['test']])
 
     return train, test
 
@@ -250,8 +261,8 @@ def list_options(parser):
     parser.add_argument("--random-seed", type=int, default=17)
     # parser.add_argument("-i", type=int, default=10)
 
-def check(filename, f):
-    train, test = retrieveARCJSONTask(filename, directory='/Users/theo/Development/program_induction/ec/ARC/data/training')
+def check(filename, f, directory):
+    train, test = retrieveARCJSONTask(filename, directory=directory)
     print(train)
 
     for input, output in train.examples:
@@ -264,6 +275,7 @@ def check(filename, f):
             f(input).pprint()
             print('Expected')
             output.pprint()
+
     return
 
 def main(args):
@@ -273,33 +285,30 @@ def main(args):
     """
     random.seed(args.pop("random_seed"))
 
-    samples = ['007bbfb7.json',
-# '00d62c1b.json',
-# '017c7c7b.json',
-# '025d127b.json',
-# '045e512c.json',
-'0520fde7.json',
-# '05269061.json',
-# '05f2a901.json',
-# '06df4c85.json',
-# '6fa7a44f.json',
-# '08ed6ac7.json',
-# 'c9e6f938.json'
-               ]
+    samples = {
+        '007bbfb7.json': _solve007bbfb7,
+        'c9e6f938.json': _solvec9e6f938,
+        '50cb2852.json': lambda grid: _solve50cb2852(grid)(8),
+        'fcb5c309.json': _solvefcb5c309,
+        '97999447.json': _solve97999447,
+        'f25fbde4.json': _solvef25fbde4,
+        '72ca375d.json': _solve72ca375d,
+        '5521c0d9.json': _solve5521c0d9,
+        'ce4f8723.json': _solvece4f8723
+    }
 
-    # check('0520fde7.json', _solve6)
-
-
-    # directory = '/Users/theo/Development/program_induction/ec/ARC/data/training'
 
     import os
 
     directory = '/'.join(os.path.abspath(__file__).split('/')[:-4]) + '/arc-data/data/training'
     print(directory)
 
-    trainTasks = retrieveARCJSONTasks(directory, samples)
+    for key in samples.keys():
+        check(key, lambda x: samples[key](x), directory)
 
-    baseGrammar = Grammar.uniform(basePrimitives())
+    trainTasks = retrieveARCJSONTasks(directory, None)
+
+    baseGrammar = Grammar.uniform(basePrimitives() + leafPrimitives())
     print('base Grammar {}'.format(baseGrammar))
 
     timestamp = datetime.datetime.now().isoformat()
@@ -308,18 +317,18 @@ def main(args):
     
     args.update({
         "outputPrefix": "%s/list"%outputDirectory,
-        "evaluationTimeout": 60,
+        "evaluationTimeout": 300,
     })
 
 
     # #
-    # request = arrow(tgrid, arrow(tcolor, tcolor, tcolor), tgrid)
-    # #
-    # for ll,_,p in baseGrammar.enumeration(Context.EMPTY, [], request, 10):
+    request = arrow(tgrid, tgrid)
+    #
+    # for ll,_,p in baseGrammar.enumeration(Context.EMPTY, [], request, 13):
     #     ll_ = baseGrammar.logLikelihood(request,p)
     #     print(ll, p, ll_)
 
+    # baseGrammar = Grammar.uniform(basePrimitives())
     # print(baseGrammar.buildCandidates(request, Context.EMPTY, [], returnTable=True))
-    # print(baseGrammar.bestFirstEnumeration(request))
 
     explorationCompression(baseGrammar, trainTasks, testingTasks=[], **args)
