@@ -27,8 +27,18 @@
         <div id="workspace">
 
             <div id="demonstration_examples_view">
-                <div class="text" id="task_demo_header">Task demonstration</div>
-                <label for="taskName" id="taskName"></label><br />
+                <div class="text" id="task_demo_header">Task demonstration </div>
+<!--                 <script>
+                function getURL() {
+                    var taskName = (window.location.href).split('?')[1]
+                    document.getElementById("url").innerHTML = taskName;
+                    file = readLocalFile(taskName)
+                    loadTaskFromFile(file)
+
+                }
+                </script>
+                <label for="url" id="url"> </label><br/> -->
+                <label for="taskName" id="taskName"> </label><br/>
                 <div id="task_preview"></div>
             </div>
 
@@ -47,7 +57,18 @@
                     <div id="load_task_control_btns">
                         <label for="load_task_file_input">Load task JSON: </label>
                         <input type="file" id="load_task_file_input" class="load_task"/>
+                    </div>
+                    <div id="load_task_control_btns">
                         <button onclick="randomTask()" id="random_task_btn">Random task</button>
+                        <label for="random_task_btn" id="random_task"></label>
+
+                    </div>
+                    <div id="load_task_control_btns">
+                        <button onclick="taskFromList()" id="task_from_list_btn">Task From List</button>
+                        <label for="task_from_list" id="task_from_list"></label>
+                    </div>
+                    <div id="load_task_control_btns">
+                        <label id="program_found"></label>
                     </div>
 
                     <div id="edition_view">
