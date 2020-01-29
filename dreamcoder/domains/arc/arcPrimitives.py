@@ -735,7 +735,7 @@ def basePrimitives():
     Primitive("blocksAsGrid", arrow(tblocks, tgrid, tgrid), _blocksAsGrid),
     Primitive("filterAndMinGrid", arrow(arrow(tblock, tbool), tblocks, tgrid), _filterAndMinGrid),
     # arrow(tblocks, tblocks)
-    Primitive('_sortBlocks',arrow(tblocks, tblocks), _sortBlocks),
+    Primitive('_sortBlocks',arrow(tblocks, arrow(tblock, tint), tblocks), _sortBlocks),
     Primitive("filterBlocks", arrow(arrow(tblock, tbool), tblocks, tblocks), _filter),
     Primitive("mapBlocks", arrow(arrow(tblock, tblock), tblocks, tblocks), _map),
     # arrow(tblocks, tint)
