@@ -20,6 +20,13 @@ function resetTask() {
     resetOutputGrid();
 }
 
+function clearButtonLabels() {
+document.getElementById('random_task').innerHTML = '';
+document.getElementById('task_from_list').innerHTML = '';
+document.getElementById('program_found').innerHTML = '';
+
+}
+
 function refreshEditionGrid(jqGrid, dataGrid) {
     fillJqGridWithData(jqGrid, dataGrid);
     setUpEditionGridListeners(jqGrid);
@@ -228,9 +235,9 @@ var programList =
 '(lambda (concatNAndReflect $0 true down)) <br> <br> log prior = -9.364262 <br> log likelihood = 0.000000',
 ]
 
+    clearButtonLabels();
     document.getElementById('task_from_list').innerHTML = (TASK_FROM_LIST_COUNT+1).toString() + ' out of ' + taskList.length.toString() + ' tasks solved: ' + taskList[TASK_FROM_LIST_COUNT];
     document.getElementById('program_found').innerHTML = programList[TASK_FROM_LIST_COUNT]
-    document.getElementById('random_task').innerHTML = '';
     var subset = "training";
     $.getJSON("https://api.github.com/repos/fchollet/ARC/contents/data/" + subset, function(tasks) {
       var task = tasks.find(task => task.name == taskList[TASK_FROM_LIST_COUNT])
@@ -279,9 +286,9 @@ function randomTask() {
       .error(function(){
         errorMsg('Error loading task');
       });
+        clearButtonLabels();
         document.getElementById('taskName').innerHTML = task['name'];
         document.getElementById('random_task').innerHTML = task['name'];
-        document.getElementById('task_from_list').innerHTML = '';
     })
     .error(function(){
       errorMsg('Error loading task list');
