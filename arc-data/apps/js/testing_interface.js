@@ -228,7 +228,7 @@ var programList =
 '(lambda (concatNAndReflect $0 true down)) <br> <br> log prior = -9.364262 <br> log likelihood = 0.000000',
 ]
 
-    document.getElementById('task_from_list').innerHTML = TASK_FROM_LIST_COUNT + ' ' + taskList[TASK_FROM_LIST_COUNT];
+    document.getElementById('task_from_list').innerHTML = (TASK_FROM_LIST_COUNT+1).toString() + ' out of ' + taskList.length.toString() + ' tasks solved: ' + taskList[TASK_FROM_LIST_COUNT];
     document.getElementById('program_found').innerHTML = programList[TASK_FROM_LIST_COUNT]
     document.getElementById('random_task').innerHTML = '';
     var subset = "training";
