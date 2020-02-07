@@ -141,6 +141,15 @@ input, button {
     margin-bottom: 10px;
 }
 
+.program_text {
+    text-align: center;
+    background: white;
+    margin-left: 10px;
+    margin-right: 10px;
+    margin-bottom: 10px;
+    margin-top: 10px;
+}
+
 #task_demo_header {
     margin: 10px;
 }

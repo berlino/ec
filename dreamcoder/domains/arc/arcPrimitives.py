@@ -582,7 +582,7 @@ def _filterAndMinGrid(f): return lambda blocks: _blocksToMinGrid(_filter(f)(bloc
 
 def _blocksToMinGrid(blocks): return _mergeBlocks(blocks).toMinGrid()
 def _blocksToGrid(blocks): return lambda numRows: lambda numCols: _blockToGrid(_mergeBlocks(blocks))(numRows)(numCols)
-def _blocksAsGrid(blocks): return lambda grid: _blockAsGrid(_mergeBlocks(blocks))(grid)
+def _blocksAsGrid(blocks): return _blockAsGrid(_mergeBlocks(blocks))(blocks[0].originalGrid)
 
 def _sortBlocks(blocks): return lambda f: sorted(blocks, key=lambda block: f(block), reverse=True)
 def _highestTileBlock(blocks): return _head(_sortBlocks(blocks)(_numTiles))
@@ -633,10 +633,10 @@ def _splitAndMerge(a): return lambda f: lambda isHorizontal: _zipGrids2(_split(a
 
 ##### Color #####
 
-def _keepNonBlacks(c): return lambda c2: c2 if c != 0 else 0
-
+def _keepNonBlacks(c): return lambda c2: c2 if c != _black else _black
 def _keepBlackAnd(cNew): return lambda c: lambda c2: _black if (c2 == _black and c == _black) else cNew
 def _keepBlackOr(cNew): return lambda c: lambda c2: _black if (c2 == _black or c == _black) else cNew
+def _keepBlackXOr(cNew): return lambda c: lambda c2: _black if ((c2 == _black and not c == _black) or (c2 == _black and not c == _black)) else cNew
 
 
 ##### Any Type #####
@@ -649,14 +649,14 @@ def _reduce(f): return lambda x0: lambda l: reduce(lambda a, x: f(a)(x), l, x0)
 ##### Solutions #####
 
 def _solvefcb5c309(grid): return grid.maskAndCenter(_highestTileBlock(_findSameColorRectangles(grid)).toMask()).colorAll(_findNthColor(grid)(3), 0)
-def _solve50cb2852(grid): return lambda c: _blocksAsGrid(_map(lambda block: _fillIn(block)(c))(_findSameColorFullRectangles(grid)))(grid)
+def _solve50cb2852(grid): return lambda c: _blocksAsGrid(_map(lambda block: _fillIn(block)(c))(_findSameColorFullRectangles(grid)))
 def _solve0520fde7(a): return _zipGrids2(_split(a)(False))(_keepBlackOr(_red))
 def _solve007bbfb7(a): return _zipGrids(_grow(a)(3))(_duplicate2dN(a)(2))(_keepNonBlacks)
 def _solvec9e6f938(a): return _concatNAndReflect(a)(False)('right')
-def _solve97999447(a): return _solveGenericBlockMap(a)(_findRectanglesBlackB)(lambda block: (_duplicateUntilEdge(_concat(block)(_fill(block)(_grey))('right'))('right')))(lambda blocks: _blocksAsGrid(blocks)(a))
+def _solve97999447(a): return _solveGenericBlockMap(a)(_findRectanglesBlackB)(lambda block: (_duplicateUntilEdge(_concat(block)(_fill(block)(_grey))('right'))('right')))(lambda blocks: _blocksAsGrid(blocks))
 def _solvef25fbde4(a): return _solveGenericBlockMap(a)(_findBlocksByCorner)(lambda block: _grow(block)(2))(_blocksToMinGrid)
 def _solve72ca375d(a): return _filterAndMinGrid(lambda block: block.isSymmetrical(False))(_findSameColorBlocks(a))
-def _solve5521c0d9(a): return _solveGenericBlockMap(a)(_findRectanglesBlackB)(lambda block: _move(block)(block.getNumRows())('up'))(lambda blocks: _blocksAsGrid(blocks)(a))
+def _solve5521c0d9(a): return _solveGenericBlockMap(a)(_findRectanglesBlackB)(lambda block: _move(block)(block.getNumRows())('up'))(lambda blocks: _blocksAsGrid(blocks))
 def _solvece4f8723(a): return _splitAndMerge(a)(_keepBlackAnd(_green))(True)
 
 #### Function Blueprints ####
@@ -726,20 +726,20 @@ def basePrimitives():
 ##### tblocks #####
 
     # # arrow (tblocks, tblock)
-    Primitive('_head', arrow(tblocks, tblock), _head),
-    Primitive('_mergeBlocks', arrow(tblocks, tblock),  _mergeBlocks),
-    Primitive('_getListBlock', arrow(tblocks, tint, tblock), _getListBlock),
+    Primitive('head', arrow(tblocks, tblock), _head),
+    Primitive('mergeBlocks', arrow(tblocks, tblock),  _mergeBlocks),
+    Primitive('getListBlock', arrow(tblocks, tint, tblock), _getListBlock),
     # arrow(tblocks, tgrid)
     Primitive('blocksToMinGrid', arrow(tblocks, tgrid), _blocksToMinGrid),
-    Primitive('_blocksToGrid',arrow(tblocks, tint, tint, tgrid), _blocksToGrid),
-    Primitive("blocksAsGrid", arrow(tblocks, tgrid, tgrid), _blocksAsGrid),
+    # Primitive('blocksToGrid',arrow(tblocks, tint, tint, tgrid), _blocksToGrid),
+    Primitive("blocksAsGrid", arrow(tblocks, tgrid), _blocksAsGrid),
     Primitive("filterAndMinGrid", arrow(arrow(tblock, tbool), tblocks, tgrid), _filterAndMinGrid),
     # arrow(tblocks, tblocks)
-    Primitive('_sortBlocks',arrow(tblocks, arrow(tblock, tint), tblocks), _sortBlocks),
+    Primitive('sortBlocks',arrow(tblocks, arrow(tblock, tint), tblocks), _sortBlocks),
     Primitive("filterBlocks", arrow(arrow(tblock, tbool), tblocks, tblocks), _filter),
     Primitive("mapBlocks", arrow(arrow(tblock, tblock), tblocks, tblocks), _map),
     # arrow(tblocks, tint)
-    Primitive('_highestTileBlock', arrow(tblocks, tint), _highestTileBlock),
+    Primitive('highestTileBlock', arrow(tblocks, tint), _highestTileBlock),
 
 ##### tblock ######
 
@@ -764,12 +764,13 @@ def basePrimitives():
     Primitive("blockAsGrid", arrow(tblock, tgrid, tgrid), _blockAsGrid),
     # arrow(tblock, tblocks)
     Primitive('split', arrow(tblock, tbool, tblock), _split),
+    # arrow(tgrid, tcolor)
+    Primitive('findNthBlockColor', arrow(tblock, tint, tcolor), _findNthColor),
 
 ##### tcolor ######
 
     # arrow(tcolor, tcolor)
     Primitive('keepNonBlacks', arrow(tcolor, tcolor, tcolor), _keepNonBlacks),
-
     Primitive('keepBlackOr', arrow(tcolor, tcolor, tcolor, tcolor), _keepBlackOr),
     Primitive('keepBlackAnd', arrow(tcolor, tcolor, tcolor, tcolor), _keepBlackAnd),
 
@@ -787,15 +788,15 @@ def basePrimitives():
     # #arrow(tgrid, tblock)
     Primitive('gridToBlock', arrow(tgrid, tblock), lambda grid: grid),
     # arrow(tgrid, grid)
-    Primitive('reflect', arrow(tgrid, tbool, tgrid), _reflect),
-    Primitive('grow', arrow(tgrid, tint, tgrid), _grow),
-    Primitive('concat', arrow(tgrid, tgrid, tdirection, tgrid), _concat),
-    Primitive('concatN', arrow(tgrid, tgrid, tdirection, tint, tgrid), _concatN),
-    Primitive('duplicate', arrow(tgrid, tdirection, tgrid), _duplicate),
-    Primitive('duplicateN', arrow(tgrid, tdirection, tint, tgrid), _duplicateN),
-    Primitive('zipGrids', arrow(tgrid, tgrid, arrow(tcolor, tcolor, tcolor), tgrid), _zipGrids),
+    # Primitive('reflect', arrow(tgrid, tbool, tgrid), _reflect),
+    # Primitive('grow', arrow(tgrid, tint, tgrid), _grow),
+    # Primitive('concat', arrow(tgrid, tgrid, tdirection, tgrid), _concat),
+    # Primitive('concatN', arrow(tgrid, tgrid, tdirection, tint, tgrid), _concatN),
+    # Primitive('duplicate', arrow(tgrid, tdirection, tgrid), _duplicate),
+    # Primitive('duplicateN', arrow(tgrid, tdirection, tint, tgrid), _duplicateN),
+    # Primitive('zipGrids', arrow(tgrid, tgrid, arrow(tcolor, tcolor, tcolor), tgrid), _zipGrids),
     # Primitive('zipGrids2', arrow(tgrids, arrow(tcolor, tcolor, tcolor), tgrid), _zipGrids2),
-    Primitive('concatNAndReflect', arrow(tgrid, tbool, tdirection, tgrid), _concatNAndReflect),
+    # Primitive('concatNAndReflect', arrow(tgrid, tbool, tdirection, tgrid), _concatNAndReflect),
     # Primitive('solve0520fde7', arrow(tgrid, tgrid), _solve0520fde7),
     # Primitive('solve007bbfb7', arrow(tgrid, tgrid), _solve007bbfb7),
     # Primitive('solve50cb2852', arrow(tgrid, tcolor, tgrid), _solve50cb2852),
@@ -804,12 +805,12 @@ def basePrimitives():
     # Primitive('solve97999447', arrow(tgrid, tgrid), _solve97999447),
     # Primitive('solvef25fbde4', arrow(tgrid, tgrid), _solvef25fbde4),
     #
-    # Primitive('_solve72ca375d', arrow(tgrid, tgrid), _solve72ca375d),
-    # Primitive('_solve5521c0d9', arrow(tgrid, tgrid), _solve5521c0d9),
-    # Primitive('_solvece4f8723', arrow(tgrid, tgrid), _solvece4f8723),
+    # Primitive('solve72ca375d', arrow(tgrid, tgrid), _solve72ca375d),
+    # Primitive('solve5521c0d9', arrow(tgrid, tgrid), _solve5521c0d9),
+    # Primitive('solvece4f8723', arrow(tgrid, tgrid), _solvece4f8723),
     # arrow(tgrid, tcolor)
-    Primitive('findNthColor', arrow(tgrid, tint, tcolor), _findNthColor),
-    # arrow(tgrid, tgridpair)
+    Primitive('findNthGridColor', arrow(tgrid, tint, tcolor), _findNthColor),
+    # arrow(tgrid, tgrid)
     Primitive('splitAndMergeGrid', arrow(tgrid, arrow(tcolor, tcolor, tcolor), tbool, tgrid), _splitAndMerge),
 
 #####

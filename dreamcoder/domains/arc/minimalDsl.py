@@ -82,13 +82,13 @@ return [
 ##### tblock ###### 
 
     # arrow(tblock, tblock)
-    Primitive('applyAndColor', arrow(tblock, arrow(tblock, tblock), tcolor, tblock), _), # change addition to tcolor
+    Primitive('applyAndColor', arrow(tblock, arrow(tblock, tblock), tcolor, tblock), _, _), # change addition to tcolor
     Primitive('fillIn', arrow(tblock, tcolor, tblock), _fillIn),
     Primitive('fill', arrow(tblock, tcolor, tblock), _fill),
     Primitive('reflect', arrow(tblock, tbool, tblock), _reflect),
-    Primitive('reflectAboutAxis', arrow(tblock, tbool, tint, tblock), _), # (4c5c2cf0)
+    Primitive('reflectAbout', arrow(tblock, tbool, tint, tblock), _), # (4c5c2cf0)
     Primitive('move', arrow(tblock, tint, tdirection, tblock), _move),
-    Primitive('moveTo', arrow(tblock, tint, tint, tblock), _),
+    Primitive('moveTo', arrow(tblock, tint, tint, tblock), _, _),
     Primitive('moveUntil', arrow(tblock, arrow(tblock, tbool), tdirection, tblock), _), # (54d82841)
     Primitive('concat', arrow(tblock, tblock, tdirection, tblock), _concat),
     Primitive('concatN', arrow(tblock, tblock, tdirection, tint, tblock), _concatN),
@@ -97,10 +97,10 @@ return [
     Primitive('duplicateN', arrow(tblock, tdirection, tint, tblock), _duplicateN),
     Primitive('duplicateUntilEdge', arrow(tblock, tdirection, tblock), _duplicateUntilEdge),
     Primitive('concatNAndReflect', arrow(tblock, tbool, tdirection, tblock), _concatNAndReflect),
-    Primitive('collapseBlock', arrow(tblock, tbool, tblock), _), # tbool controls which axis to collapse on
+    Primitive('collapseBlock', arrow(tblock, tbool, tblock), _, _), # tbool controls which axis to collapse on
     Primitive('moveOntoTemplateBlock', arrow(tblock, tblock, tcolor, tcolor, tblock), _) # tcolor to tcolor bijection (97a05b5b)
     Primitive('applyMask', arrow(tblock, tmask, tblock), _) # tblock and tmask must be the exact same size (80af3007)
-    Primitive('colorByClosestTile', arrow(tblock, tblock), _)
+    Primitive('colorByClosestTile', arrow(tblock, tblock), _, _)
     Primitive('extendColorUntilEdge', arrow(tblock, tcolor, tdirection, tblock), _) # extend in tdirection if tile not part of block (b8cdaf2b)
 
     # arrow(tblock, tbool)
@@ -110,8 +110,8 @@ return [
     Primitive('hasColorNeighbor', arrow(tblock, tcolor, tbool, tbool), _) # if tbool shared corner suffices for neighbor, otherwise shared edge (9edfc990)
     Primitive('isUniqueColor', arrow(tblock, tbool), _), # (0b148d64)
     Primitive('isUniqueShape', arrow(tblock, tbool), _), # (a87f7484)
-    Primitive('isColor', arrow(tblock, tcolor, tbool), _),
-    Primitive('touchesBoundary', arrow(tblock, tbool), _), # (7b6016b9)
+    Primitive('isColor', arrow(tblock, tcolor, tbool), _, _),
+    Primitive('touchesBoundary', arrow(tblock, tbool), _, _),
     Primitive('touchesColor', arrow(tblock, tcolor, tbool), _), # (d687bc17)
     # arrow(tblock, trectangle)
     Primitive('forceLargestRectangle', arrow(tblock, trectangle), _), # (98cf29f8)

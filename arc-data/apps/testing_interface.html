@@ -28,17 +28,10 @@
 
             <div id="demonstration_examples_view">
                 <div class="text" id="task_demo_header">Task demonstration </div>
-<!--                 <script>
-                function getURL() {
-                    var taskName = (window.location.href).split('?')[1]
-                    document.getElementById("url").innerHTML = taskName;
-                    file = readLocalFile(taskName)
-                    loadTaskFromFile(file)
-
-                }
-                </script>
-                <label for="url" id="url"> </label><br/> -->
                 <label for="taskName" id="taskName"> </label><br/>
+                <div class="program_text" id="load_program_found">
+                    <label id="program_found"></label>
+                </div>
                 <div id="task_preview"></div>
             </div>
 
@@ -64,13 +57,13 @@
 
                     </div>
                     <div id="load_task_control_btns">
-                        <button onclick="taskFromList()" id="task_from_list_btn">Task From List</button>
+                        <div id="load_task_control_btns">
+                            <label for="load_task_file_input">Load EC Console Output: </label>
+                            <input type="file" id="load_task_file_input" class="load_ec_output"/>
+                        </div> 
+                        <button onclick="taskFromList()" id="task_from_list_btn">Next Solved Task</button>
                         <label for="task_from_list" id="task_from_list"></label>
                     </div>
-                    <div id="load_task_control_btns">
-                        <label id="program_found"></label>
-                    </div>
-
                     <div id="edition_view">
                         <div id="editor_grid_control_btns">
                             <div id="resize_control_btns">
