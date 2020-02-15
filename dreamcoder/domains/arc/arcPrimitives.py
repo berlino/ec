@@ -690,16 +690,6 @@ def leafPrimitives():
         Primitive('8', tint, 8),
         Primitive('9', tint, 9),
 
-        Primitive('1', tint, 1),
-        Primitive('2', tint, 2),
-        Primitive('3', tint, 3),
-        Primitive('4', tint, 4),
-        Primitive('5', tint, 5),
-        Primitive('6', tint, 6),
-        Primitive('7', tint, 7),
-        Primitive('8', tint, 8),
-        Primitive('9', tint, 9),
-
         Primitive('true', tbool, True),
         Primitive('false', tbool, False),
 
