@@ -174,11 +174,14 @@ class Block:
     #     newPoints = {key:f(self.points[key])(block.points[key]) for key in self.points.keys()}
     #     return self.fromPoints(newPoints)
 
-    def toGrid(self, numRows, numCols, backgroundColor=0):
+    def toGrid(self, numRows, numCols, backgroundColor=0, withOriginal=False):
         grid = np.full((numRows, numCols), backgroundColor)
-        for y,x in self.points:
-            if self.points[(y,x)] != backgroundColor:
-                grid[y,x] = self.points[(y,x)]
+        for y in range(numRows):
+            for x in range(numCols):
+                if (y,x) in self.points:
+                    grid[y,x] = self.points[(y,x)]
+                else:
+                    grid[y,x] = self.originalGrid.points[y,x] if withOriginal else backgroundColor
         return Grid(gridArray=grid)
 
     def __len__(self):
@@ -206,21 +209,39 @@ class Block:
                         edges[(y, x)] += [(y + y_inc, x + x_inc)]
         return edges
 
+    def boxBlock(self):
+        newPoints = self.points.copy()
+        for y in range(self.getMinY(), self.getMaxY()+1):
+            for x in range(self.getMinX(), self.getMaxX()+1):
+                if (y,x) not in newPoints:
+                    newPoints[(y,x)] = self.originalGrid.points[y,x]
+        return self.fromPoints(newPoints)
 
-    def fillPattern(self, color, maskFunc):
+    def fillPattern(self, color, maskFunc = lambda x: True):
         newPoints = self.points.copy()
         for key in self.points.keys():
             if maskFunc(key):
                 newPoints[key] = color
         return self.fromPoints(newPoints)
 
-    def toMinGrid(self, backgroundColor=0):
+    def replaceColors(self, cOld, cNew):
+        newPoints = self.points.copy()
+        for key, color in newPoints.items():
+            if color == cOld:
+                newPoints[key] = cNew
+        return self.fromPoints(newPoints)
+
+    def toMinGrid(self, backgroundColor=0, withOriginal=False):
         points = {(key[0] - self.getMinY(), key[1] - self.getMinX()): self.points[key] for key in self.points.keys()}
         grid = np.full((self.getMaxY() - self.getMinY() + 1, self.getMaxX() - self.getMinX() + 1), backgroundColor)
-        for y,x in points.keys():
-            if points[(y,x)] != backgroundColor:
-                grid[y,x] = points[(y,x)]
+        for y in range(grid.shape[0]):
+            for x in range(grid.shape[1]):
+                if (y,x) in points:
+                    grid[y,x] = points[(y,x)]
+                else:
+                    grid[y,x] = self.originalGrid.points[y+self.getMinY(),x+self.getMinX()] if withOriginal else backgroundColor
         return Grid(gridArray=grid)
+
 
 
 class RectangleBlock(Block):
@@ -331,7 +352,7 @@ class Grid(RectangleBlock):
         pprint(temp)
         return temp.tolist()
 
-    def findBlocksByColor(self, c, isCorner=True):
+    def findBlocksByColor(self, c, isCorner=True, boxBlocks=False):
 
         def dfs(v, edges, visited):
             visited.add(v)
@@ -352,18 +373,28 @@ class Grid(RectangleBlock):
                 blocks.append(connected)
                 visited = visited.union(connected)
 
+        if boxBlocks:
+            blocks = [block.boxBlock() for block in blocks]
+
         return [Block(points={key:self.points[key] for key in block}, originalGrid=self) for block in blocks]
 
-    def findSameColorBlocks(self, backgroundColor=None, isCorner=True):
+    def findSameColorBlocks(self, backgroundColor=None, isCorner=True, boxBlocks=False):
         blocks = []
         colors = set(self.points.values())
         if backgroundColor:
             colors.remove(backgroundColor)
         for c in colors:
             blocks.extend(self.findBlocksByColor(c, isCorner=isCorner))
-        return [Block(points={key:self.points[key] for key in block.points.keys()}, originalGrid=self) for block in blocks]
 
-    def findBlocksBy(self, backgroundColor, isCorner=True):
+        if boxBlocks:
+            return [Block(points={key:self.points[key] for key in block.points.keys()}, originalGrid=self).boxBlock() for block in blocks]
+        else:
+            return [Block(points={key:self.points[key] for key in block.points.keys()}, originalGrid=self) for block in blocks]
+
+    def findBlocksBy(self, backgroundColor=0, colors=[i for i in range(1,10)], isCorner=True, boxBlocks=False):
+
+        if backgroundColor == 0 and backgroundColor in colors:
+            colors.remove(backgroundColor)
 
         def dfs(v, edges, visited):
 
@@ -374,9 +405,8 @@ class Grid(RectangleBlock):
             return
 
         visited = set()
-        vertices = [v for v in self.points if self.points[v] != backgroundColor]
-        colorToUse = [i for i in range(10) if i != backgroundColor]
-        edges = self.createEdgeMap(colorToUse, isCorner)
+        vertices = [v for v in self.points if self.points[v] in colors]
+        edges = self.createEdgeMap(colors, isCorner)
         blocks = []
 
         for v in vertices:
@@ -386,7 +416,10 @@ class Grid(RectangleBlock):
                 blocks.append(connected)
                 visited = visited.union(connected)
 
-        return [Block(points={key:self.points[key] for key in block}, originalGrid=self) for block in blocks]
+        if boxBlocks:
+            return [Block(points={key:self.points[key] for key in block}, originalGrid=self).boxBlock() for block in blocks]
+        else:
+            return [Block(points={key:self.points[key] for key in block}, originalGrid=self) for block in blocks]
 
     def findTouchingRectangles(self, backgroundColor, full=True):
         blocks = self.findBlocksBy(backgroundColor, isCorner=False)
@@ -576,13 +609,13 @@ _maroon = 9
 ##### Blocks #####
 
 def _head(blocks): return blocks[0]
-def _mergeBlocks(blocks): return _reduce(lambda a: lambda b: a.merge(b))(Block(points={}))(blocks)
+def _mergeBlocks(blocks): return _reduce(lambda a: lambda b: a.merge(b))(Block(points={}, originalGrid=blocks[-1].originalGrid))(blocks)
 def _getListBlock(blocks): return lambda i: blocks[i]
-def _filterAndMinGrid(f): return lambda blocks: _blocksToMinGrid(_filter(f)(blocks))
+def _filterAndMinGrid(f): return lambda blocks: _blocksToMinGrid(_filter(f)(blocks))(False)
 
-def _blocksToMinGrid(blocks): return _mergeBlocks(blocks).toMinGrid()
-def _blocksToGrid(blocks): return lambda numRows: lambda numCols: _blockToGrid(_mergeBlocks(blocks))(numRows)(numCols)
-def _blocksAsGrid(blocks): return _blockAsGrid(_mergeBlocks(blocks))(blocks[0].originalGrid)
+def _blocksToMinGrid(blocks): return lambda withOriginal: _mergeBlocks(blocks).toMinGrid(withOriginal=withOriginal)
+def _blocksToGrid(blocks): return lambda withOriginal: lambda numRows: lambda numCols: _blockToGrid(_mergeBlocks(blocks))(withOriginal)(numRows)(numCols)
+def _blocksAsGrid(blocks): return lambda withOriginal: _blockAsGrid(_mergeBlocks(blocks))(withOriginal)
 
 def _sortBlocks(blocks): return lambda f: sorted(blocks, key=lambda block: f(block), reverse=True)
 def _highestTileBlock(blocks): return _head(_sortBlocks(blocks)(_numTiles))
@@ -590,7 +623,10 @@ def _highestTileBlock(blocks): return _head(_sortBlocks(blocks)(_numTiles))
 ##### Block #####
 
 def _fillIn(block): return lambda c: block.fillIn(c)
-def _fill(block): return lambda c: block.fillPattern(c, lambda x: True)
+def _fill(block): return lambda c: block.fillPattern(c)
+def _fillWithNthColor(block): return lambda n: block.fillPattern(_findNthColor(block)(n))
+def _replaceColors(block): return lambda cOriginal: lambda cNew: block.replaceColors(cOriginal, cNew) 
+def _replaceNthColors(block): return lambda nOriginal: lambda nNew: block.replaceColors(_findNthColor(block)(nOriginal), _findNthColor(block)(nNew))
 def _reflect(a): return lambda isHorizontal: a.reflect(isHorizontal)
 def _move(a): return lambda t: lambda direction: a.move(*{'down': (t, 0), 'up': (-t, 0), 'right': (0, t), 'left': (-t, 0)}[direction])
 def _grow(a): return lambda n: a.grow(n)
@@ -606,26 +642,29 @@ def _duplicate2dN(a): return lambda n: _duplicateN(_duplicateN(a)('down')(n))('r
 def _zipGrids(a): return lambda b: lambda f: a.zipGrids(b,f)
 def _zipGrids2(grids): return lambda f: grids[0].zipGrids(grids[1], f)
 
-def _hasMinTiles(block): return lambda c: _numTiles(block) >= c
-def _isSymmetrical(block): return lambda horizontal: block.isSymmetrical()
+def _isSymmetrical(block): return lambda horizontal: block.isSymmetrical(horizontal)
+def _hasGeqNTiles(block): return lambda c: _numTiles(block) >= c
+def _hasGeqNColors(block): return lambda n: _numColors(block) >= n
 
-def _blockToGrid(block): return lambda numRows: lambda numCols: block.toGrid(numRows, numCols)
-def _blockAsGrid(block): return lambda grid: block.toGrid(grid.getNumRows(), grid.getNumCols())
+def _blockToMinGrid(block): return lambda withOriginal: block.toMinGrid(withOriginal=withOriginal)
+def _blockToGrid(block): return lambda withOriginal: lambda numRows: lambda numCols: block.toGrid(numRows, numCols, withOriginal=withOriginal)
+def _blockAsGrid(block): return lambda withOriginal: block.toGrid(block.originalGrid.getNumRows(), block.originalGrid.getNumCols(), withOriginal=withOriginal)
+# def _blockAsSpecifiedGrid(block): return lambda grid: block.toGrid(grid.getNumRows(), grid.getNumCols())
 
 def _split(a): return lambda isHorizontal: a.split(isHorizontal)
 
 def _numTiles(block): return len([block.points[key] for key in block.points.keys()])
+def _numColors(block): return len(set(block.points.values()))
 
 ##### Grid #####
 
-def _findSameColorRectangles(a): return a.findSameColorRectangles(full=False)
-def _findSameColorFullRectangles(a): return a.findSameColorRectangles(full=True)
+def _findNonFullRectanglesBlackB(a): return a.findTouchingRectangles(0, full=False)
 def _findRectanglesBlackB(a): return a.findTouchingRectangles(0)
 def _findRectanglesByB(a): return lambda backgroundColor: a.findTouchingRectangles(backgroundColor)
-def _findBlocksByColor(a): return a.findBlocksByColor()
-def _findSameColorBlocks(a): return a.findSameColorBlocks()
-def _findBlocksByCorner(a): return a.findBlocksBy(0, isCorner=True)
-def _findBlocksByEdge(a): return a.findBlocksBy(0, isCorner=False)
+def _findSameColorBlocks(a): return lambda boxBlocks: a.findSameColorBlocks(boxBlocks=boxBlocks)
+def _findBlocksByColor(a): return lambda boxBlocks: lambda color: a.findBlocksBy(colors=[color], boxBlocks=boxBlocks)
+def _findBlocksByCorner(a): return lambda boxBlocks: a.findBlocksBy(colors=[i for i in range(1,10)], isCorner=True, boxBlocks=boxBlocks)
+def _findBlocksByEdge(a): return lambda boxBlocks: a.findBlocksBy(colors=[i for i in range(1,10)], isCorner=False, boxBlocks=boxBlocks)
 
 def _findNthColor(a): return lambda n: np.argsort(np.bincount(list(a.points.values())))[-n]
 
@@ -648,15 +687,15 @@ def _reduce(f): return lambda x0: lambda l: reduce(lambda a, x: f(a)(x), l, x0)
 
 ##### Solutions #####
 
-def _solvefcb5c309(grid): return grid.maskAndCenter(_highestTileBlock(_findSameColorRectangles(grid)).toMask()).colorAll(_findNthColor(grid)(3), 0)
-def _solve50cb2852(grid): return lambda c: _blocksAsGrid(_map(lambda block: _fillIn(block)(c))(_findSameColorFullRectangles(grid)))
+def _solvefcb5c309(grid): return _blockToMinGrid(_fill(_highestTileBlock(_findBlocksByColor(grid)(False)(_findNthColor(grid)(2))))(_findNthColor(grid)(3)))(True)
+def _solve50cb2852(grid): return lambda c: _blocksAsGrid(_map(lambda block: _fillIn(block)(c))(_findRectanglesBlackB(grid)))(False)
 def _solve0520fde7(a): return _zipGrids2(_split(a)(False))(_keepBlackOr(_red))
 def _solve007bbfb7(a): return _zipGrids(_grow(a)(3))(_duplicate2dN(a)(2))(_keepNonBlacks)
 def _solvec9e6f938(a): return _concatNAndReflect(a)(False)('right')
-def _solve97999447(a): return _solveGenericBlockMap(a)(_findRectanglesBlackB)(lambda block: (_duplicateUntilEdge(_concat(block)(_fill(block)(_grey))('right'))('right')))(lambda blocks: _blocksAsGrid(blocks))
-def _solvef25fbde4(a): return _solveGenericBlockMap(a)(_findBlocksByCorner)(lambda block: _grow(block)(2))(_blocksToMinGrid)
-def _solve72ca375d(a): return _filterAndMinGrid(lambda block: block.isSymmetrical(False))(_findSameColorBlocks(a))
-def _solve5521c0d9(a): return _solveGenericBlockMap(a)(_findRectanglesBlackB)(lambda block: _move(block)(block.getNumRows())('up'))(lambda blocks: _blocksAsGrid(blocks))
+def _solve97999447(a): return _solveGenericBlockMap(a)(lambda grid: _findRectanglesBlackB(grid))(lambda block: (_duplicateUntilEdge(_concat(block)(_fill(block)(_grey))('right'))('right')))(lambda blocks: _blocksAsGrid(blocks)(False))
+def _solvef25fbde4(a): return _solveGenericBlockMap(a)(lambda grid: _findBlocksByCorner(grid)(False))(lambda block: _grow(block)(2))(lambda block: _blocksToMinGrid(block)(False))
+def _solve72ca375d(a): return _filterAndMinGrid(lambda block: _isSymmetrical(block)(False))(_findSameColorBlocks(a)(False))
+def _solve5521c0d9(a): return _solveGenericBlockMap(a)(_findRectanglesBlackB)(lambda block: _move(block)(block.getNumRows())('up'))(lambda blocks: _blocksAsGrid(blocks)(False))
 def _solvece4f8723(a): return _splitAndMerge(a)(_keepBlackAnd(_green))(True)
 
 #### Function Blueprints ####
@@ -720,10 +759,10 @@ def basePrimitives():
     Primitive('mergeBlocks', arrow(tblocks, tblock),  _mergeBlocks),
     Primitive('getListBlock', arrow(tblocks, tint, tblock), _getListBlock),
     # arrow(tblocks, tgrid)
-    Primitive('blocksToMinGrid', arrow(tblocks, tgrid), _blocksToMinGrid),
-    # Primitive('blocksToGrid',arrow(tblocks, tint, tint, tgrid), _blocksToGrid),
-    Primitive("blocksAsGrid", arrow(tblocks, tgrid), _blocksAsGrid),
-    Primitive("filterAndMinGrid", arrow(arrow(tblock, tbool), tblocks, tgrid), _filterAndMinGrid),
+    Primitive('blocksToMinGrid', arrow(tblocks, tbool, tgrid), _blocksToMinGrid),
+    # Primitive('blocksToGrid',arrow(tblocks, tbool, tint, tint, tgrid), _blocksToGrid),
+    Primitive("blocksAsGrid", arrow(tblocks, tbool, tgrid), _blocksAsGrid),
+    Primitive("filterAndMinGrid", arrow(arrow(tblock, tbool), tblocks, tbool, tgrid), _filterAndMinGrid),
     # arrow(tblocks, tblocks)
     Primitive('sortBlocks',arrow(tblocks, arrow(tblock, tint), tblocks), _sortBlocks),
     Primitive("filterBlocks", arrow(arrow(tblock, tbool), tblocks, tblocks), _filter),
@@ -736,6 +775,9 @@ def basePrimitives():
     # arrow(tblock, tblock)
     Primitive('fillIn', arrow(tblock, tcolor, tblock), _fillIn),
     Primitive('fill', arrow(tblock, tcolor, tblock), _fill),
+    Primitive('fillWithNthColor', arrow(tblock, tint, tblock), _fillWithNthColor),
+    Primitive('replaceColors', arrow(tblock, tcolor, tcolor, tblock), _replaceColors),
+    Primitive('_replaceNthColors', arrow(tblock, tint, tint, tblock), _replaceNthColors),
     Primitive('reflect', arrow(tblock, tbool, tblock), _reflect),
     Primitive('move', arrow(tblock, tint, tdirection, tblock), _move),
     Primitive('grow', arrow(tblock, tint, tblock), _grow),
@@ -747,15 +789,20 @@ def basePrimitives():
     Primitive('duplicateUntilEdge', arrow(tblock, tdirection, tblock), _duplicateUntilEdge),
     Primitive('concatNAndReflect', arrow(tblock, tbool, tdirection, tblock), _concatNAndReflect),
     # arrow(tblock, tbool)
-    Primitive('hasMinTiles', arrow(tblock, tint, tbool), _hasMinTiles),
     Primitive('isSymmetrical', arrow(tblock, tbool, tbool), _isSymmetrical),
+    Primitive('hasGeqNTiles', arrow(tblock, tint, tbool), _hasGeqNTiles),
+    Primitive('hasGeqNcolors', arrow(tblock, tint, tbool), _hasGeqNColors), # (5117e062)
     # # arrow(tblock, tgrid)
-    Primitive("blockToGrid", arrow(tblock, tint, tint, tgrid), _blockToGrid),
-    Primitive("blockAsGrid", arrow(tblock, tgrid, tgrid), _blockAsGrid),
+    Primitive("blockToGrid", arrow(tblock, tint, tint, tbool, tgrid), _blockToGrid),
+    Primitive("blockAsGrid", arrow(tblock, tbool, tgrid), _blockAsGrid),
+    Primitive("blockToMinGrid", arrow(tblock, tbool, tgrid), _blockToMinGrid),
     # arrow(tblock, tblocks)
-    Primitive('split', arrow(tblock, tbool, tblock), _split),
-    # arrow(tgrid, tcolor)
+    Primitive('split', arrow(tblock, tbool, tblocks), _split),
+    # arrow(tblock, tint, tcolor)
     Primitive('findNthBlockColor', arrow(tblock, tint, tcolor), _findNthColor),
+    # arrow(tblock, tint)
+    Primitive('numColors', arrow(tblock, tint), _numColors),
+    Primitive('numTiles', arrow(tblock, tint), _numTiles),
 
 ##### tcolor ######
 
@@ -767,13 +814,11 @@ def basePrimitives():
 ##### tgrid #####
 
     # arrow(tgrid, tblocks)
-    Primitive('findSameColorRectangles', arrow(tgrid, tblocks), _findSameColorRectangles),
-    Primitive('findSameColorFullRectangles', arrow(tgrid, tblocks), _findSameColorFullRectangles),
     Primitive('findRectanglesBlackB', arrow(tgrid, tblocks), _findRectanglesBlackB),
     Primitive('findRectanglesByB', arrow(tgrid, tcolor, tblocks), _findRectanglesByB),
-    Primitive('findBlocksByColor', arrow(tgrid, tblocks), _findBlocksByColor),
-    Primitive('findBlocksByCorner', arrow(tgrid, tblocks), _findBlocksByCorner),
-    Primitive('findBlocksByEdge', arrow(tgrid, tblocks), _findBlocksByEdge),
+    Primitive('findBlocksByColor', arrow(tgrid, tcolor, tbool, tblocks), _findBlocksByColor),
+    Primitive('findBlocksByCorner', arrow(tgrid, tbool, tblocks), _findBlocksByCorner),
+    Primitive('findBlocksByEdge', arrow(tgrid, tbool, tblocks), _findBlocksByEdge),
 
     # #arrow(tgrid, tblock)
     Primitive('gridToBlock', arrow(tgrid, tblock), lambda grid: grid),
@@ -816,7 +861,7 @@ def basePrimitives():
 
 ##### Task Blueprints #####
 
-    Primitive('findAndMap', arrow(tgrid, arrow(tgrid, tblocks), arrow(tblock, tblock), arrow(tblocks, tgrid), tgrid), _solveGenericBlockMap)
+    # Primitive('findAndMap', arrow(tgrid, arrow(tgrid, tblocks), arrow(tblock, tblock), arrow(tblocks, tgrid), tgrid), _solveGenericBlockMap)
     ]
 
 
@@ -867,15 +912,14 @@ def getTask(filename, directory):
 if __name__ == "__main__":
 
     directory = '/'.join(os.path.abspath(__file__).split('/')[:-4]) + '/arc-data/data/training'
-    train,test = getTask('ce4f8723.json', directory)
+    train,test = getTask('5117e062.json', directory)
 
     for i in range(len(train)):
         print('\nExample {}'.format(i))
-        inputGrid, outputGrid = train[i]
-        inputGrid.pprint()
-        # got = _
-        got = _splitAndMerge(inputGrid)(_keepBlackAnd(_green))(True)
+        grid, outputGrid = train[i]
+        got = _blockToMinGrid(_replaceNthColors(_head(_filter(lambda block: _hasGeqNColors(block)(2))(_findBlocksByEdge(grid)(False))))(2)(1))(False)
         # for block in got:
+            # block.pprint()
         #     isHorizontal = False
         #     reflectedBlock = block.reflect(isHorizontal)
         #     refA, refB = reflectedBlock.split(isHorizontal)

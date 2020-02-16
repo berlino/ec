@@ -61,7 +61,6 @@ return [
 ##### tblocks #####
 
     # # arrow (tblocks, tblock)
-    Primitive('_head', arrow(tblocks, tblock), _head),
     Primitive('_mergeBlocks', arrow(tblocks, tblock),  _mergeBlocks),
     Primitive('_getListBlock', arrow(tblocks, tint, tblock), _getListBlock),
     # arrow(tblocks, tgrid)

@@ -1,6 +1,6 @@
 tdirection = baseType('direction')
 tdisplacement = baseType('tdisplacement')
-tcolor = baseType('color')
+tcolor = baseType('tcolor')
 tgrid = baseType('tgrid')
 tblock = baseType('tblock')
 tbar = baseType('tbar')
@@ -98,16 +98,16 @@ return [
     Primitive('duplicateUntilEdge', arrow(tblock, tdirection, tblock), _duplicateUntilEdge),
     Primitive('concatNAndReflect', arrow(tblock, tbool, tdirection, tblock), _concatNAndReflect),
     Primitive('collapseBlock', arrow(tblock, tbool, tblock), _), # tbool controls which axis to collapse on
-    Primitive('moveOntoTemplateBlock', arrow(tblock, tblock, tcolor, tcolor, tblock), _) # tcolor to tcolor bijection (97a05b5b)
-    Primitive('applyMask', arrow(tblock, tmask, tblock), _) # tblock and tmask must be the exact same size (80af3007)
-    Primitive('colorByClosestTile', arrow(tblock, tblock), _)
-    Primitive('extendColorUntilEdge', arrow(tblock, tcolor, tdirection, tblock), _) # extend in tdirection if tile not part of block (b8cdaf2b)
+    Primitive('moveOntoTemplateBlock', arrow(tblock, tblock, tcolor, tcolor, tblock), _), # tcolor to tcolor bijection (97a05b5b)
+    Primitive('applyMask', arrow(tblock, tmask, tblock), _), # tblock and tmask must be the exact same size (80af3007)
+    Primitive('colorByClosestTile', arrow(tblock, tblock), _),
+    Primitive('extendColorUntilEdge', arrow(tblock, tcolor, tdirection, tblock), _), # extend in tdirection if tile not part of block (b8cdaf2b)
 
     # arrow(tblock, tbool)
     Primitive('hasGeqNTiles', arrow(tblock, tint, tbool), _hasMinTiles),
     Primitive('hasGeqNcolors', arrow(tblock, tint, tbool), _), # (5117e062)
     Primitive('isSymmetrical', arrow(tblock, tbool, tbool), _isSymmetrical),
-    Primitive('hasColorNeighbor', arrow(tblock, tcolor, tbool, tbool), _) # if tbool shared corner suffices for neighbor, otherwise shared edge (9edfc990)
+    Primitive('hasColorNeighbor', arrow(tblock, tcolor, tbool, tbool), _), # if tbool shared corner suffices for neighbor, otherwise shared edge (9edfc990)
     Primitive('isUniqueColor', arrow(tblock, tbool), _), # (0b148d64)
     Primitive('isUniqueShape', arrow(tblock, tbool), _), # (a87f7484)
     Primitive('isColor', arrow(tblock, tcolor, tbool), _),
@@ -162,14 +162,6 @@ return [
     Primitive('extendSingleDirection', arrow(tbar, tbool, tint, tbar)),
     Primitive('extendUntilEdgeSingleDirection', arrow(tbar, tbool, tbar)),
 
-##### tcolor ######
-
-    # arrow(tcolor, tcolor)
-    Primitive('keepNonBlacks', arrow(tcolor, tcolor, tcolor), _keepNonBlacks),
-    Primitive('keepBlackOr', arrow(tcolor, tcolor, tcolor, tcolor), _keepBlackOr),
-    Primitive('keepBlackAnd', arrow(tcolor, tcolor, tcolor, tcolor), _keepBlackAnd),
-    Primitive('colorIfElse', arrow(tbool, tcolor, tcolor, tcolor), _), # (868de0fa)
-
 ##### trectangle #####
 
     # arrow(trectangle, trectangle)
@@ -179,6 +171,14 @@ return [
     Primitive('getNumCols', arrow(trectangle, tint), _), # (c1d99e64)
     Primitive('getNumRows', arrow(trectangle, tint), _), # (c1d99e64)
     Primitive('getCenter', arrow(trectangle, ttile), _), # (4c5c2cf0)
+
+##### tcolor ######
+
+    # arrow(tcolor, tcolor)
+    Primitive('keepNonBlacks', arrow(tcolor, tcolor, tcolor), _keepNonBlacks),
+    Primitive('keepBlackOr', arrow(tcolor, tcolor, tcolor, tcolor), _keepBlackOr),
+    Primitive('keepBlackAnd', arrow(tcolor, tcolor, tcolor, tcolor), _keepBlackAnd),
+    Primitive('colorIfElse', arrow(tbool, tcolor, tcolor, tcolor), _), # (868de0fa)
 
 ##### tgrid #####
 
