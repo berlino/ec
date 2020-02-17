@@ -59,11 +59,12 @@ class Block:
         # else:
         #     maxY, maxX= dims[0], dims[1]
 
-        temp = np.full((self.originalGrid.getNumRows(), self.originalGrid.getNumCols()), '-')
+        temp = self.toMinGrid(backgroundColor = '-')
+        # temp = np.full((self.originalGrid.getNumRows(), self.originalGrid.getNumCols()), '-')
         # temp = np.full((maxY+1,maxX+1), '-')
-        for yPos,xPos in self.points:
-            temp[yPos, xPos] = self.points[(yPos,xPos)]
-        pprint(temp)
+        # for yPos,xPos in self.points:
+        #     temp[yPos, xPos] = self.points[(yPos,xPos)]
+        temp.pprint()
         return temp.tolist()
 
     def reflect(self, horizontal):
@@ -76,8 +77,8 @@ class Block:
 
         return self.fromPoints(res)
 
-    def move(self, y, x):
-        newPoints = {}
+    def move(self, y, x, keepOriginal=False):
+        newPoints = self.points.copy() if keepOriginal else {}
         for yPos,xPos in self.points.keys():
             color = self.points[(yPos,xPos)]
             newPoints[yPos + y, xPos + x] = color
@@ -628,7 +629,7 @@ def _fillWithNthColor(block): return lambda n: block.fillPattern(_findNthColor(b
 def _replaceColors(block): return lambda cOriginal: lambda cNew: block.replaceColors(cOriginal, cNew) 
 def _replaceNthColors(block): return lambda nOriginal: lambda nNew: block.replaceColors(_findNthColor(block)(nOriginal), _findNthColor(block)(nNew))
 def _reflect(a): return lambda isHorizontal: a.reflect(isHorizontal)
-def _move(a): return lambda t: lambda direction: a.move(*{'down': (t, 0), 'up': (-t, 0), 'right': (0, t), 'left': (-t, 0)}[direction])
+def _move(a): return lambda t: lambda direction: lambda keepOriginal: a.move(*{'down': (t, 0), 'up': (-t, 0), 'right': (0, t), 'left': (-t, 0)}[direction], keepOriginal=keepOriginal)
 def _grow(a): return lambda n: a.grow(n)
 def _concat(a): return lambda b: lambda dir: a.concat(b, dir)
 def _concatN(a): return lambda b: lambda dir: lambda n: _concat(a)(b)(dir) if n <= 1 else _concatN(a.concat(b, dir))(b)(dir)(n-1)
@@ -670,6 +671,9 @@ def _findNthColor(a): return lambda n: np.argsort(np.bincount(list(a.points.valu
 
 def _splitAndMerge(a): return lambda f: lambda isHorizontal: _zipGrids2(_split(a)(isHorizontal))(f)
 
+def _numRows(a): return a.getNumRows()
+def _numCols(a): return a.getNumCols()
+
 ##### Color #####
 
 def _keepNonBlacks(c): return lambda c2: c2 if c != _black else _black
@@ -695,7 +699,7 @@ def _solvec9e6f938(a): return _concatNAndReflect(a)(False)('right')
 def _solve97999447(a): return _solveGenericBlockMap(a)(lambda grid: _findRectanglesBlackB(grid))(lambda block: (_duplicateUntilEdge(_concat(block)(_fill(block)(_grey))('right'))('right')))(lambda blocks: _blocksAsGrid(blocks)(False))
 def _solvef25fbde4(a): return _solveGenericBlockMap(a)(lambda grid: _findBlocksByCorner(grid)(False))(lambda block: _grow(block)(2))(lambda block: _blocksToMinGrid(block)(False))
 def _solve72ca375d(a): return _filterAndMinGrid(lambda block: _isSymmetrical(block)(False))(_findSameColorBlocks(a)(False))
-def _solve5521c0d9(a): return _solveGenericBlockMap(a)(_findRectanglesBlackB)(lambda block: _move(block)(block.getNumRows())('up'))(lambda blocks: _blocksAsGrid(blocks)(False))
+def _solve5521c0d9(a): return _solveGenericBlockMap(a)(_findRectanglesBlackB)(lambda block: _move(block)(_numRows(block))('up')(False))(lambda blocks: _blocksAsGrid(blocks)(False))
 def _solvece4f8723(a): return _splitAndMerge(a)(_keepBlackAnd(_green))(True)
 
 #### Function Blueprints ####
@@ -814,11 +818,11 @@ def basePrimitives():
 ##### tgrid #####
 
     # arrow(tgrid, tblocks)
-    Primitive('findRectanglesBlackB', arrow(tgrid, tblocks), _findRectanglesBlackB),
-    Primitive('findRectanglesByB', arrow(tgrid, tcolor, tblocks), _findRectanglesByB),
-    Primitive('findBlocksByColor', arrow(tgrid, tcolor, tbool, tblocks), _findBlocksByColor),
-    Primitive('findBlocksByCorner', arrow(tgrid, tbool, tblocks), _findBlocksByCorner),
-    Primitive('findBlocksByEdge', arrow(tgrid, tbool, tblocks), _findBlocksByEdge),
+    # Primitive('findRectanglesBlackB', arrow(tgrid, tblocks), _findRectanglesBlackB),
+    # Primitive('findRectanglesByB', arrow(tgrid, tcolor, tblocks), _findRectanglesByB),
+    # Primitive('findBlocksByColor', arrow(tgrid, tcolor, tbool, tblocks), _findBlocksByColor),
+    # Primitive('findBlocksByCorner', arrow(tgrid, tbool, tblocks), _findBlocksByCorner),
+    # Primitive('findBlocksByEdge', arrow(tgrid, tbool, tblocks), _findBlocksByEdge),
 
     # #arrow(tgrid, tblock)
     Primitive('gridToBlock', arrow(tgrid, tblock), lambda grid: grid),
@@ -846,7 +850,10 @@ def basePrimitives():
     # arrow(tgrid, tcolor)
     Primitive('findNthGridColor', arrow(tgrid, tint, tcolor), _findNthColor),
     # arrow(tgrid, tgrid)
-    Primitive('splitAndMergeGrid', arrow(tgrid, arrow(tcolor, tcolor, tcolor), tbool, tgrid), _splitAndMerge),
+    # Primitive('splitAndMergeGrid', arrow(tgrid, arrow(tcolor, tcolor, tcolor), tbool, tgrid), _splitAndMerge),
+    # arrow(tgrid, tint)
+    Primitive('numRows', arrow(tgrid, tint), _numRows),
+    Primitive('numCols', arrow(tgrid, tint), _numCols),
 
 #####
 
@@ -912,12 +919,12 @@ def getTask(filename, directory):
 if __name__ == "__main__":
 
     directory = '/'.join(os.path.abspath(__file__).split('/')[:-4]) + '/arc-data/data/training'
-    train,test = getTask('5117e062.json', directory)
+    train,test = getTask('a416b8f3.json', directory)
 
     for i in range(len(train)):
         print('\nExample {}'.format(i))
         grid, outputGrid = train[i]
-        got = _blockToMinGrid(_replaceNthColors(_head(_filter(lambda block: _hasGeqNColors(block)(2))(_findBlocksByEdge(grid)(False))))(2)(1))(False)
+        got = _blockToMinGrid(_move(grid)(_numCols(grid))('right')(True))(False)
         # for block in got:
             # block.pprint()
         #     isHorizontal = False

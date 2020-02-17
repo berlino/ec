@@ -371,6 +371,7 @@ def main(args):
         check(key, lambda x: samples[key](x), directory)
 
     trainTasks = retrieveARCJSONTasks(directory, None)
+    # trainTasks = retrieveARCJSONTasks(directory, ["68b16354.json", "a416b8f3.json"])
 
     baseGrammar = Grammar.uniform(basePrimitives() + leafPrimitives())
     print("base Grammar {}".format(baseGrammar))
