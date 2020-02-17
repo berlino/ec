@@ -818,14 +818,14 @@ def basePrimitives():
 ##### tgrid #####
 
     # arrow(tgrid, tblocks)
-    # Primitive('findRectanglesBlackB', arrow(tgrid, tblocks), _findRectanglesBlackB),
-    # Primitive('findRectanglesByB', arrow(tgrid, tcolor, tblocks), _findRectanglesByB),
-    # Primitive('findBlocksByColor', arrow(tgrid, tcolor, tbool, tblocks), _findBlocksByColor),
-    # Primitive('findBlocksByCorner', arrow(tgrid, tbool, tblocks), _findBlocksByCorner),
-    # Primitive('findBlocksByEdge', arrow(tgrid, tbool, tblocks), _findBlocksByEdge),
+    Primitive('findRectanglesBlackB', arrow(tgrid, tblocks), _findRectanglesBlackB),
+    Primitive('findRectanglesByB', arrow(tgrid, tcolor, tblocks), _findRectanglesByB),
+    Primitive('findBlocksByColor', arrow(tgrid, tcolor, tbool, tblocks), _findBlocksByColor),
+    Primitive('findBlocksByCorner', arrow(tgrid, tbool, tblocks), _findBlocksByCorner),
+    Primitive('findBlocksByEdge', arrow(tgrid, tbool, tblocks), _findBlocksByEdge),
 
     # #arrow(tgrid, tblock)
-    Primitive('gridToBlock', arrow(tgrid, tblock), lambda grid: grid),
+    # Primitive('gridToBlock', arrow(tgrid, tblock), lambda grid: grid),
     # arrow(tgrid, grid)
     # Primitive('reflect', arrow(tgrid, tbool, tgrid), _reflect),
     # Primitive('grow', arrow(tgrid, tint, tgrid), _grow),
