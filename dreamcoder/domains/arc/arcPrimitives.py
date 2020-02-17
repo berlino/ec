@@ -818,11 +818,11 @@ def basePrimitives():
 ##### tgrid #####
 
     # arrow(tgrid, tblocks)
-    Primitive('findRectanglesBlackB', arrow(tgrid, tblocks), _findRectanglesBlackB),
-    Primitive('findRectanglesByB', arrow(tgrid, tcolor, tblocks), _findRectanglesByB),
-    Primitive('findBlocksByColor', arrow(tgrid, tcolor, tbool, tblocks), _findBlocksByColor),
-    Primitive('findBlocksByCorner', arrow(tgrid, tbool, tblocks), _findBlocksByCorner),
-    Primitive('findBlocksByEdge', arrow(tgrid, tbool, tblocks), _findBlocksByEdge),
+    # Primitive('findRectanglesBlackB', arrow(tgrid, tblocks), _findRectanglesBlackB),
+    # Primitive('findRectanglesByB', arrow(tgrid, tcolor, tblocks), _findRectanglesByB),
+    # Primitive('findBlocksByColor', arrow(tgrid, tcolor, tbool, tblocks), _findBlocksByColor),
+    # Primitive('findBlocksByCorner', arrow(tgrid, tbool, tblocks), _findBlocksByCorner),
+    # Primitive('findBlocksByEdge', arrow(tgrid, tbool, tblocks), _findBlocksByEdge),
 
     # #arrow(tgrid, tblock)
     Primitive('gridToBlock', arrow(tgrid, tblock), lambda grid: grid),
@@ -836,17 +836,17 @@ def basePrimitives():
     # Primitive('zipGrids', arrow(tgrid, tgrid, arrow(tcolor, tcolor, tcolor), tgrid), _zipGrids),
     # Primitive('zipGrids2', arrow(tgrids, arrow(tcolor, tcolor, tcolor), tgrid), _zipGrids2),
     # Primitive('concatNAndReflect', arrow(tgrid, tbool, tdirection, tgrid), _concatNAndReflect),
-    Primitive('solve0520fde7', arrow(tgrid, tgrid), _solve0520fde7),
-    Primitive('solve007bbfb7', arrow(tgrid, tgrid), _solve007bbfb7),
-    Primitive('solve50cb2852', arrow(tgrid, tcolor, tgrid), _solve50cb2852),
-    Primitive('solvefcb5c309', arrow(tgrid, tgrid), _solvefcb5c309),
-    Primitive('solvec9e6f938', arrow(tgrid, tgrid), _solvec9e6f938),
-    Primitive('solve97999447', arrow(tgrid, tgrid), _solve97999447),
-    Primitive('solvef25fbde4', arrow(tgrid, tgrid), _solvef25fbde4),
+    # Primitive('solve0520fde7', arrow(tgrid, tgrid), _solve0520fde7),
+    # Primitive('solve007bbfb7', arrow(tgrid, tgrid), _solve007bbfb7),
+    # Primitive('solve50cb2852', arrow(tgrid, tcolor, tgrid), _solve50cb2852),
+    # Primitive('solvefcb5c309', arrow(tgrid, tgrid), _solvefcb5c309),
+    # Primitive('solvec9e6f938', arrow(tgrid, tgrid), _solvec9e6f938),
+    # Primitive('solve97999447', arrow(tgrid, tgrid), _solve97999447),
+    # Primitive('solvef25fbde4', arrow(tgrid, tgrid), _solvef25fbde4),
     
-    Primitive('solve72ca375d', arrow(tgrid, tgrid), _solve72ca375d),
-    Primitive('solve5521c0d9', arrow(tgrid, tgrid), _solve5521c0d9),
-    Primitive('solvece4f8723', arrow(tgrid, tgrid), _solvece4f8723),
+    # Primitive('solve72ca375d', arrow(tgrid, tgrid), _solve72ca375d),
+    # Primitive('solve5521c0d9', arrow(tgrid, tgrid), _solve5521c0d9),
+    # Primitive('solvece4f8723', arrow(tgrid, tgrid), _solvece4f8723),
     # arrow(tgrid, tcolor)
     Primitive('findNthGridColor', arrow(tgrid, tint, tcolor), _findNthColor),
     # arrow(tgrid, tgrid)
