@@ -818,24 +818,15 @@ def basePrimitives():
 ##### tgrid #####
 
     # arrow(tgrid, tblocks)
-    # Primitive('findRectanglesBlackB', arrow(tgrid, tblocks), _findRectanglesBlackB),
-    # Primitive('findRectanglesByB', arrow(tgrid, tcolor, tblocks), _findRectanglesByB),
-    # Primitive('findBlocksByColor', arrow(tgrid, tcolor, tbool, tblocks), _findBlocksByColor),
-    # Primitive('findBlocksByCorner', arrow(tgrid, tbool, tblocks), _findBlocksByCorner),
-    # Primitive('findBlocksByEdge', arrow(tgrid, tbool, tblocks), _findBlocksByEdge),
+    Primitive('findRectanglesBlackB', arrow(tgrid, tblocks), _findRectanglesBlackB),
+    Primitive('findRectanglesByB', arrow(tgrid, tcolor, tblocks), _findRectanglesByB),
+    Primitive('findBlocksByColor', arrow(tgrid, tcolor, tbool, tblocks), _findBlocksByColor),
+    Primitive('findBlocksByCorner', arrow(tgrid, tbool, tblocks), _findBlocksByCorner),
+    Primitive('findBlocksByEdge', arrow(tgrid, tbool, tblocks), _findBlocksByEdge),
 
     # #arrow(tgrid, tblock)
     Primitive('gridToBlock', arrow(tgrid, tblock), lambda grid: grid),
     # arrow(tgrid, grid)
-    # Primitive('reflect', arrow(tgrid, tbool, tgrid), _reflect),
-    # Primitive('grow', arrow(tgrid, tint, tgrid), _grow),
-    # Primitive('concat', arrow(tgrid, tgrid, tdirection, tgrid), _concat),
-    # Primitive('concatN', arrow(tgrid, tgrid, tdirection, tint, tgrid), _concatN),
-    # Primitive('duplicate', arrow(tgrid, tdirection, tgrid), _duplicate),
-    # Primitive('duplicateN', arrow(tgrid, tdirection, tint, tgrid), _duplicateN),
-    # Primitive('zipGrids', arrow(tgrid, tgrid, arrow(tcolor, tcolor, tcolor), tgrid), _zipGrids),
-    # Primitive('zipGrids2', arrow(tgrids, arrow(tcolor, tcolor, tcolor), tgrid), _zipGrids2),
-    # Primitive('concatNAndReflect', arrow(tgrid, tbool, tdirection, tgrid), _concatNAndReflect),
     # Primitive('solve0520fde7', arrow(tgrid, tgrid), _solve0520fde7),
     # Primitive('solve007bbfb7', arrow(tgrid, tgrid), _solve007bbfb7),
     # Primitive('solve50cb2852', arrow(tgrid, tcolor, tgrid), _solve50cb2852),
@@ -843,7 +834,6 @@ def basePrimitives():
     # Primitive('solvec9e6f938', arrow(tgrid, tgrid), _solvec9e6f938),
     # Primitive('solve97999447', arrow(tgrid, tgrid), _solve97999447),
     # Primitive('solvef25fbde4', arrow(tgrid, tgrid), _solvef25fbde4),
-    
     # Primitive('solve72ca375d', arrow(tgrid, tgrid), _solve72ca375d),
     # Primitive('solve5521c0d9', arrow(tgrid, tgrid), _solve5521c0d9),
     # Primitive('solvece4f8723', arrow(tgrid, tgrid), _solvece4f8723),
@@ -953,3 +943,13 @@ if __name__ == "__main__":
 
         # res = _filter(lambda block: _hasMinTiles(4)(block))(inputGrid.findBlocksByCorner(0))
         # _blocksToGrid(res).pprint()
+
+    # Primitive('reflect', arrow(tgrid, tbool, tgrid), _reflect),
+    # Primitive('grow', arrow(tgrid, tint, tgrid), _grow),
+    # Primitive('concat', arrow(tgrid, tgrid, tdirection, tgrid), _concat),
+    # Primitive('concatN', arrow(tgrid, tgrid, tdirection, tint, tgrid), _concatN),
+    # Primitive('duplicate', arrow(tgrid, tdirection, tgrid), _duplicate),
+    # Primitive('duplicateN', arrow(tgrid, tdirection, tint, tgrid), _duplicateN),
+    # Primitive('zipGrids', arrow(tgrid, tgrid, arrow(tcolor, tcolor, tcolor), tgrid), _zipGrids),
+    # Primitive('zipGrids2', arrow(tgrids, arrow(tcolor, tcolor, tcolor), tgrid), _zipGrids2),
+    # Primitive('concatNAndReflect', arrow(tgrid, tbool, tdirection, tgrid), _concatNAndReflect),

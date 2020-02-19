@@ -46,6 +46,27 @@ function loadEcOutputFile(e) {
             hitList = contents.match(regex)
             TASK_NAME_LIST = hitList.map((element) => element.slice(4, element.search('json') + 4))
             TASK_PROGRAM_LIST = hitList.map((element) => element.slice(element.search('json') + 8).replace(/log/g, '<br> log'))
+            
+            // tempName = new Array();
+            // tempProgramList = new Array();
+            // console.log(TASK_NAME_LIST.length)
+
+            // var i = 0;
+            // while (i < TASK_PROGRAM_LIST.length) {
+            //     console.log(i, TASK_PROGRAM_LIST.length)
+            //     console.log(TASK_PROGRAM_LIST[i].includes('solve'))
+            //     if (TASK_PROGRAM_LIST[i].includes('solve')) {
+            //         console.log('solved')
+            //     } else {
+            //         tempName.append(TASK_NAME_LIST[i])
+            //         tempProgramList.append(TASK_PROGRAM_LIST[i])
+            //     }
+            //     i += 1
+            // }
+
+            // TASK_PROGRAM_LIST = tempProgramList
+            // TASK_NAME_LIST = tempName
+
             console.log('load EC output')
             console.log(TASK_FROM_LIST_COUNT)
             console.log(TASK_NAME_LIST)

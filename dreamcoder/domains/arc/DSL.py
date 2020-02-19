@@ -56,7 +56,7 @@ return [
 
 ##### tint #####
 
-    Primitive('isOdd', arrow(tint, tbool), lambda x: x%2 == 1, 868de0fa),
+    Primitive('isOdd', arrow(tint, tbool), lambda x: x%2 == 1, _) # (868de0fa),
 
 ##### tblocks #####
 
@@ -67,7 +67,7 @@ return [
     # arrow(tblocks, tgrid)
     Primitive('blocksToMinGrid', arrow(tblocks, tgrid), _blocksToMinGrid),
     Primitive('_blocksToGrid',arrow(tblocks, tint, tint, tgrid), _blocksToGrid),
-    Primitive('_blocksToGridWithB',arrow(tblocks, tint, tint, tcolor, tgrid), _), # (a64e4611)
+    Primitive('_blocksToGridWithBackground',arrow(tblocks, tint, tint, tcolor, tgrid), _), # (a64e4611)
     Primitive("blocksAsGrid", arrow(tblocks, tgrid, tgrid), _blocksAsGrid),
     Primitive("blocksAsGridColorOverlapping", arrow(tblocks, tgrid, arrow(tcolor, tcolor, tcolor), tgrid), _blocksAsGrid), # coloring function as argument that specifies how to deal with overlapping colors
     Primitive("filterAndMinGrid", arrow(arrow(tblock, tbool), tblocks, tgrid), _filterAndMinGrid),
