@@ -19,6 +19,7 @@ from dreamcoder.domains.arc.arcPrimitives import (
     pprint,
     tcolor,
     tgrid,
+    tgridin,
     tgrids,
     tdirection,
     Grid,
@@ -91,7 +92,7 @@ def retrieveARCJSONTask(filename, directory):
 
     train = Task(
         filename,
-        arrow(tgrid, tgrid),
+        arrow(tgridin, tgrid),
         [
             ((Grid(gridArray=example["input"]),), Grid(gridArray=example["output"]))
             for example in loaded["train"]
@@ -99,7 +100,7 @@ def retrieveARCJSONTask(filename, directory):
     )
     test = Task(
         filename,
-        arrow(tgrid, tgrid),
+        arrow(tgridin, tgrid),
         [
             ((Grid(gridArray=example["input"]),), Grid(gridArray=example["output"]))
             for example in loaded["test"]
@@ -385,7 +386,7 @@ def main(args):
     )
 
     # #
-    request = arrow(tgrid, tgrid)
+    # request = arrow(tgrid, tgrid)
     #
     # for ll,_,p in baseGrammar.enumeration(Context.EMPTY, [], request, 13):
     #     ll_ = baseGrammar.logLikelihood(request,p)

@@ -11,24 +11,6 @@ import json
 import numpy as np
 import os
 
-# def _solve(input):
-#
-#     input = np.array(input)
-#     d = np.array(input).shape[0] * 3
-#     output = np.zeros((d,d))
-#
-#     nonZeroNum = input[input != 0][0]
-#     ixs = 3 * np.argwhere(input == nonZeroNum)
-#     for x,y in ixs:
-#         output[x:x+3, y:y+3] = input
-#     return output.tolist()
-
-# class Grid:
-#     def __init__(self, grid: list):
-#         self.numRows = len(grid)
-#         self.numCols = len(grid[0])
-#         self.grid = np.array(grid)
-
 class Block:
 
     def __init__(self, points, originalGrid=None):
@@ -332,6 +314,12 @@ class Grid(RectangleBlock):
                     self.points[(y, x)] = gridArray[y][x]
         super().__init__(self.points, originalGrid)
 
+    def __repr__(self):
+        temp = np.full((self.getNumRows(),self.getNumCols()),None)
+        for yPos,xPos in self.points:
+            temp[yPos, xPos] = self.points[(yPos,xPos)]
+        return temp.tolist()
+
 
 
     def fromPoints(self, points):
@@ -438,161 +426,6 @@ class Grid(RectangleBlock):
     def maskAndCenter(self, mask):
         return self.fromPoints(points={(key[0] - mask.topLeftTile[0], key[1] - mask.topLeftTile[1]):color for key,color in self.points.items() if key in mask.points})
 
-#
-#
-# class Object:
-#     def __init__(self, mask=[], points=None, backgroundColor=0, isGrid=True):
-#
-#         if points is None:
-#             self.points = {}
-#             self.numRows, self.numCols = len(mask), len(mask[0])
-#             for y in range(len(mask)):
-#                 for x in range(len(mask[0])):
-#                     if not isGrid:
-#                         if mask[y][x] != backgroundColor:
-#                             self.points[(y,x)] = mask[y][x]
-#                     else:
-#                         self.points[(y, x)] = mask[y][x]
-#
-#         else:
-#             self.points = points
-#             self.numRows = self.getNumRows()
-#             self.numCols = self.getNumCols()
-#         self.backgroundColor = backgroundColor
-#
-#
-#
-#     def getNumRows(self):
-#         return max([key[0] for key in self.points.keys()]) + 1
-#
-#     def getNumCols(self):
-#         return max([key[1] for key in self.points.keys()]) + 1
-#
-#     def pprint(self):
-#         temp = np.full((self.numRows,self.numCols), self.backgroundColor)
-#         for yPos,xPos in self.points:
-#             temp[yPos, xPos] = self.points[(yPos,xPos)]
-#         pprint(temp)
-#         return temp.tolist()
-#
-#     def reflect(self, horizontal):
-#
-#         res = {}
-#         for y,x in self.points.keys():
-#             if horizontal:
-#                 res[(self.getNumRows()-1 - y, x)] = self.points[(y,x)]
-#             else:
-#                 res[(y, self.getNumCols()-1 - x)] = self.points[(y,x)]
-#
-#         return Object(points=res)
-#
-#     def move(self, y, x):
-#         newPoints = {}
-#         for yPos,xPos in self.points.keys():
-#             color = self.points[(yPos,xPos)]
-#             newPoints[(yPos + y, xPos + x)] = color
-#         return Object(points=newPoints)
-#
-#     def grow(self, c):
-#         newPoints = {}
-#         for yPos, xPos in self.points.keys():
-#             color = self.points[(yPos, xPos)]
-#             newPoints[(c * yPos, c * xPos)] = color
-#             for kX in range(c):
-#                 for kY in range(c):
-#                     newPoints[(c * yPos + kY, c * xPos + kX)] = color
-#         return Object(points=newPoints)
-#
-#
-#     def merge(self, object):
-#         newPoints = {key:value for key,value in self.points.items()}
-#         for yPos, xPos in object.points.keys():
-#             assert (yPos, xPos) not in newPoints
-#             newPoints[(yPos, xPos)] = object.points[(yPos, xPos)]
-#         return Object(points=newPoints)
-#
-#     def split(self, isHorizontal):
-#         if isHorizontal:
-#             halfway = self.getNumRows() // 2
-#             topHalf = Object(points={(y,x): self.points[(y,x)] for y,x in self.points.keys() if y < halfway})
-#             if self.getNumRows() % 2 == 1:
-#                 halfway += 1
-#             bottomHalf = Object(points={(y-halfway,x): self.points[(y,x)] for y,x in self.points.keys() if y >= halfway})
-#             return topHalf,bottomHalf
-#         else:
-#             halfway = self.getNumCols() // 2
-#             leftHalf = Object(points={(y,x): self.points[(y,x)] for y,x in self.points.keys() if x < halfway})
-#             if self.getNumCols() % 2 == 1:
-#                 halfway += 1
-#             rightHalf = Object(points={(y,x-halfway): self.points[(y,x)] for y,x in self.points.keys() if x >= halfway})
-#             return leftHalf,rightHalf
-#
-#
-#     def concat(self, object, direction):
-#
-#         if direction == 'right':
-#             return self.merge(object.move(0, self.numCols))
-#         elif direction == 'down':
-#             return self.merge(object.move(self.numRows, 0))
-#
-#         elif direction == 'left':
-#             return object.merge(self.move(0, object.numCols))
-#         elif direction == 'up':
-#             return object.merge(self.move(object.numRows, 0))
-#
-#         else:
-#             print(direction)
-#             raise NotImplementedError
-#
-    # def zipGrids(self, object, f):
-    #     assert object.numCols == self.numCols and object.numRows == self.numRows
-    #     assert set(object.points.keys()) == set(self.points.keys())
-    #     return Object(points={key:f(self.points[key])(object.points[key]) for key in self.points.keys()})
-
-#     def __len__(self):
-#         return 100 * self.numRows + self.numCols
-#
-#     def __eq__(self, other):
-#         if isinstance(other, Object):
-#             sameKeys = set(other.points.keys()) == set(self.points.keys())
-#             if sameKeys:
-#                 allPointsEqual = all([self.points[key] == other.points[key] for key in self.points.keys()])
-#                 return self.numRows == other.numRows and self.numCols == other.numCols and sameKeys and allPointsEqual
-#         return False
-#
-#     def findBlocksByCorner(self, backgroundColor):
-#
-#         def dfs(v, edges, visited):
-#
-#             visited.add(v)
-#             for adjacent in edges[v]:
-#                 if adjacent not in visited:
-#                     dfs(adjacent, edges, visited)
-#             return
-#
-#         visited = set()
-#         vertices = [v for v in self.points if self.points[v] != backgroundColor]
-#         edges = self.createEdgeMap(backgroundColor)
-#         blocks = []
-#
-#         for v in vertices:
-#             if v not in visited:
-#                 connected = set()
-#                 dfs(v, edges, connected)
-#                 blocks.append(connected)
-#                 visited = visited.union(connected)
-#
-#         return [Object(points={key:self.points[key] for key in block}, backgroundColor=backgroundColor, isGrid=False) for block in blocks]
-#
-#     def createEdgeMap(self, backgroundColor):
-#         edges = {}
-#         for y,x in [key for key in self.points.keys()]:
-#             if self.points[(y,x)] != backgroundColor:
-#                 edges[(y, x)] = []
-#                 for y_inc, x_inc in [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)]:
-#                     if (y + y_inc, x + x_inc) in self.points and self.points[(y + y_inc, x + x_inc)] != backgroundColor:
-#                         edges[(y, x)] += [(y + y_inc, x + x_inc)]
-#         return edges
 
 _black = 0
 _blue = 1
@@ -604,8 +437,6 @@ _pink = 6
 _orange = 7
 _teal = 8
 _maroon = 9
-# def _emptyGrid(a): return Object(mask=np.full((a.getNumRows(), a.getNumCols()), a.backgroundColor).tolist())
-
 
 ##### Blocks #####
 
@@ -716,6 +547,7 @@ if runFull:
     tdisplacement = baseType('tdisplacement')
     tcolor = baseType('color')
     tgrid = baseType('tgrid')
+    tgridin = baseType('tgridin')
     tblock = baseType('tblock')
     tblocks = tlist(tblock)
     tgrids = tlist(tgrid)
@@ -818,14 +650,14 @@ def basePrimitives():
 ##### tgrid #####
 
     # arrow(tgrid, tblocks)
-    Primitive('findRectanglesBlackB', arrow(tgrid, tblocks), _findRectanglesBlackB),
-    Primitive('findRectanglesByB', arrow(tgrid, tcolor, tblocks), _findRectanglesByB),
-    Primitive('findBlocksByColor', arrow(tgrid, tcolor, tbool, tblocks), _findBlocksByColor),
-    Primitive('findBlocksByCorner', arrow(tgrid, tbool, tblocks), _findBlocksByCorner),
-    Primitive('findBlocksByEdge', arrow(tgrid, tbool, tblocks), _findBlocksByEdge),
+    Primitive('findRectanglesBlackB', arrow(tgridin, tblocks), _findRectanglesBlackB),
+    Primitive('findRectanglesByB', arrow(tgridin, tcolor, tblocks), _findRectanglesByB),
+    Primitive('findBlocksByColor', arrow(tgridin, tcolor, tbool, tblocks), _findBlocksByColor),
+    Primitive('findBlocksByCorner', arrow(tgridin, tbool, tblocks), _findBlocksByCorner),
+    Primitive('findBlocksByEdge', arrow(tgridin, tbool, tblocks), _findBlocksByEdge),
 
     # #arrow(tgrid, tblock)
-    Primitive('gridToBlock', arrow(tgrid, tblock), lambda grid: grid),
+    Primitive('gridToBlock', arrow(tgridin, tblock), lambda grid: grid),
     # arrow(tgrid, grid)
     # Primitive('solve0520fde7', arrow(tgrid, tgrid), _solve0520fde7),
     # Primitive('solve007bbfb7', arrow(tgrid, tgrid), _solve007bbfb7),
@@ -838,12 +670,12 @@ def basePrimitives():
     # Primitive('solve5521c0d9', arrow(tgrid, tgrid), _solve5521c0d9),
     # Primitive('solvece4f8723', arrow(tgrid, tgrid), _solvece4f8723),
     # arrow(tgrid, tcolor)
-    Primitive('findNthGridColor', arrow(tgrid, tint, tcolor), _findNthColor),
+    Primitive('findNthGridColor', arrow(tgridin, tint, tcolor), _findNthColor),
     # arrow(tgrid, tgrid)
     # Primitive('splitAndMergeGrid', arrow(tgrid, arrow(tcolor, tcolor, tcolor), tbool, tgrid), _splitAndMerge),
     # arrow(tgrid, tint)
-    Primitive('numRows', arrow(tgrid, tint), _numRows),
-    Primitive('numCols', arrow(tgrid, tint), _numCols),
+    Primitive('numRows', arrow(tgridin, tint), _numRows),
+    Primitive('numCols', arrow(tgridin, tint), _numCols),
 
 #####
 
