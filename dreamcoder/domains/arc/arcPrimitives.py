@@ -317,7 +317,7 @@ class Grid(RectangleBlock):
     def __repr__(self):
         temp = np.full((self.getNumRows(),self.getNumCols()),None)
         for yPos,xPos in self.points:
-            temp[yPos, xPos] = self.points[(yPos,xPos)]
+            temp["{},{}".format(yPos, xPos)] = self.points[(yPos,xPos)]
         return temp.tolist()
 
 
