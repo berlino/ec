@@ -591,7 +591,7 @@ def basePrimitives():
 ##### tblocks #####
 
     # # arrow (tblocks, tblock)
-    Primitive('head', arrow(tblocks, tblock), _head),
+    Primitive('car', arrow(tblocks, tblock), _head),
     Primitive('mergeBlocks', arrow(tblocks, tblock),  _mergeBlocks),
     Primitive('getListBlock', arrow(tblocks, tint, tblock), _getListBlock),
     # arrow(tblocks, tgrid)
