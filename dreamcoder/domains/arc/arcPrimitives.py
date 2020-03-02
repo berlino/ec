@@ -315,10 +315,10 @@ class Grid(RectangleBlock):
         super().__init__(self.points, originalGrid)
 
     def __repr__(self):
-        temp = np.full((self.getNumRows(),self.getNumCols()),None)
+        temp = {}
         for yPos,xPos in self.points:
             temp["{},{}".format(yPos, xPos)] = self.points[(yPos,xPos)]
-        return temp.tolist()
+        return temp
 
 
 
