@@ -96,7 +96,5 @@ print_block (merge example_grid example_grid_2);;
 let primitive_grow = primitive "grow" (tblock @> tint @> tblock) (grow);;
 let primitive_move = primitive "move" (tblock @> tint @> tint @> tblock) (move);;
 let primitive_reflect = primitive "reflect" (tblock @> tbool @> tblock) (reflect);;
-let primitive_merge = primitive "merge" (tblock @> tblock @> tblock) (merge);;
 let primitive_to_min_grid = primitive "blockToMinGrid" (tblock @> tbool @> tgrid) (to_min_grid);;
-
 let primitive_to_block = primitive "gridToBlock" (tgridin @> tblock) ;;
