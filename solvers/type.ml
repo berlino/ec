@@ -281,7 +281,9 @@ let tvar               = make_ground "var"
 let tprogram           = make_ground "program"
 let tmaybe t           = kind "maybe" [t]
 let tcanvas            = tlist tint
-
+let tblock = make_ground "tblock" ;;
+let tgridin = make_ground "tgridin" ;;
+let tgrid = make_ground "tgrid" ;;
 
 let unify_many_types ts =
   let k = empty_context in

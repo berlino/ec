@@ -2,6 +2,7 @@ open Core
 open Parser
 open Utils
 open Type
+open Hello
 
 type program =
   | Index of int
