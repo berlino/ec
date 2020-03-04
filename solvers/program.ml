@@ -1131,7 +1131,7 @@ let reflect {points;original_grid} is_horizontal =
   let points = List.map ~f:reflect_point points in 
   {points;original_grid} ;;
   
-let merge a b =
+let merge_blocks a b =
   let rec add_until_empty list1 list2 = 
     match list1 with
     | [] -> list2
@@ -1140,7 +1140,7 @@ let merge a b =
   let original_grid = a.original_grid in
   {points ; original_grid} ;;
 
-print_block (merge example_grid example_grid_2);;
+(* print_block (merge example_grid example_grid_2);; *)
 
 
 let primitive_grow = primitive "grow" (tblock @> tint @> tblock) (grow);;
@@ -1148,4 +1148,4 @@ let primitive_move = primitive "move" (tblock @> tint @> tint @> tblock) (move);
 let primitive_reflect = primitive "reflect" (tblock @> tbool @> tblock) (reflect);;
 let primitive_to_min_grid = primitive "blockToMinGrid" (tblock @> tbool @> tgrid) (to_min_grid);;
 let primitive_to_block = primitive "gridToBlock" (tgridin @> tblock) ;;
-let primitive_merge = primitive "merge_blocks" (tblock @> tblock @> tblock) (merge);;
+let primitive_merge = primitive "merge_blocks" (tblock @> tblock @> tblock) (merge_blocks);;
