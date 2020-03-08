@@ -351,7 +351,7 @@ def solveForTask_ocaml(
         print("error:", error)
         with open("message", "w") as f:
             f.write(message)
-        print("message,", message)
+        # print("message,", message)
         assert False, "MAX RAISE"
 
     pc = response.get("number_enumerated", 0)  # TODO

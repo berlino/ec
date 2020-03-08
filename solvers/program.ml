@@ -455,6 +455,11 @@ let rec number_of_free_parameters = function
   | Index(_) -> 0
 
 
+
+
+let primitive_merge_blocks = primitive "merge_blocks" (tblocks @> tblock) (fun blocks -> List.nth_exn blocks 0) ;;
+let primitive_reflect = primitive "reflect" (tblock @> tblock) (fun block -> block) ;;
+
 let primitive_empty = primitive "empty" (tlist t0) [];;
 let primitive_range = primitive "range" (tint @> tlist tint) (fun x -> 0 -- (x-1));;
 let primitive_sort = primitive "sort" (tlist tint @> tlist tint) (List.sort ~compare:(fun x y -> x - y));;
