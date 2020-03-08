@@ -3,6 +3,7 @@ open Core
 open Physics
 open Pregex
 open Tower
+open Arc
 (* open Vs *)
 open Differentiation
 open TikZ
