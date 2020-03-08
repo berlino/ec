@@ -142,6 +142,14 @@ class Block:
         firstHalfReflect, secondHalfReflect = self.reflect(isHorizontal).split(isHorizontal)
         return firstHalf == firstHalfReflect and secondHalf == secondHalfReflect
 
+    def boxBlock(self):
+        newPoints = self.points.copy()
+        for y in range(self.getMinY(), self.getMaxY()+1):
+            for x in range(self.getMinX(), self.getMaxX()+1):
+                if (y,x) not in newPoints:
+                    newPoints[(y,x)] = self.originalGrid.points[y,x]
+        return self.fromPoints(newPoints)
+
     def splitBlockByColor(self, backgroundColor=None):
         blocks = []
         colors = set(self.points.values())
@@ -191,14 +199,6 @@ class Block:
                     if (y + y_inc, x + x_inc) in self.points and self.points[(y + y_inc, x + x_inc)] in colors:
                         edges[(y, x)] += [(y + y_inc, x + x_inc)]
         return edges
-
-    def boxBlock(self):
-        newPoints = self.points.copy()
-        for y in range(self.getMinY(), self.getMaxY()+1):
-            for x in range(self.getMinX(), self.getMaxX()+1):
-                if (y,x) not in newPoints:
-                    newPoints[(y,x)] = self.originalGrid.points[y,x]
-        return self.fromPoints(newPoints)
 
     def fillPattern(self, color, maskFunc = lambda x: True):
         newPoints = self.points.copy()
