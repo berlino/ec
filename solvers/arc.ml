@@ -93,7 +93,7 @@ let to_min_grid {points;original_grid} with_original =
   let points = List.map ~f:(fun (y,x) -> ((y,x), deduce_val (y+minY,x+minX))) indices in
    {points ; original_grid}
 
-let print_block {points;original_grid} use_min_grid =
+let print_block {points;original_grid} =
   let maxY = get_max_y {points=original_grid;original_grid} in
   let maxX = get_max_x {points=original_grid;original_grid} in
   let indices = List.cartesian_product (0 -- maxY) (0 -- maxX) in
@@ -110,8 +110,8 @@ let print_block {points;original_grid} use_min_grid =
       print_points rest y; in
     print_points points (-1)
 
-let print_blocks blocks use_min_grid = 
-  List.iter blocks ~f:(fun block -> print_block block use_min_grid);;
+let print_blocks blocks = 
+  List.iter blocks ~f:(fun block -> print_block block);;
 
 let reflect {points;original_grid} is_horizontal = 
   let reflect_point ((y,x),c) = if is_horizontal then ((get_min_y {points;original_grid} - y + get_max_y {points;original_grid} ,x),c)
@@ -229,5 +229,19 @@ let replace_color block old_color new_color =
   {points = points ; original_grid = block.original_grid} ;;
 
 
-(* let blocks = find_blocks_by example_grid (1 -- 9) true true in *)
-(* print_blocks blocks true ;; *)
+(* blocks *)
+
+let merge_blocks blocks = 
+  List.reduce_exn blocks ~f:merge ;;
+
+(* primitives *)
+
+ignore(primitive "merge_blocks" (tblocks @> tblock) merge_blocks) ;;
+
+ignore(primitive "reflect" (tblock @> tbool @> tblock) reflect) ;;
+ignore(primitive "move" (tblock @> tint @> tint @> tbool @> tblock) move) ;;
+ignore(primitive "grow" (tblock @> tint @> tblock) grow) ;;
+
+ignore(primitive "to_min_grid" (tblock @> tbool @> tgrid) to_min_grid) ;;
+
+ignore(primitive "grid_to_block" (tgrid @> tblock) (fun x -> x)) ;;

@@ -631,7 +631,7 @@ def basePrimitives():
     # # arrow(tblock, tgrid)
     # Primitive("blockToGrid", arrow(tblock, tint, tint, tbool, tgrid), _blockToGrid),
     # Primitive("blockAsGrid", arrow(tblock, tbool, tgrid), _blockAsGrid),
-    Primitive("blockToMinGrid", arrow(tblock, tbool, tgrid), _blockToMinGrid),
+    Primitive("to_min_grid", arrow(tblock, tbool, tgrid), _blockToMinGrid),
     # arrow(tblock, tblocks)
     # Primitive('split', arrow(tblock, tbool, tblocks), _split),
     # arrow(tblock, tint, tcolor)
@@ -657,7 +657,7 @@ def basePrimitives():
     # Primitive('findBlocksByEdge', arrow(tgridin, tbool, tblocks), _findBlocksByEdge),
 
     # #arrow(tgrid, tblock)
-    Primitive('gridToBlock', arrow(tgridin, tblock), lambda grid: grid),
+    Primitive('grid_to_block', arrow(tgridin, tblock), lambda grid: grid),
     # arrow(tgrid, grid)
     # Primitive('solve0520fde7', arrow(tgrid, tgrid), _solve0520fde7),
     # Primitive('solve007bbfb7', arrow(tgrid, tgrid), _solve007bbfb7),
