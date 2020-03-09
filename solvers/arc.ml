@@ -63,6 +63,16 @@ let create_edge_map block colors use_corners =
 let to_int_pair x = IntPair.Set.choose_exn (IntPair.Set.singleton x) ;;
 let to_tuple (a,b) = (a,b) ;;
 
+let dfs graph visited start_node = 
+  let rec explore path visited node = 
+    (* if (List.mem visited node ~equal:(=)) then raise CycleFound else *)
+    if (List.mem path node ~equal:(=)) then visited else     
+      let new_path = node :: path in 
+      let edges    = (List.Assoc.find_exn graph node ~equal:(=)) in
+      let visited  = List.fold_left ~f:(explore new_path) ~init:visited edges in
+      node :: visited
+  in explore [] visited start_node
+
 (* DSL *)
 
 let get_max_y {points;original_grid} = 
@@ -191,17 +201,6 @@ let box_block {points;original_grid} =
   let points = List.map ~f:(fun (y,x) -> ((y,x), deduce_val (y,x))) indices in
    {points ; original_grid}
 
-
-let dfs graph visited start_node = 
-  let rec explore path visited node = 
-    (* if (List.mem visited node ~equal:(=)) then raise CycleFound else *)
-    if (List.mem path node ~equal:(=)) then visited else     
-      let new_path = node :: path in 
-      let edges    = (List.Assoc.find_exn graph node ~equal:(=)) in
-      let visited  = List.fold_left ~f:(explore new_path) ~init:visited edges in
-      node :: visited
-  in explore [] visited start_node
-
 let find_blocks_by block colors is_corner box_blocks = 
   let vertices, graph = create_edge_map block colors is_corner in 
   let explore_v state v = if IntPair.Set.mem (List.reduce_exn state ~f:IntPair.Set.union) (to_int_pair v) 
@@ -234,20 +233,32 @@ let replace_color block old_color new_color =
   let points = List.map block.points ~f:(fun ((y,x),c) -> (y,x), if (c = old_color) then new_color else c) in
   {points = points ; original_grid = block.original_grid} ;;
 
-
-(* blocks *)
-
 let merge_blocks blocks = 
   List.reduce_exn blocks ~f:merge ;;
 
 (* primitives *)
 
+(* tblocks -> tblock *)
 ignore(primitive "merge_blocks" (tblocks @> tblock) merge_blocks) ;;
 
+(* tblock -> tblock *)
 ignore(primitive "reflect" (tblock @> tbool @> tblock) reflect) ;;
 ignore(primitive "move" (tblock @> tint @> tint @> tbool @> tblock) move) ;;
 ignore(primitive "grow" (tblock @> tint @> tblock) grow) ;;
-
+ignore(primitive "fill_color" (tblock @> tcolor @> tblock) fill_color) ;;
+ignore(primitive "replace_color" (tblock @> tcolor @> tcolor @> tblock) replace_color) ;;
+ignore(primitive "box_block" (tblock @> tblock) box_block) ;;
+(* tblock -> tblocks *)
+ignore(primitive "split" (tblock @> tbool @> tblocks) split) ;;
+(* tblock -> tgrid *)
 ignore(primitive "to_min_grid" (tblock @> tbool @> tgrid) to_min_grid) ;;
+ignore(primitive "to_original_grid_overlay" (tblock @> tgrid) to_min_grid) ;;
+(* tblock -> tbool *)
+ignore(primitive "is_symmetrical" (tblock @> tbool @> tbool) is_symmetrical) ;;
+ignore(primitive "is_rectangle" (tblock @> tbool @> tbool) is_rectangle) ;;
 
+(* tgrid -> tblocks *)
 ignore(primitive "grid_to_block" (tgrid @> tblock) (fun x -> x)) ;;
+ignore(primitive "find_same_color_blocks" (tgrid @> tblocks) find_same_color_blocks) ;;
+
+
