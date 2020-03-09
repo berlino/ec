@@ -255,7 +255,7 @@ ignore(primitive "to_min_grid" (tblock @> tbool @> tgrid) to_min_grid) ;;
 ignore(primitive "to_original_grid_overlay" (tblock @> tgrid) to_min_grid) ;;
 (* tblock -> tbool *)
 ignore(primitive "is_symmetrical" (tblock @> tbool @> tbool) is_symmetrical) ;;
-ignore(primitive "is_rectangle" (tblock @> tbool @> tbool) is_rectangle) ;;
+ignore(primitive "is_rectangle" (tblock @> tbool @> tbool) to_original_grid_overlay) ;;
 
 (* tgrid -> tblocks *)
 ignore(primitive "grid_to_block" (tgrid @> tblock) (fun x -> x)) ;;
