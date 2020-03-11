@@ -19,7 +19,7 @@ from dreamcoder.domains.arc.arcPrimitives import (
     pprint,
     tcolor,
     tgrid,
-    tgridin,
+    tgrid,
     tgrids,
     tdirection,
     Grid,
@@ -92,7 +92,7 @@ def retrieveARCJSONTask(filename, directory):
 
     train = Task(
         filename,
-        arrow(tgridin, tgrid),
+        arrow(tgrid, tgrid),
         [
             ((Grid(gridArray=example["input"]),), Grid(gridArray=example["output"]))
             for example in loaded["train"]
@@ -100,7 +100,7 @@ def retrieveARCJSONTask(filename, directory):
     )
     test = Task(
         filename,
-        arrow(tgridin, tgrid),
+        arrow(tgrid, tgrid),
         [
             ((Grid(gridArray=example["input"]),), Grid(gridArray=example["output"]))
             for example in loaded["test"]
@@ -371,8 +371,8 @@ def main(args):
     for key in samples.keys():
         check(key, lambda x: samples[key](x), directory)
 
-    trainTasks = retrieveARCJSONTasks(directory, None)
-    # trainTasks = retrieveARCJSONTasks(directory, ["68b16354.json", "a416b8f3.json"])
+    # trainTasks = retrieveARCJSONTasks(directory, None)
+    trainTasks = retrieveARCJSONTasks(directory, ["68b16354.json", "6150a2bd.json"])
 
     baseGrammar = Grammar.uniform(basePrimitives() + leafPrimitives())
     print("base Grammar {}".format(baseGrammar))

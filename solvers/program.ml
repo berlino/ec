@@ -457,8 +457,8 @@ let rec number_of_free_parameters = function
 
 
 
-let primitive_merge_blocks = primitive "merge_blocks" (tblocks @> tblock) (fun blocks -> List.nth_exn blocks 0) ;;
-let primitive_reflect = primitive "reflect" (tblock @> tblock) (fun block -> block) ;;
+(* let primitive_merge_blocks = primitive "merge_blocks" (tblocks @> tblock) (fun blocks -> List.nth_exn blocks 0) ;; *)
+(* let primitive_reflect = primitive "reflect1" (tgrid @> tgrid) (fun block -> block) ;; *)
 
 let primitive_empty = primitive "empty" (tlist t0) [];;
 let primitive_range = primitive "range" (tint @> tlist tint) (fun x -> 0 -- (x-1));;

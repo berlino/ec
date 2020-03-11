@@ -1,4 +1,3 @@
-#require "core" ;;
 open Core
 open Client
 open Timeout
@@ -8,6 +7,10 @@ open Program
 open Type
 
 (* Types and Helpers*)
+
+let to_grid task = 
+  let open Yojson.Basic.Util in
+  member "grid" ;;
 
 let (--) i j =
   let rec from i j l =
@@ -84,13 +87,16 @@ let get_min_y {points;original_grid} =
 let get_min_x {points;original_grid} = 
   List.fold ~init:100 ~f:(fun curr_sum ((y,x),c)-> (Int.min curr_sum x)) points
 
-let to_original_grid_overlay {points ; original_grid} = 
+let to_original_grid_overlay {points ; original_grid} with_original = 
   let maxY = get_max_y {points=original_grid;original_grid} in
   let maxX = get_max_x {points=original_grid;original_grid} in
   let indices = List.cartesian_product (0 -- maxY) (0 -- maxX) in
   let deduce_val (y,x) = match List.Assoc.find points (y,x) ~equal:(=) with
       | Some c -> c
-      | None -> 0 in
+      | None -> if with_original then match List.Assoc.find original_grid (y,x) ~equal:(=) with 
+        | Some c_original -> c_original
+        | None -> 0
+      else 0 in
   let points = List.map ~f:(fun (y,x) -> ((y,x), deduce_val (y,x))) indices in
   {points ; original_grid}
 
@@ -109,7 +115,7 @@ let to_min_grid {points;original_grid} with_original =
   let points = List.map ~f:(fun (y,x) -> ((y,x), deduce_val (y+minY,x+minX))) indices in
    {points ; original_grid}
 
-let print_block {points;original_grid} =
+let print_block {points ; original_grid}  =
   let maxY = get_max_y {points=original_grid;original_grid} in
   let maxX = get_max_x {points=original_grid;original_grid} in
   let indices = List.cartesian_product (0 -- maxY) (0 -- maxX) in
@@ -126,8 +132,7 @@ let print_block {points;original_grid} =
       print_points rest y; in
     print_points points (-1)
 
-let print_blocks blocks = 
-  List.iter blocks ~f:(fun block -> print_block block);;
+let print_blocks blocks = List.iter blocks ~f:(fun block -> print_block block);;
 
 let reflect {points;original_grid} is_horizontal = 
   let reflect_point ((y,x),c) = if is_horizontal then ((get_min_y {points;original_grid} - y + get_max_y {points;original_grid} ,x),c)
@@ -225,6 +230,9 @@ let find_same_color_blocks block is_corner box_blocks =
   let blocks_by_color = List.map (1 -- 9) ~f:(fun color -> find_blocks_by block [color] is_corner box_blocks) in
   List.concat blocks_by_color ;;
 
+let find_blocks_by_black_b block is_corner box_blocks = 
+  find_blocks_by block (1 -- 9) is_corner box_blocks ;;
+
 let fill_color block new_color = 
   let points = List.map block.points ~f:(fun ((y,x),c) -> (y,x),new_color) in
   {points = points ; original_grid = block.original_grid}
@@ -236,29 +244,63 @@ let replace_color block old_color new_color =
 let merge_blocks blocks = 
   List.reduce_exn blocks ~f:merge ;;
 
+let python_split x =
+  let split = String.split_on_chars ~on:[','] x in 
+  let filt_split = List.filter split ~f:(fun x -> x <> "") in
+  let y = List.nth_exn filt_split 0 |> int_of_string in
+  let x = List.nth_exn filt_split 1 |> int_of_string in
+  (y,x)
+;;
+
+let to_grid task = 
+  let open Yojson.Basic.Util in
+  let json = task |> member "grid" |> to_assoc in 
+  let grid_points = List.map json ~f:(fun (key, color) -> ((python_split key), (to_int color))) in
+  let grid = {points = grid_points ; original_grid = grid_points} in 
+  grid ;;
+
 (* primitives *)
+
+ignore(primitive "black" tcolor 0) ;;
+ignore(primitive "blue" tcolor 1) ;;
+ignore(primitive "red" tcolor 2) ;;
+ignore(primitive "green" tcolor 3) ;;
+ignore(primitive "yellow" tcolor 4) ;;
+ignore(primitive "grey" tcolor 5) ;;
+ignore(primitive "pink" tcolor 6) ;;
+ignore(primitive "orange" tcolor 7) ;;
+ignore(primitive "teal" tcolor 8) ;;
+ignore(primitive "maroon" tcolor 9) ;;
 
 (* tblocks -> tblock *)
 ignore(primitive "merge_blocks" (tblocks @> tblock) merge_blocks) ;;
+ignore(primitive "filter_blocks" ((tblock @> tboolean) @> (tblocks) @> (tblocks)) (fun f l -> List.filter ~f:f l));;
+ignore(primitive "map_blocks" ((tblock @> tboolean) @> (tblocks) @> (tblocks)) (fun f l -> List.map ~f:f l));;
+
 
 (* tblock -> tblock *)
-ignore(primitive "reflect" (tblock @> tbool @> tblock) reflect) ;;
-ignore(primitive "move" (tblock @> tint @> tint @> tbool @> tblock) move) ;;
+ignore(primitive "reflect" (tblock @> tboolean @> tblock) reflect) ;;
+ignore(primitive "move" (tblock @> tint @> tint @> tboolean @> tblock) move) ;;
 ignore(primitive "grow" (tblock @> tint @> tblock) grow) ;;
 ignore(primitive "fill_color" (tblock @> tcolor @> tblock) fill_color) ;;
 ignore(primitive "replace_color" (tblock @> tcolor @> tcolor @> tblock) replace_color) ;;
 ignore(primitive "box_block" (tblock @> tblock) box_block) ;;
 (* tblock -> tblocks *)
-ignore(primitive "split" (tblock @> tbool @> tblocks) split) ;;
+ignore(primitive "split" (tblock @> tboolean @> tblocks) split) ;;
 (* tblock -> tgrid *)
-ignore(primitive "to_min_grid" (tblock @> tbool @> tgrid) to_min_grid) ;;
-ignore(primitive "to_original_grid_overlay" (tblock @> tgrid) to_min_grid) ;;
-(* tblock -> tbool *)
-ignore(primitive "is_symmetrical" (tblock @> tbool @> tbool) is_symmetrical) ;;
-ignore(primitive "is_rectangle" (tblock @> tbool @> tbool) to_original_grid_overlay) ;;
+ignore(primitive "to_min_grid" (tblock @> tboolean @> tgrid) to_min_grid) ;;
+ignore(primitive "to_original_grid_overlay" (tblock @> tboolean @> tgrid) to_original_grid_overlay) ;;
+
+
+(* tblock -> tboolean *)
+ignore(primitive "is_symmetrical" (tblock @> tboolean @> tboolean) is_symmetrical) ;;
+ignore(primitive "is_rectangle" (tblock @> tboolean @> tboolean) to_original_grid_overlay) ;;
 
 (* tgrid -> tblocks *)
+ignore(primitive "identity" (tgrid @> tgrid) (fun x -> x)) ;;
 ignore(primitive "grid_to_block" (tgrid @> tblock) (fun x -> x)) ;;
 ignore(primitive "find_same_color_blocks" (tgrid @> tblocks) find_same_color_blocks) ;;
+ignore(primitive "find_blocks_by_black_b" (tgrid @> tboolean @> tboolean @> tblocks) find_blocks_by) ;;
+
 
 
