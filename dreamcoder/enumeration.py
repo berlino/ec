@@ -333,6 +333,8 @@ def solveForTask_ocaml(
         message["maxParameters"] = tasks[0].maxParameters
 
     message = json.dumps(message, default=lambda x: x.__repr__())
+    with open('message2.txt', 'w') as outfile:
+        json.dump(message, outfile)
     # message = json.dumps(message)
     # uncomment this if you want to save the messages being sent to the solver
 
