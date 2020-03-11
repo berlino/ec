@@ -1,11 +1,9 @@
 open Core
-<<<<<<< HEAD
 open Client
 open Timeout
 open Utils
 open Program
 open Type
-
 (* Types and Helpers*)
 
 type block = {points : ((int*int)*int) list; original_grid : ((int*int)*int) list} ;;
@@ -362,6 +360,7 @@ ignore(primitive "find_blocks_by_black_b" (tgrid @> tboolean @> tboolean @> tblo
 
  *)
 <<<<<<< HEAD
+<<<<<<< HEAD
 
 (* to add *)
 (* duplicate_until_edge *)
@@ -369,6 +368,8 @@ ignore(primitive "find_blocks_by_black_b" (tgrid @> tboolean @> tboolean @> tblo
 (* concat *)
 (* concatN *)
 (* has min tiles *)
+=======
+>>>>>>> 8f9dcbabbb9e1edefd6ffcb63b9178146bf79840
 =======
 >>>>>>> 8f9dcbabbb9e1edefd6ffcb63b9178146bf79840
 
