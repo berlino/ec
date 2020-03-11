@@ -1,16 +1,24 @@
 open Core
 open Client
 open Timeout
-open Task
 open Utils
 open Program
 open Type
 
 (* Types and Helpers*)
 
-let to_grid task = 
-  let open Yojson.Basic.Util in
-  member "grid" ;;
+type block = {points : ((int*int)*int) list; original_grid : ((int*int)*int) list} ;;
+
+
+let (|?) maybe default =
+  match maybe with
+  | Some v -> v
+  | None -> Lazy.force default
+
+let (===) block1 block2 = 
+  let block2_val key = (List.Assoc.find block2.points ~equal:(=) key) |? lazy (-1) in
+  let block2_has_all_points = List.fold block1.points ~init:true ~f:(fun acc (key,c) -> acc && ((block2_val key) = c)) in
+  (block2_has_all_points && ((List.length block1.points) = (List.length block2.points)))
 
 let (--) i j =
   let rec from i j l =
@@ -23,9 +31,8 @@ let indices = List.cartesian_product (0 -- height) (0 -- width) in
 let points = List.map ~f:(fun (y,x) -> ((y,x), color)) indices in
 points ;;
 
-type block = {points : ((int*int)*int) list; original_grid : ((int*int)*int) list} ;;
-let example_grid = {points = [(0,0),3; (0,1),2; (1,1),2; (4,4),2] ; original_grid = (empty_grid 7 7 0)}
-let example_grid_2 = {points = [(6,4),3; (6,3),2;] ; original_grid = [(6,6),5]}
+let example_grid = {points = [(0,0),3; (0,1),2; (1,1),2] ; original_grid = (empty_grid 7 7 0)}
+let example_grid_2 = {points = [(6,4),3; (6,3),2;] ; original_grid = [(6,4),3; (6,3),2; (6,6),5]}
 
 module IntPair = struct
   module T = struct
@@ -47,11 +54,6 @@ let (|?) maybe default =
   match maybe with
   | Some v -> v
   | None -> Lazy.force default
-
-let (===) block1 block2 = 
-  let block2_val key = (List.Assoc.find block2.points ~equal:(=) key) |? lazy (-1) in
-  let block2_has_all_points = List.fold block1.points ~init:true ~f:(fun acc (key,c) -> acc && ((block2_val key) = c)) in
-  (block2_has_all_points && ((List.length block1.points) = (List.length block2.points)))
 
 let create_edge_map block colors use_corners = 
   let vertex_points = List.filter block.points ~f:(fun ((y,x),c) -> contains c colors) in
@@ -140,17 +142,17 @@ let reflect {points;original_grid} is_horizontal =
   let points = List.map ~f:reflect_point points in 
   {points;original_grid}
 
-let move {points;original_grid} x y keep_original = 
-  let new_block_points = List.map ~f:(fun ((x_pos,y_pos), color) -> ((x_pos+x, y_pos+x), color)) points in 
+let move {points;original_grid} y x keep_original = 
+  let new_block_points = List.map ~f:(fun ((y_pos,x_pos), color) -> ((y_pos+y, x_pos+x), color)) points in 
   (if keep_original then {points=new_block_points @ original_grid ; original_grid = original_grid} else {points=new_block_points; original_grid = original_grid})
 
 let grow {points;original_grid} n = 
-  let grow_tile_y ((x_pos,y_pos), color) = List.map ~f:(fun i -> ((x_pos,y_pos+i), color)) (0 -- n) in
+  let grow_tile_y ((y_pos,x_pos), color) = List.map ~f:(fun i -> ((y_pos,x_pos+i), color)) (0 -- n) in
   let nested_points = List.map ~f:grow_tile_y points in
   let temp_along_x = List.reduce nested_points ~f:(fun a b -> a @ b) in 
   match temp_along_x with 
   | None -> None
-  | Some l -> let grow_tile_x ((x_pos,y_pos), color) = List.map ~f:(fun i -> ((x_pos+i,y_pos), color)) (0 -- n) in
+  | Some l -> let grow_tile_x ((y_pos,x_pos), color) = List.map ~f:(fun i -> ((y_pos+i,x_pos), color)) (0 -- n) in
   let along_y_and_x = List.map ~f:grow_tile_x l in
   List.reduce along_y_and_x ~f:(fun a b -> a @ b)
   
@@ -162,6 +164,14 @@ let merge a b =
   let points = add_until_empty a.points b.points in
   let original_grid = a.original_grid in
   {points ; original_grid} ;;
+
+(* let duplicate block tdirection = 
+  match tdirection with 
+  | "right" -> let x_shift = (get_max_x block) - (get_min_x block) + 1 in 
+  move block 0 x_shift true
+  | "down" -> let y_shift = (get_max_y block) - (get_min_y block) + 1 in  
+  move block y_shift 0 true 
+  | _ -> block ;; *)
 
 let is_rectangle block full = 
   (* TODO: Implement non-full version *)
@@ -191,6 +201,8 @@ let is_symmetrical block is_horizontal =
   match split_block with
   | first_half :: second_half -> (reflect first_half is_horizontal) === ((List.nth second_half 0) |? lazy block)
   | [] -> false 
+
+let has_min_tiles block n = List.length block.points >= n ;;
 
 let box_block {points;original_grid} = 
   let minY = get_min_y {points;original_grid} in
@@ -275,12 +287,13 @@ ignore(primitive "maroon" tcolor 9) ;;
 (* tblocks -> tblock *)
 ignore(primitive "merge_blocks" (tblocks @> tblock) merge_blocks) ;;
 ignore(primitive "filter_blocks" ((tblock @> tboolean) @> (tblocks) @> (tblocks)) (fun f l -> List.filter ~f:f l));;
-ignore(primitive "map_blocks" ((tblock @> tboolean) @> (tblocks) @> (tblocks)) (fun f l -> List.map ~f:f l));;
+ignore(primitive "map_blocks" ((tblock @> tblock) @> (tblocks) @> (tblocks)) (fun f l -> List.map ~f:f l));;
 
 
 (* tblock -> tblock *)
 ignore(primitive "reflect" (tblock @> tboolean @> tblock) reflect) ;;
 ignore(primitive "move" (tblock @> tint @> tint @> tboolean @> tblock) move) ;;
+
 ignore(primitive "grow" (tblock @> tint @> tblock) grow) ;;
 ignore(primitive "fill_color" (tblock @> tcolor @> tblock) fill_color) ;;
 ignore(primitive "replace_color" (tblock @> tcolor @> tcolor @> tblock) replace_color) ;;
@@ -303,4 +316,11 @@ ignore(primitive "find_same_color_blocks" (tgrid @> tblocks) find_same_color_blo
 ignore(primitive "find_blocks_by_black_b" (tgrid @> tboolean @> tboolean @> tblocks) find_blocks_by) ;;
 
 
+
+(* to add *)
+(* duplicate_until_edge *)
+(* duplicateN *)
+(* concat *)
+(* concatN *)
+(* has min tiles *)
 

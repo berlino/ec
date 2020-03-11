@@ -283,6 +283,7 @@ let tmaybe t           = kind "maybe" [t]
 let tcanvas            = tlist tint
 let tblock = make_ground "tblock" ;;
 let tcolor = make_ground "tcolor" ;;
+let tdirection = make_ground "tdirection" ;;
 let tblocks = tlist tblock ;;
 let tgrid = make_ground "tgrid" ;;
 
