@@ -1,4 +1,5 @@
 open Core
+<<<<<<< HEAD
 open Client
 open Timeout
 open Utils
@@ -271,9 +272,53 @@ let to_grid task =
   let grid = {points = grid_points ; original_grid = grid_points} in 
   grid ;;
 
+let rec print_list = function 
+[] -> ()
+| e::l -> printf "%d" e ; print_string " " ; print_list l ;;
+
+
+let convert_raw_to_block raw = 
+  let open Yojson.Basic.Util in
+
+  let length = List.length raw - 1 in
+  let indices = List.cartesian_product (0 -- length) (0 -- length) in
+  let match_row row x = match List.nth row x with
+        | Some c -> c |> to_int
+        | None -> (-1) in
+  let deduce_val (y,x) = match List.nth raw y with
+      | Some row -> match_row (row |> to_list) x 
+      | None -> (-1) in
+  let new_points = List.map ~f:(fun (y,x) -> ((y,x), deduce_val (y,x))) indices in
+  {points = new_points; original_grid = new_points} ;;
+
+let test_example assoc_list program = 
+  let open Yojson.Basic.Util in
+  let raw_input = List.Assoc.find_exn assoc_list "input" ~equal:(=) |> to_list in
+  let raw_expected_output = List.Assoc.find_exn assoc_list "output" ~equal:(=) |> to_list in
+  let input = convert_raw_to_block raw_input in
+  let expected_output = convert_raw_to_block raw_expected_output in
+  let got_output = program input in
+  print_block got_output;
+  print_block expected_output;
+  let matched = got_output === expected_output in
+  printf "%B \n" matched ;;
+
+let test_task filename program =
+  let open Yojson.Basic.Util in
+  let open Yojson.Basic in
+  let json = from_file filename in
+  let json = json |> member "train" |> to_list in
+  let pair_list = List.map json ~f:(fun pair -> pair |> to_assoc) in 
+  let examples = List.map pair_list ~f:(fun assoc_list -> test_example assoc_list program) in
+  examples ;;
+
+
+let filename = "/Users/theo/Development/program_induction/ec/arc-data/data/training/67a3c6ac.json" in
+test_task filename (fun a -> reflect a false) ;;
+
 (* primitives *)
 
-ignore(primitive "black" tcolor 0) ;;
+(* ignore(primitive "black" tcolor 0) ;;
 ignore(primitive "blue" tcolor 1) ;;
 ignore(primitive "red" tcolor 2) ;;
 ignore(primitive "green" tcolor 3) ;;
@@ -315,7 +360,8 @@ ignore(primitive "grid_to_block" (tgrid @> tblock) (fun x -> x)) ;;
 ignore(primitive "find_same_color_blocks" (tgrid @> tblocks) find_same_color_blocks) ;;
 ignore(primitive "find_blocks_by_black_b" (tgrid @> tboolean @> tboolean @> tblocks) find_blocks_by) ;;
 
-
+ *)
+<<<<<<< HEAD
 
 (* to add *)
 (* duplicate_until_edge *)
@@ -323,4 +369,6 @@ ignore(primitive "find_blocks_by_black_b" (tgrid @> tboolean @> tboolean @> tblo
 (* concat *)
 (* concatN *)
 (* has min tiles *)
+=======
+>>>>>>> 8f9dcbabbb9e1edefd6ffcb63b9178146bf79840
 
