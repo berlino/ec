@@ -323,6 +323,8 @@ def train_necessary(t):
 
 def list_options(parser):
     parser.add_argument("--random-seed", type=int, default=17)
+    parser.add_argument("--single-train-task", default=False, action="store_true")
+
     # parser.add_argument("-i", type=int, default=10)
 
 
@@ -351,6 +353,8 @@ def main(args):
     """
     random.seed(args.pop("random_seed"))
 
+    single_train_task = args.pop("single_train_task")
+
     samples = {
         "007bbfb7.json": _solve007bbfb7,
         "c9e6f938.json": _solvec9e6f938,
@@ -373,8 +377,11 @@ def main(args):
     for key in samples.keys():
         check(key, lambda x: samples[key](x), directory)
 
-    trainTasks = retrieveARCJSONTasks(directory, None)
-    # trainTasks = retrieveARCJSONTasks(directory, ["72ca375d.json"])
+
+    if single_train_task:
+        trainTasks = retrieveARCJSONTasks(directory, ["72ca375d.json"])
+    else:
+        trainTasks = retrieveARCJSONTasks(directory, None)
 
     baseGrammar = Grammar.uniform(basePrimitives() + leafPrimitives())
     print("base Grammar {}".format(baseGrammar))
