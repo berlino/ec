@@ -98,6 +98,8 @@ def retrieveARCJSONTask(filename, directory):
             for example in loaded["train"]
         ],
     )
+    
+    train.specialTask = ('arc', 5)
     test = Task(
         filename,
         arrow(tgrid, tgrid),
@@ -372,7 +374,7 @@ def main(args):
         check(key, lambda x: samples[key](x), directory)
 
     trainTasks = retrieveARCJSONTasks(directory, None)
-    # trainTasks = retrieveARCJSONTasks(directory, ["68b16354.json", "6150a2bd.json"])
+    # trainTasks = retrieveARCJSONTasks(directory, ["72ca375d.json"])
 
     baseGrammar = Grammar.uniform(basePrimitives() + leafPrimitives())
     print("base Grammar {}".format(baseGrammar))
