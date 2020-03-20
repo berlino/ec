@@ -1,11 +1,11 @@
 open Core
-open Client
+(* open Client
 open Timeout
 open Utils
 open Program
 open Type
 open Task
-
+ *)
 (* Types and Helpers*)
 
 type block = {points : ((int*int)*int) list; original_grid : ((int*int)*int) list} ;;
@@ -30,7 +30,7 @@ let (--) i j =
 let empty_grid height width color = 
 let indices = List.cartesian_product (0 -- height) (0 -- width) in
 let points = List.map ~f:(fun (y,x) -> ((y,x), color)) indices in
-points ;;
+points
 
 module IntPair = struct
   module T = struct
@@ -44,6 +44,10 @@ module IntPair = struct
   include T
   include Comparable.Make(T)
 end
+
+let rec print_list = function 
+[] -> printf "\n"
+| ((x,y),c)::l -> printf "%d,%d:%d" x y c ; print_string " " ; print_list l
 
 let contains item list = 
 List.mem list item ~equal:(=)
@@ -65,17 +69,14 @@ let create_edge_map block colors use_corners =
   let vertex_edges (y,x) = List.filter adjacent ~f:(fun (y_inc,x_inc) -> contains (y+y_inc,x+x_inc) vertices) in
   let edge_map = List.map vertices ~f:(fun (y,x) -> ((y,x),(List.map (vertex_edges (y,x)) ~f:(fun (y_edge, x_edge) -> y_edge+y, x_edge+x)))) in
   (* let vertices = List.map (List.filter edge_map ~f:(fun (v,e) -> List.length e > 0)) ~f:(fun (v,e) -> v) in *)
-  (vertices, edge_map)
-
-let to_int_pair x = IntPair.Set.choose_exn (IntPair.Set.singleton x) ;;
-let to_tuple (a,b) = (a,b) ;;
+  (vertices, edge_map) ;;
 
 let dfs graph visited start_node = 
   let rec explore path visited node = 
     (* if (List.mem visited node ~equal:(=)) then raise CycleFound else *)
     if (List.mem path node ~equal:(=)) then visited else     
       let new_path = node :: path in 
-      let edges    = (List.Assoc.find_exn graph node ~equal:(=)) in
+      let edges    = (List.Assoc.find graph node ~equal:(=)) |? lazy [] in
       let visited  = List.fold_left ~f:(explore new_path) ~init:visited edges in
       node :: visited
   in explore [] visited start_node
@@ -91,6 +92,14 @@ let get_min_y {points;original_grid} =
 let get_min_x {points;original_grid} = 
   List.fold ~init:100 ~f:(fun curr_sum ((y,x),c)-> (Int.min curr_sum x)) points
 
+let nth_highest_color block n = 
+  let colors = (1 -- 9) in
+  let counts = List.map colors ~f:(fun color -> (List.count block.points ~f:(fun ((y,x),c) -> c = color))) in
+  let counts_with_idx = List.mapi counts ~f:(fun i x -> (i, x)) in
+  let sorted = List.sort counts_with_idx ~compare:(fun (i_x, x) (i_y, y) -> (Int.descending x y)) in 
+  let color,count = List.nth_exn sorted (n-1) in
+  color+1 ;;
+
 let to_original_grid_overlay {points ; original_grid} with_original = 
   let maxY = get_max_y {points=original_grid;original_grid} in
   let maxX = get_max_x {points=original_grid;original_grid} in
@@ -104,23 +113,9 @@ let to_original_grid_overlay {points ; original_grid} with_original =
   let points = List.map ~f:(fun (y,x) -> ((y,x), deduce_val (y,x))) indices in
   block_of_points points original_grid
 
-let to_min_grid {points;original_grid} with_original = 
-  let minY = get_min_y {points;original_grid} in
-  let minX = get_min_x {points;original_grid} in
-  let shiftY = (get_max_y {points;original_grid}) - minY in 
-  let shiftX = (get_max_x {points;original_grid}) - minX in 
-  let indices = List.cartesian_product (0 -- shiftY) (0 -- shiftX) in
-  let deduce_val (y,x) = match List.Assoc.find points (y,x) ~equal:(=) with
-      | Some c -> c
-      | None -> if with_original then match List.Assoc.find original_grid (y,x) ~equal:(=) with 
-        | Some c_original -> c_original
-        | None -> 0
-      else 0 in
-  let points = List.map ~f:(fun (y,x) -> ((y,x), deduce_val (y+minY,x+minX))) indices in
-  block_of_points points original_grid
 
 let print_block {points ; original_grid}  =
-  printf "Block has %d tiles" (List.length points);
+  printf "\n Block has %d tiles" (List.length points);
   let maxY = get_max_y {points=(original_grid @ points) ;original_grid} in
   let maxX = get_max_x {points=(original_grid @ points);original_grid} in
   let indices = List.cartesian_product (0 -- maxY) (0 -- maxX) in
@@ -136,6 +131,30 @@ let print_block {points ; original_grid}  =
       (if (c > (-1)) then Printf.printf "%i|" c else  Printf.printf " |");
       print_points rest y; in
     print_points points (-1)
+
+
+let to_min_grid {points;original_grid} with_original = 
+  print_block {points;original_grid};
+  let minY = get_min_y {points;original_grid} in
+  let minX = get_min_x {points;original_grid} in
+  let shiftY = (get_max_y {points;original_grid}) - minY in 
+  let shiftX = (get_max_x {points;original_grid}) - minX in
+  printf "%d \n" shiftX;
+  printf "%d \n" shiftY;
+  let indices = List.cartesian_product (0 -- shiftY) (0 -- shiftX) in
+  let deduce_val (y,x) = match List.Assoc.find points (y,x) ~equal:(=) with
+      | Some c -> c
+      | None -> if with_original then match List.Assoc.find original_grid (y,x) ~equal:(=) with 
+        | Some c_original -> c_original
+        | None -> 0
+      else 0 in
+  print_list points;
+  let new_points = List.map ~f:(fun (y,x) -> ((y,x), deduce_val (y+minY,x+minX))) indices in
+  print_list new_points;
+  print_block {points=new_points ; original_grid};
+  let b = block_of_points new_points original_grid in
+  print_block b;
+  b;;
 
 
 let print_blocks blocks = List.iter blocks ~f:(fun block -> print_block block)
@@ -173,7 +192,7 @@ let merge a b =
     | el :: rest -> add_until_empty rest (el :: list2) in
   let points = add_until_empty a.points b.points in
   let original_grid = a.original_grid in
-  {points ; original_grid} ;;
+  {points ; original_grid}
 
 (* let duplicate block tdirection = 
   match tdirection with 
@@ -208,9 +227,14 @@ let split block is_horizontal =
 
 let is_symmetrical is_horizontal block = 
   let split_block = split block is_horizontal in
+  let reflected_split_block = split (reflect block is_horizontal) is_horizontal in
   match split_block with
-  | first_half :: second_half -> (reflect first_half is_horizontal) === ((List.nth second_half 0) |? lazy block)
-  | [] -> false 
+  | [] -> false
+  | first_half :: _ -> 
+  match reflected_split_block with 
+    | first_reflected_half :: _ -> first_half === first_reflected_half
+    | _ -> false
+  ;;
 
 let has_min_tiles n block = List.length block.points >= n ;;
 
@@ -228,13 +252,22 @@ let box_block {points;original_grid} =
   let points = List.map ~f:(fun (y,x) -> ((y,x), deduce_val (y,x))) indices in
    {points ; original_grid}
 
+let to_int_pair x = (IntPair.Set.choose (IntPair.Set.singleton x)) |? lazy (raise (Failure ("x is empty"))) ;;
+let to_tuple (a,b) = (a,b) ;;
+
 let find_blocks_by block colors is_corner box_blocks = 
   let vertices, graph = create_edge_map block colors is_corner in 
-  let explore_v state v = if IntPair.Set.mem (List.reduce_exn state ~f:IntPair.Set.union) (to_int_pair v) 
-    then state
-  else 
-    let connected_component_vertices = IntPair.Set.of_list (List.map (dfs graph [] v) ~f:to_int_pair) in
-    state @ [connected_component_vertices] in
+  
+  let state_to_set state = List.fold_left state ~init:IntPair.Set.empty ~f:IntPair.Set.union in 
+
+  let explore_v state v = 
+    (* if IntPair.Set.mem (List.fold_left state ~init:IntPair.Set.empty ~f:IntPair.Set.union) (to_int_pair v |? lazy (raise (Failure ("No tile")))) *)
+    if IntPair.Set.mem (state_to_set state) (to_int_pair v)
+      then state
+    else 
+      let connected_component_vertices = IntPair.Set.of_list (List.map (dfs graph [] v) ~f:to_int_pair) in
+      state @ [connected_component_vertices] in
+
   let init = [IntPair.Set.empty] in
   let connected_components = List.fold_left ~f:explore_v ~init:init (List.map vertices ~f:to_int_pair) in
   let connected_components_2d_list = List.map connected_components ~f:(fun cc -> 
@@ -248,16 +281,16 @@ let find_blocks_by block colors is_corner box_blocks =
   let final_blocks = List.drop with_empty 1 in
   if box_blocks then List.map final_blocks ~f:box_block else final_blocks ;;
 
-let find_same_color_blocks block is_corner box_blocks = 
-  let blocks_by_color = List.map (0 -- 9) ~f:(fun color -> find_blocks_by block [color] is_corner box_blocks) in
-  let is_block_empty block = match block.points with 
-  | [] -> false
-  | _ -> true in
-  let non_empty_blocks = List.map blocks_by_color ~f:(fun blocks -> List.filter blocks ~f:is_block_empty) in
-  List.concat non_empty_blocks ;;
+let find_blocks_by_color block color is_corner box_blocks = 
+  find_blocks_by block [color] is_corner box_blocks ;;
 
 let find_blocks_by_black_b block is_corner box_blocks = 
-  find_blocks_by block (1 -- 9) is_corner box_blocks ;;
+  find_blocks_by block (1 -- 9) is_corner box_blocks
+
+let find_same_color_blocks block is_corner box_blocks = 
+  let blocks_by_color = List.map (1 -- 9) ~f:(fun color -> find_blocks_by block [color] is_corner box_blocks) in
+  List.concat blocks_by_color ;;
+
 
 let fill_color block new_color = 
   let points = List.map block.points ~f:(fun ((y,x),_) -> (y,x),new_color) in
@@ -298,41 +331,68 @@ let rec print_list = function
 let convert_raw_to_block raw = 
   let open Yojson.Basic.Util in
 
-  let length = List.length raw - 1 in
-  let indices = List.cartesian_product (0 -- length) (0 -- length) in
+  let y_length = List.length (raw |> to_list) -1 in
+  let x_length = List.length (List.nth_exn (raw |> to_list) 0 |> to_list) - 1 in
+  let indices = List.cartesian_product (0 -- y_length) (0 -- x_length) in
   let match_row row x = match List.nth row x with
         | Some c -> c |> to_int
         | None -> (-1) in
-  let deduce_val (y,x) = match List.nth raw y with
-      | Some row -> match_row (row |> to_list) x 
+  let deduce_val (y,x) = match (List.nth (raw |> to_list) y) with
+      | Some row -> match_row (to_list row) x 
       | None -> (-1) in
   let new_points = List.map ~f:(fun (y,x) -> ((y,x), deduce_val (y,x))) indices in
   {points = new_points; original_grid = new_points} ;;
 
-let test_example assoc_list program = 
+let test_example assoc_list p = 
   let open Yojson.Basic.Util in
-  let raw_input = List.Assoc.find_exn assoc_list "input" ~equal:(=) |> to_list in
-  let raw_expected_output = List.Assoc.find_exn assoc_list "output" ~equal:(=) |> to_list in
+  let raw_input = List.Assoc.find_exn assoc_list "input" ~equal:(=) in
+  let raw_expected_output = List.Assoc.find_exn assoc_list "output" ~equal:(=) in
   let input = convert_raw_to_block raw_input in
   let expected_output = convert_raw_to_block raw_expected_output in
-  let got_output = program input in
+  let got_output = p input in
+  printf "\n Input \n";
+  print_block input ;
+  printf "\n Resulting Output \n";
   print_block got_output;
+  printf "\n Expected Output \n";
   print_block expected_output;
   let matched = got_output === expected_output in
-  printf "%B \n" matched ;;
+  printf "\n ----------- %B -------------\n" matched ;;
 
-let test_task filename program =
-  let fullpath = String.concat ["/Users/theo/Development/program_induction/om/ec/arc-data/data/training/";filename] in
+let test_task file_name p =
+  printf "0";
+  let fullpath = String.concat ["/Users/theo/Development/program_induction/ec/arc-data/data/training/"; file_name; ".json"] in
+  printf "1";
   let open Yojson.Basic.Util in
   let open Yojson.Basic in
+  printf "2";
   let json = from_file fullpath in
+  printf "3";
   let json = json |> member "train" |> to_list in
+  printf "4";
   let pair_list = List.map json ~f:(fun pair -> pair |> to_assoc) in 
-  let examples = List.map pair_list ~f:(fun assoc_list -> test_example assoc_list program) in
-  examples ;;
+  try
+    List.iter pair_list ~f:(fun assoc_list -> test_example assoc_list p)
+  with
+    | _ -> printf "\n error in executing program \n";;
+
+(* _filterAndMinGrid(lambda block: _isSymmetrical(block)(False))(_findSameColorBlocks(a)(False)) *)
+
+let p_72ca375d grid = 
+  let blocks = find_same_color_blocks grid true false in
+  print_blocks blocks;
+  let filtered_blocks = List.filter blocks ~f:(fun block -> is_symmetrical false block) in
+  print_blocks filtered_blocks;
+  let merged_block = merge_blocks filtered_blocks in
+  to_min_grid merged_block false ;; 
+
+test_task "72ca375d" p_72ca375d ;;
+(* let example_grid = {points = [(0,0),3 ; (1,0),3 ; (1,1),3; (0,1),3] ; original_grid = empty_grid 6 6 0} in
+print_blocks (split example_grid true) ;;
+printf "%b" (is_symmetrical true example_grid) ;; *)
 
 
-register_special_task "arc" (fun extras ?timeout:(timeout = 0.001) name ty examples ->
+(* register_special_task "arc" (fun extras ?timeout:(timeout = 0.001) name ty examples ->
 (* Printf.eprintf "Making an arc task %s \n" name; *)
 { name = name    ;
     task_type = ty ;
@@ -365,10 +425,10 @@ register_special_task "arc" (fun extras ?timeout:(timeout = 0.001) name ty examp
           then 0.0
           else log 0.0)
 }) ;;
-
+ *)
 (* primitives *)
 
-ignore(primitive "black" tcolor 0) ;;
+(* ignore(primitive "black" tcolor 0) ;;
 ignore(primitive "blue" tcolor 1) ;;
 ignore(primitive "red" tcolor 2) ;;
 ignore(primitive "green" tcolor 3) ;;
@@ -411,4 +471,4 @@ ignore(primitive "has_min_tiles" (tboolean @> tblock @> tboolean) has_min_tiles)
 ignore(primitive "grid_to_block" (tgrid @> tblock) (fun x -> x)) ;;
 ignore(primitive "find_same_color_blocks" (tgrid @> tboolean @> tboolean @> tblocks) find_same_color_blocks) ;;
 ignore(primitive "find_blocks_by_black_b" (tgrid @> tboolean @> tboolean @> tblocks) find_blocks_by_black_b) ;;
-
+ *)
