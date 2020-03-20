@@ -554,6 +554,7 @@ if runFull:
 def leafPrimitives():
     return [
 
+        Primitive('0', tint, 0),
         Primitive('1', tint, 1),
         Primitive('2', tint, 2),
         Primitive('3', tint, 3),
@@ -628,19 +629,21 @@ def basePrimitives():
     # arrow(tblock, tbool)
     Primitive('is_symmetrical', arrow(tblock, tbool, tbool), _isSymmetrical),
     Primitive('is_rectangle', arrow(tblock, tbool, tbool), None),
-    # Primitive('hasGeqNTiles', arrow(tblock, tint, tbool), _hasGeqNTiles),
+    Primitive('has_min_tiles', arrow(tblock, tint, tbool), _hasGeqNTiles),
     # Primitive('hasGeqNcolors', arrow(tblock, tint, tbool), _hasGeqNColors), # (5117e062)
     # # arrow(tblock, tgrid)
     # Primitive("blockToGrid", arrow(tblock, tint, tint, tbool, tgrid), _blockToGrid),
-    # Primitive("to_original_grid_overlay", arrow(tblock, tgrid), None),
+    Primitive("to_original_grid_overlay", arrow(tblock, tgrid), None),
     Primitive("to_min_grid", arrow(tblock, tbool, tgrid), _blockToMinGrid),
     # arrow(tblock, tblocks)
-    Primitive('split', arrow(tblock, tbool, tblocks), _split),
+    # Primitive('split', arrow(tblock, tbool, tblocks), _split),
     # arrow(tblock, tint, tcolor)
     # Primitive('findNthBlockColor', arrow(tblock, tint, tcolor), _findNthColor),
     # arrow(tblock, tint)
-    # Primitive('numColors', arrow(tblock, tint), _numColors),
-    # Primitive('numTiles', arrow(tblock, tint), _numTiles),
+    Primitive('get_height', arrow(tblock, tint), None),
+    Primitive('get_width', arrow(tblock, tint), None),
+    # Primitive('get_num_colors', arrow(tblock, tint), _numColors),
+    Primitive('get_num_tiles', arrow(tblock, tint), None),
 
 ##### tcolor ######
 
@@ -661,8 +664,8 @@ def basePrimitives():
     # Primitive('findBlocksByEdge', arrow(tgrid, tbool, tblocks), _findBlocksByEdge),
 
     # #arrow(tgrid, tblock)
-    Primitive('identity', arrow(tgrid, tgrid), lambda grid: grid),
-    Primitive('grid_to_block', arrow(tgrid, tblock), lambda grid: grid),
+    # Primitive('identity', arrow(tgrid, tgrid), lambda grid: grid),
+    Primitive('grid_to_block', arrow(tgrid, tblock), lambda grid: grid)]
     # arrow(tgrid, grid)
     # Primitive('solve0520fde7', arrow(tgrid, tgrid), _solve0520fde7),
     # Primitive('solve007bbfb7', arrow(tgrid, tgrid), _solve007bbfb7),
@@ -696,7 +699,6 @@ def basePrimitives():
 ##### Task Blueprints #####
 
     # Primitive('findAndMap', arrow(tgrid, arrow(tgrid, tblocks), arrow(tblock, tblock), arrow(tblocks, tgrid), tgrid), _solveGenericBlockMap)
-    ]
 
 
 
