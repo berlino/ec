@@ -1,11 +1,11 @@
 open Core
-(* open Client
+open Client
 open Timeout
 open Utils
 open Program
 open Type
 open Task
- *)
+
 (* Types and Helpers*)
 
 type block = {points : ((int*int)*int) list; original_grid : ((int*int)*int) list} ;;
@@ -134,13 +134,10 @@ let print_block {points ; original_grid}  =
 
 
 let to_min_grid {points;original_grid} with_original = 
-  print_block {points;original_grid};
   let minY = get_min_y {points;original_grid} in
   let minX = get_min_x {points;original_grid} in
   let shiftY = (get_max_y {points;original_grid}) - minY in 
   let shiftX = (get_max_x {points;original_grid}) - minX in
-  printf "%d \n" shiftX;
-  printf "%d \n" shiftY;
   let indices = List.cartesian_product (0 -- shiftY) (0 -- shiftX) in
   let deduce_val (y,x) = match List.Assoc.find points (y,x) ~equal:(=) with
       | Some c -> c
@@ -148,13 +145,8 @@ let to_min_grid {points;original_grid} with_original =
         | Some c_original -> c_original
         | None -> 0
       else 0 in
-  print_list points;
   let new_points = List.map ~f:(fun (y,x) -> ((y,x), deduce_val (y+minY,x+minX))) indices in
-  print_list new_points;
-  print_block {points=new_points ; original_grid};
-  let b = block_of_points new_points original_grid in
-  print_block b;
-  b;;
+  block_of_points new_points original_grid;;
 
 
 let print_blocks blocks = List.iter blocks ~f:(fun block -> print_block block)
@@ -202,7 +194,7 @@ let merge a b =
   move block y_shift 0 true 
   | _ -> block ;; *)
 
-let is_rectangle full block = 
+let is_rectangle block full = 
   (* TODO: Implement non-full version *)
   let {points;original_grid} = to_min_grid block false in
   (List.length points) = (List.length block.points)
@@ -225,7 +217,7 @@ let split block is_horizontal =
   let right_half = List.filter points ~f: (fun ((y,x),c) -> x >= right_half_start) in
   [{points = left_half; original_grid = original_grid}; {points = right_half; original_grid = original_grid}]
 
-let is_symmetrical is_horizontal block = 
+let is_symmetrical block is_horizontal = 
   let split_block = split block is_horizontal in
   let reflected_split_block = split (reflect block is_horizontal) is_horizontal in
   match split_block with
@@ -236,7 +228,7 @@ let is_symmetrical is_horizontal block =
     | _ -> false
   ;;
 
-let has_min_tiles n block = List.length block.points >= n ;;
+let has_min_tiles block n = List.length block.points >= n ;;
 
 let box_block {points;original_grid} = 
   let minY = get_min_y {points;original_grid} in
@@ -381,18 +373,18 @@ let test_task file_name p =
 let p_72ca375d grid = 
   let blocks = find_same_color_blocks grid true false in
   print_blocks blocks;
-  let filtered_blocks = List.filter blocks ~f:(fun block -> is_symmetrical false block) in
+  let filtered_blocks = List.filter blocks ~f:(fun block -> is_symmetrical block false) in
   print_blocks filtered_blocks;
   let merged_block = merge_blocks filtered_blocks in
   to_min_grid merged_block false ;; 
 
-test_task "72ca375d" p_72ca375d ;;
+(* test_task "72ca375d" p_72ca375d ;; *)
 (* let example_grid = {points = [(0,0),3 ; (1,0),3 ; (1,1),3; (0,1),3] ; original_grid = empty_grid 6 6 0} in
 print_blocks (split example_grid true) ;;
 printf "%b" (is_symmetrical true example_grid) ;; *)
 
 
-(* register_special_task "arc" (fun extras ?timeout:(timeout = 0.001) name ty examples ->
+register_special_task "arc" (fun extras ?timeout:(timeout = 0.001) name ty examples ->
 (* Printf.eprintf "Making an arc task %s \n" name; *)
 { name = name    ;
     task_type = ty ;
@@ -425,10 +417,11 @@ printf "%b" (is_symmetrical true example_grid) ;; *)
           then 0.0
           else log 0.0)
 }) ;;
- *)
+
+
 (* primitives *)
 
-(* ignore(primitive "black" tcolor 0) ;;
+ignore(primitive "black" tcolor 0) ;;
 ignore(primitive "blue" tcolor 1) ;;
 ignore(primitive "red" tcolor 2) ;;
 ignore(primitive "green" tcolor 3) ;;
@@ -441,8 +434,8 @@ ignore(primitive "maroon" tcolor 9) ;;
 
 (* tblocks -> tblock *)
 ignore(primitive "merge_blocks" (tblocks @> tblock) merge_blocks) ;;
-ignore(primitive "filter_blocks" ((tblock @> tboolean) @> (tblocks) @> (tblocks)) (fun f l -> List.filter ~f:f l));;
-ignore(primitive "map_blocks" ((tblock @> tblock) @> (tblocks) @> (tblocks)) (fun f l -> List.map ~f:f l));;
+ignore(primitive "filter_blocks" ((tblock @> tboolean) @> tblocks @> tblocks) (fun f l -> List.filter ~f:f l));;
+ignore(primitive "map_blocks" ((tblock @> tblock) @> tblocks @> tblocks) (fun f l -> List.map ~f:f l));;
 
 
 (* tblock -> tblock *)
@@ -463,12 +456,12 @@ ignore(primitive "get_width" (tblock @> tint) (fun block -> (get_max_x block) - 
 ignore(primitive "get_num_tiles" (tblock @> tint) (fun {points;original_grid} -> List.length points)) ;;
 
 (* tblock -> tboolean *)
-ignore(primitive "is_symmetrical" (tboolean @> tblock @> tboolean) is_symmetrical) ;;
-ignore(primitive "is_rectangle" (tboolean @> tblock @> tboolean) is_rectangle) ;;
-ignore(primitive "has_min_tiles" (tboolean @> tblock @> tboolean) has_min_tiles) ;;
+ignore(primitive "is_symmetrical" (tblock @> tboolean @> tboolean) is_symmetrical) ;;
+ignore(primitive "is_rectangle" (tblock @> tboolean @> tboolean) is_rectangle) ;;
+ignore(primitive "has_min_tiles" (tblock @> tint @> tboolean) has_min_tiles) ;;
 
 (* tgrid -> tblocks *)
 ignore(primitive "grid_to_block" (tgrid @> tblock) (fun x -> x)) ;;
 ignore(primitive "find_same_color_blocks" (tgrid @> tboolean @> tboolean @> tblocks) find_same_color_blocks) ;;
 ignore(primitive "find_blocks_by_black_b" (tgrid @> tboolean @> tboolean @> tblocks) find_blocks_by_black_b) ;;
- *)
+ignore(primitive "find_blocks_by_color" (tgrid @> tcolor @> tboolean @> tboolean @> tblocks) find_blocks_by_color) ;;
