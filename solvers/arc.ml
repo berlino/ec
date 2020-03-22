@@ -3,8 +3,8 @@ open Client
 open Timeout
 open Utils
 open Program
-open Type
 open Task
+open Type
 
 (* Types and Helpers*)
 
@@ -45,9 +45,13 @@ module IntPair = struct
   include Comparable.Make(T)
 end
 
-let rec print_list = function 
+let rec print_points = function 
 [] -> printf "\n"
-| ((x,y),c)::l -> printf "%d,%d:%d" x y c ; print_string " " ; print_list l
+| ((x,y),c)::l -> printf "%d,%d:%d" x y c ; print_string " " ; print_points l
+
+let rec print_coords = function 
+[] -> printf "\n"
+| (x,y)::l -> printf "%d,%d" x y ; print_string " " ; print_coords l
 
 let contains item list = 
 List.mem list item ~equal:(=)
@@ -60,26 +64,6 @@ let (|?) maybe default =
 let block_of_points points original_grid = match points with
   | [] -> raise (Failure ("Empty points"))
   | points -> {points; original_grid}
-
-let create_edge_map block colors use_corners = 
-  let vertex_points = List.filter block.points ~f:(fun ((y,x),c) -> contains c colors) in
-  let vertices = List.map vertex_points ~f:(fun ((y,x),c) -> (y,x)) in
-  let basic_adjacent = [(1,0);(0,1);(-1,0);(0,-1)] in
-  let adjacent = if use_corners then (basic_adjacent @ [(1,1);(-1,1);(1,-1);(-1,-1)]) else basic_adjacent in
-  let vertex_edges (y,x) = List.filter adjacent ~f:(fun (y_inc,x_inc) -> contains (y+y_inc,x+x_inc) vertices) in
-  let edge_map = List.map vertices ~f:(fun (y,x) -> ((y,x),(List.map (vertex_edges (y,x)) ~f:(fun (y_edge, x_edge) -> y_edge+y, x_edge+x)))) in
-  (* let vertices = List.map (List.filter edge_map ~f:(fun (v,e) -> List.length e > 0)) ~f:(fun (v,e) -> v) in *)
-  (vertices, edge_map) ;;
-
-let dfs graph visited start_node = 
-  let rec explore path visited node = 
-    (* if (List.mem visited node ~equal:(=)) then raise CycleFound else *)
-    if (List.mem path node ~equal:(=)) then visited else     
-      let new_path = node :: path in 
-      let edges    = (List.Assoc.find graph node ~equal:(=)) |? lazy [] in
-      let visited  = List.fold_left ~f:(explore new_path) ~init:visited edges in
-      node :: visited
-  in explore [] visited start_node
 
 (* DSL *)
 
@@ -247,6 +231,29 @@ let box_block {points;original_grid} =
 let to_int_pair x = (IntPair.Set.choose (IntPair.Set.singleton x)) |? lazy (raise (Failure ("x is empty"))) ;;
 let to_tuple (a,b) = (a,b) ;;
 
+
+let create_edge_map block colors use_corners = 
+  let vertex_points = List.filter block.points ~f:(fun ((y,x),c) -> contains c colors) in
+  let vertices = List.map vertex_points ~f:(fun ((y,x),c) -> (y,x)) in
+  (* only include downward edges to avoid cycles *) 
+  let basic_adjacent = [(1,0);(0,1);(0,-1);(-1,0)] in
+  let adjacent = if use_corners then (basic_adjacent @ [(1,1);(1,-1);(-1,-1);(-1,1)]) else basic_adjacent in
+  let vertex_edges (y,x) = List.filter adjacent ~f:(fun (y_inc,x_inc) -> contains (y+y_inc,x+x_inc) vertices) in
+  let edge_map = List.map vertices ~f:(fun (y,x) -> ((y,x),(List.map (vertex_edges (y,x)) ~f:(fun (y_edge, x_edge) -> y_edge+y, x_edge+x)))) in
+  (* let vertices = List.map (List.filter edge_map ~f:(fun (v,e) -> List.length e > 0)) ~f:(fun (v,e) -> v) in *)
+  (* List.iter edge_map ~f:(fun (key,vals) -> print_coords vals); *)
+  (vertices, edge_map) ;;
+
+let dfs graph visited start_node = 
+  let rec explore path visited node = 
+    if (List.mem path node ~equal:(=)) then visited else     
+      let new_path = node :: path in 
+      let edges    = (List.Assoc.find graph node ~equal:(=)) |? lazy [] in
+      let new_edges = List.filter edges ~f:(fun e -> not (List.mem visited e ~equal:(=))) in
+      let visited  = List.fold_left ~f:(explore new_path) ~init:visited new_edges in
+      node :: visited
+  in explore [] visited start_node
+
 let find_blocks_by block colors is_corner box_blocks = 
   let vertices, graph = create_edge_map block colors is_corner in 
   
@@ -385,6 +392,9 @@ printf "%b" (is_symmetrical true example_grid) ;; *)
 
 
 register_special_task "arc" (fun extras ?timeout:(timeout = 0.001) name ty examples ->
+
+(* register_special_task "arc" (fun extras ?timeout:(timeout = 0.001) name ty examples ->
+>>>>>>> e27ae437c85c2adb9a98c0359169a3c9ddad5d4f
 (* Printf.eprintf "Making an arc task %s \n" name; *)
 { name = name    ;
     task_type = ty ;
@@ -416,8 +426,12 @@ register_special_task "arc" (fun extras ?timeout:(timeout = 0.001) name ty examp
         if loop examples
           then 0.0
           else log 0.0)
+<<<<<<< HEAD
 }) ;;
 
+=======
+});;
+>>>>>>> e27ae437c85c2adb9a98c0359169a3c9ddad5d4f
 
 (* primitives *)
 
@@ -464,4 +478,127 @@ ignore(primitive "has_min_tiles" (tblock @> tint @> tboolean) has_min_tiles) ;;
 ignore(primitive "grid_to_block" (tgrid @> tblock) (fun x -> x)) ;;
 ignore(primitive "find_same_color_blocks" (tgrid @> tboolean @> tboolean @> tblocks) find_same_color_blocks) ;;
 ignore(primitive "find_blocks_by_black_b" (tgrid @> tboolean @> tboolean @> tblocks) find_blocks_by_black_b) ;;
+<<<<<<< HEAD
 ignore(primitive "find_blocks_by_color" (tgrid @> tcolor @> tboolean @> tboolean @> tblocks) find_blocks_by_color) ;;
+=======
+
+ *)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+let convert_raw_to_block raw = 
+  let open Yojson.Basic.Util in
+
+  let y_length = List.length (raw |> to_list) -1 in
+  let x_length = List.length (List.nth_exn (raw |> to_list) 0 |> to_list) - 1 in
+  let indices = List.cartesian_product (0 -- y_length) (0 -- x_length) in
+  let match_row row x = match List.nth row x with
+        | Some c -> c |> to_int
+        | None -> (-1) in
+  let deduce_val (y,x) = match (List.nth (raw |> to_list) y) with
+      | Some row -> match_row (to_list row) x 
+      | None -> (-1) in
+  let new_points = List.map ~f:(fun (y,x) -> ((y,x), deduce_val (y,x))) indices in
+  {points = new_points; original_grid = new_points} ;;
+
+
+let test_example assoc_list p = 
+  let open Yojson.Basic.Util in
+  let raw_input = List.Assoc.find_exn assoc_list "input" ~equal:(=) in
+  let raw_expected_output = List.Assoc.find_exn assoc_list "output" ~equal:(=) in
+  let input = convert_raw_to_block raw_input in
+  let expected_output = convert_raw_to_block raw_expected_output in
+  let got_output = p input in
+  let matched = got_output === expected_output in
+  printf "\n%B\n" matched;
+  match matched with 
+  | false -> 
+    printf "\n Input \n";
+    print_block input ;
+    printf "\n Resulting Output \n";
+    print_block got_output;
+    printf "\n Expected Output \n";
+    print_block expected_output;
+  | true -> ();;
+
+let test_task file_name ex p =
+  printf "\n ----------------------------- Task: %s --------------------------- \n" file_name;
+  let fullpath = String.concat ["/Users/theo/Development/program_induction/ec/arc-data/data/training/"; file_name; ".json"] in
+  let open Yojson.Basic.Util in
+  let open Yojson.Basic in
+  let json = from_file fullpath in
+  let json = json |> member "train" |> to_list in
+  let pair_list = List.map json ~f:(fun pair -> pair |> to_assoc) in 
+  match ex with
+  | 0 -> test_example (List.nth_exn pair_list 0) p
+  | 1 -> test_example (List.nth_exn pair_list 1) p
+  | 2 -> test_example (List.nth_exn pair_list 2) p
+  | _ -> List.iter pair_list ~f:(fun assoc_list -> test_example assoc_list p) ;;
+
+
+let p_72ca375d grid = 
+  let blocks = find_same_color_blocks grid true false in
+  let filtered_blocks = List.filter blocks ~f:(fun block -> is_symmetrical false block) in
+  let merged_block = merge_blocks filtered_blocks in
+  to_min_grid merged_block false in
+test_task "72ca375d" (-1) p_72ca375d ;;
+
+
+let p_5521c0d9 grid = 
+  let blocks = find_same_color_blocks grid true false in
+  let get_height block = ((get_max_y block) - (get_min_y block)) + 1 in
+  let shifted_blocks = map_blocks (fun block -> move block (-(get_height block)) 0 false) blocks in
+  let merged_blocks = merge_blocks shifted_blocks in
+  to_original_grid_overlay merged_blocks false in
+test_task "5521c0d9" (-1) p_5521c0d9;;
+
+let p_f25fbde4 grid = 
+  let blocks = find_blocks_by_black_b grid true false in 
+  let block = merge_blocks blocks in
+  let grow_block = grow block 1 in
+  to_min_grid grow_block false in
+
+test_task "f25fbde4" (-1) p_f25fbde4;;
+(* let example_grid = {points = [((1,3),4); ((1,2),4); ((1,1),4); ((1,4),4); ((2,4),4); ((3,4),4); ((4,4),4); ((2,3),4); ((2,2),4); ((2,1),4); ((3,3),4); ((3,2),4); ((3,1),4); ((4,3),4); ((4,2),4); ((4,1),4)] ; original_grid = empty_grid 4 4 0} in
+let blocks = find_blocks_by_color example_grid 4 false false in 
+print_blocks blocks ;;
+ *)
+
