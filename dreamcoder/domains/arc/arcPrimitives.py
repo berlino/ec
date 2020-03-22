@@ -616,7 +616,7 @@ def basePrimitives():
     # Primitive('_replaceNthColors', arrow(tblock, tint, tint, tblock), _replaceNthColors),
     Primitive('reflect', arrow(tblock, tbool, tblock), _reflect),
     # Primitive('move_dir', arrow(tblock, tint, tdirection, tblock), _move),
-    Primitive('move', arrow(tblock, tint, tint, tblock), lambda x : x),
+    Primitive('move', arrow(tblock, tint, tint, tbool, tblock), lambda x : x),
     Primitive('grow', arrow(tblock, tint, tblock), _grow),
     Primitive('box_block', arrow(tblock, tblock), lambda x : x),
     # Primitive('concat', arrow(tblock, tblock, tdirection, tblock), _concat),
@@ -633,10 +633,10 @@ def basePrimitives():
     # Primitive('hasGeqNcolors', arrow(tblock, tint, tbool), _hasGeqNColors), # (5117e062)
     # # arrow(tblock, tgrid)
     # Primitive("blockToGrid", arrow(tblock, tint, tint, tbool, tgrid), _blockToGrid),
-    Primitive("to_original_grid_overlay", arrow(tblock, tgrid), None),
+    Primitive("to_original_grid_overlay", arrow(tblock, tbool, tgrid), None),
     Primitive("to_min_grid", arrow(tblock, tbool, tgrid), _blockToMinGrid),
     # arrow(tblock, tblocks)
-    # Primitive('split', arrow(tblock, tbool, tblocks), _split),
+    Primitive('split', arrow(tblock, tbool, tblocks), _split),
     # arrow(tblock, tint, tcolor)
     # Primitive('findNthBlockColor', arrow(tblock, tint, tcolor), _findNthColor),
     # arrow(tblock, tint)
