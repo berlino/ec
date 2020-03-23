@@ -526,8 +526,9 @@ def _solve72ca375d(a): return _filterAndMinGrid(lambda block: _isSymmetrical(blo
 def _solve5521c0d9(a): return _solveGenericBlockMap(a)(_findRectanglesBlackB)(lambda block: _move(block)(_numRows(block))('up')(False))(lambda blocks: _blocksAsGrid(blocks)(False))
 def _solvef25fbde4(a): return _solveGenericBlockMap(a)(lambda grid: _findBlocksByCorner(grid)(False))(lambda block: _grow(block)(2))(lambda block: _blocksToMinGrid(block)(False))
 
-def _solvefcb5c309(grid): return _blockToMinGrid(_fill(_highestTileBlock(_findBlocksByColor(grid)(False)(_findNthColor(grid)(2))))(_findNthColor(grid)(3)))(True)
 def _solve50cb2852(grid): return lambda c: _blocksAsGrid(_map(lambda block: _fillIn(block)(c))(_findRectanglesBlackB(grid)))(False)
+
+def _solvefcb5c309(grid): return _blockToMinGrid(_fill(_highestTileBlock(_findBlocksByColor(grid)(False)(_findNthColor(grid)(2))))(_findNthColor(grid)(3)))(True)
 def _solve0520fde7(a): return _zipGrids2(_split(a)(False))(_keepBlackOr(_red))
 def _solve007bbfb7(a): return _zipGrids(_grow(a)(3))(_duplicate2dN(a)(2))(_keepNonBlacks)
 def _solvec9e6f938(a): return _concatNAndReflect(a)(False)('right')
@@ -551,6 +552,7 @@ if runFull:
     tblock = baseType('tblock')
     tblocks = tlist(tblock)
     tgrids = tlist(tgrid)
+    ttile = baseType('ttile')
 
 def leafPrimitives():
     return [
@@ -612,6 +614,7 @@ def basePrimitives():
     # arrow(tblock, tblock)
     # Primitive('fillIn', arrow(tblock, tcolor, tblock), _fillIn),
     Primitive('fill_color', arrow(tblock, tcolor, tblock), _fill),
+    Primitive('filter_tiles', arrow(tblock, arrow(ttile, tbool), tblock), None),
     # Primitive('fillWithNthColor', arrow(tblock, tint, tblock), _fillWithNthColor),
     Primitive('replace_color', arrow(tblock, tcolor, tcolor, tblock), _replaceColors),
     # Primitive('_replaceNthColors', arrow(tblock, tint, tint, tblock), _replaceNthColors),
@@ -667,7 +670,7 @@ def basePrimitives():
 
     # #arrow(tgrid, tblock)
     # Primitive('identity', arrow(tgrid, tgrid), lambda grid: grid),
-    Primitive('grid_to_block', arrow(tgrid, tblock), lambda grid: grid)]
+    Primitive('grid_to_block', arrow(tgrid, tblock), lambda grid: grid),
     # arrow(tgrid, grid)
     # Primitive('solve0520fde7', arrow(tgrid, tgrid), _solve0520fde7),
     # Primitive('solve007bbfb7', arrow(tgrid, tgrid), _solve007bbfb7),
@@ -687,9 +690,11 @@ def basePrimitives():
     # Primitive('numRows', arrow(tgrid, tint), _numRows),
     # Primitive('numCols', arrow(tgrid, tint), _numCols),
 
-#####
+##### ttile #####
 
-##### tgrid #####
+    Primitive('is_interior', arrow(ttile, tbool, tbool), lambda grid: grid)]
+
+##### t0 #####
 
     # t0
     # Primitive("reduce", arrow(arrow(t1, t0, t1), t1, tlist(t0), t1), _reduce),

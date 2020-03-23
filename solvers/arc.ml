@@ -1,14 +1,15 @@
 open Core
-open Client
+(* open Client
 open Timeout
 open Utils
 open Program
 open Task
 open Type
-
+ *)
 (* Types and Helpers*)
 
 type block = {points : ((int*int)*int) list; original_grid : ((int*int)*int) list} ;;
+type tile = {point : ((int*int)*int); block : block} ;;
 
 
 let (|?) maybe default =
@@ -52,6 +53,10 @@ let rec print_points = function
 let rec print_coords = function 
 [] -> printf "\n"
 | (x,y)::l -> printf "%d,%d" x y ; print_string " " ; print_coords l
+
+let rec print_list = function 
+[] -> ()
+| e::l -> printf "%d" e ; print_string " " ; print_list l ;;
 
 let contains item list = 
 List.mem list item ~equal:(=)
@@ -306,26 +311,18 @@ let merge_blocks blocks =
     | None -> raise (Failure ("Merge with empty list"))
     | Some(block) -> block
 
-let python_split x =
-  let split = String.split_on_chars ~on:[','] x in 
-  let filt_split = List.filter split ~f:(fun x -> x <> "") in
-  let y = List.nth_exn filt_split 0 |> int_of_string in
-  let x = List.nth_exn filt_split 1 |> int_of_string in
-  (y,x)
-;;
+let filter_tiles block f = 
+  let new_points = List.filter block.points ~f:(fun point -> f {point ; block = block}) in
+  block_of_points new_points block.original_grid
 
-let to_grid task = 
-  let open Yojson.Basic.Util in
-  let json = task |> member "grid" |> to_assoc in 
-  let grid_points = List.map json ~f:(fun (key, color) -> ((python_split key), (to_int color))) in
-  let grid = {points = grid_points ; original_grid = grid_points} in 
-  (* print_block grid; *)
-  grid ;;
-
-let rec print_list = function 
-[] -> ()
-| e::l -> printf "%d" e ; print_string " " ; print_list l ;;
-
+let is_interior tile is_corner = 
+  let adjacent = [(1,0);(0,1);(0,-1);(-1,0)] in
+  let corner_adjacent = [(1,1);(1,-1);(-1,-1);(-1,1)] in
+  let neighbors = if is_corner then (adjacent @ corner_adjacent) else adjacent in
+  let ((y_tile, x_tile), c_tile) = tile.point in
+  let actual_neighbors = List.filter_map neighbors ~f:(fun (y,x) -> List.Assoc.find tile.block.points ~equal:(=) (y+y_tile,x+x_tile)) in
+  let expected_num_neighbors = if is_corner then 8 else 4 in 
+((List.length actual_neighbors) = expected_num_neighbors) ;;
 
 register_special_task "arc" (fun extras ?timeout:(timeout = 0.001) name ty examples ->
 (* Printf.eprintf "Making an arc task %s \n" name; *)
@@ -388,6 +385,7 @@ ignore(primitive "grow" (tblock @> tint @> tblock) grow) ;;
 ignore(primitive "fill_color" (tblock @> tcolor @> tblock) fill_color) ;;
 ignore(primitive "replace_color" (tblock @> tcolor @> tcolor @> tblock) replace_color) ;;
 ignore(primitive "box_block" (tblock @> tblock) box_block) ;;
+ignore(primitive "filter_tiles" (tblock @> (ttile @> tbool) @> tblock) filter_tiles) ;;
 (* tblock -> tblocks *)
 ignore(primitive "split" (tblock @> tboolean @> tblocks) split) ;;
 (* tblock -> tgrid *)
@@ -397,7 +395,6 @@ ignore(primitive "to_original_grid_overlay" (tblock @> tboolean @> tgrid) to_ori
 ignore(primitive "get_height" (tblock @> tint) (fun block -> (get_max_y block) - (get_min_y block))) ;;
 ignore(primitive "get_width" (tblock @> tint) (fun block -> (get_max_x block) - (get_max_x block))) ;;
 ignore(primitive "get_num_tiles" (tblock @> tint) (fun {points;original_grid} -> List.length points)) ;;
-
 (* tblock -> tboolean *)
 ignore(primitive "is_symmetrical" (tblock @> tboolean @> tboolean) is_symmetrical) ;;
 ignore(primitive "is_rectangle" (tblock @> tboolean @> tboolean) is_rectangle) ;;
@@ -409,6 +406,8 @@ ignore(primitive "find_same_color_blocks" (tgrid @> tboolean @> tboolean @> tblo
 ignore(primitive "find_blocks_by_black_b" (tgrid @> tboolean @> tboolean @> tblocks) find_blocks_by_black_b) ;;
 ignore(primitive "find_blocks_by_color" (tgrid @> tcolor @> tboolean @> tboolean @> tblocks) find_blocks_by_color) ;;
 
+(* ttile -> tbool *)
+ignore(primitive "is_interior" (ttile @> tbool @> tbool) is_interior)
 
 
 
@@ -443,13 +442,21 @@ ignore(primitive "find_blocks_by_color" (tgrid @> tcolor @> tboolean @> tboolean
 
 
 
+let python_split x =
+  let split = String.split_on_chars ~on:[','] x in 
+  let filt_split = List.filter split ~f:(fun x -> x <> "") in
+  let y = List.nth_exn filt_split 0 |> int_of_string in
+  let x = List.nth_exn filt_split 1 |> int_of_string in
+  (y,x)
+;;
 
-
-
-
-
-
-
+let to_grid task = 
+  let open Yojson.Basic.Util in
+  let json = task |> member "grid" |> to_assoc in 
+  let grid_points = List.map json ~f:(fun (key, color) -> ((python_split key), (to_int color))) in
+  let grid = {points = grid_points ; original_grid = grid_points} in 
+  (* print_block grid; *)
+  grid ;;
 
 let convert_raw_to_block raw = 
   let open Yojson.Basic.Util in
@@ -504,8 +511,8 @@ let p_72ca375d grid =
   let blocks = find_same_color_blocks grid true false in
   let filtered_blocks = List.filter blocks ~f:(fun block -> is_symmetrical block false) in
   let merged_block = merge_blocks filtered_blocks in
-  to_min_grid merged_block false ;;
-(* test_task "72ca375d" (-1) p_72ca375d ;; *)
+  to_min_grid merged_block false in
+test_task "72ca375d" (-1) p_72ca375d ;;
 
 
 let p_5521c0d9 grid = 
@@ -513,18 +520,32 @@ let p_5521c0d9 grid =
   let get_height block = ((get_max_y block) - (get_min_y block)) + 1 in
   let shifted_blocks = map_blocks (fun block -> move block (-(get_height block)) 0 false) blocks in
   let merged_blocks = merge_blocks shifted_blocks in
-  to_original_grid_overlay merged_blocks false ;;
-(* test_task "5521c0d9" (-1) p_5521c0d9;; *)
+  to_original_grid_overlay merged_blocks false in
+test_task "5521c0d9" (-1) p_5521c0d9;;
 
 let p_f25fbde4 grid = 
   let blocks = find_blocks_by_black_b grid true false in 
   let block = merge_blocks blocks in
   let grow_block = grow block 1 in
-  to_min_grid grow_block false ;;
+  to_min_grid grow_block false in
+test_task "f25fbde4" (-1) p_f25fbde4;;
 
-(* test_task "f25fbde4" (-1) p_f25fbde4;; *)
-(* let example_grid = {points = [((1,3),4); ((1,2),4); ((1,1),4); ((1,4),4); ((2,4),4); ((3,4),4); ((4,4),4); ((2,3),4); ((2,2),4); ((2,1),4); ((3,3),4); ((3,2),4); ((3,1),4); ((4,3),4); ((4,2),4); ((4,1),4)] ; original_grid = empty_grid 4 4 0} in
+let p_50cb2852 grid = 
+  let blocks = find_blocks_by_black_b grid true false  in
+  let interior_blocks = map_blocks (fun block -> filter_tiles block (fun tile -> is_interior tile true)) blocks in
+  let filled_interior_blocks = map_blocks (fun block -> fill_color block 8) interior_blocks in
+  let merged_blocks = merge_blocks filled_interior_blocks in
+  to_original_grid_overlay merged_blocks true in
+test_task "50cb2852" (-1) p_50cb2852 ;;
+
+
+(* 
+let example_grid = {points = [((1,3),4); ((1,2),4); ((1,1),4); ((1,4),4); ((2,4),4); ((3,4),4); ((4,4),3); ((2,3),4); ((2,2),4); ((2,1),4); ((3,3),4); ((3,2),4); ((3,1),4); ((4,3),4); ((4,2),4); ((4,1),4)] ; original_grid = empty_grid 4 4 0} in
 let blocks = find_blocks_by_color example_grid 4 false false in 
-print_blocks blocks ;;
- *)
+let block = List.nth_exn blocks 0 in
+print_block block;
+let filtered_block = filter_tiles block (fun tile -> is_interior true block) in
+print_block filtered_block ;;
 
+
+ *)

@@ -286,6 +286,7 @@ let tcolor = make_ground "tcolor" ;;
 let tdirection = make_ground "tdirection" ;;
 let tblocks = tlist tblock ;;
 let tgrid = make_ground "tgrid" ;;
+let ttile = make_ground "ttile" ;;
 
 let unify_many_types ts =
   let k = empty_context in
