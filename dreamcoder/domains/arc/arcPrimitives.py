@@ -548,10 +548,10 @@ if runFull:
     tdirection = baseType('direction')
     tdisplacement = baseType('tdisplacement')
     tcolor = baseType('tcolor')
-    tgrid = baseType('tgrid')
+    tgridin = baseType('tgridin')
+    tgridout = baseType('tgridout')
     tblock = baseType('tblock')
     tblocks = tlist(tblock)
-    tgrids = tlist(tgrid)
     ttile = baseType('ttile')
 
 def leafPrimitives():
@@ -637,8 +637,8 @@ def basePrimitives():
     # Primitive('hasGeqNcolors', arrow(tblock, tint, tbool), _hasGeqNColors), # (5117e062)
     # # arrow(tblock, tgrid)
     # Primitive("blockToGrid", arrow(tblock, tint, tint, tbool, tgrid), _blockToGrid),
-    Primitive("to_original_grid_overlay", arrow(tblock, tbool, tgrid), None),
-    Primitive("to_min_grid", arrow(tblock, tbool, tgrid), _blockToMinGrid),
+    Primitive("to_original_grid_overlay", arrow(tblock, tbool, tgridout), None),
+    Primitive("to_min_grid", arrow(tblock, tbool, tgridout), _blockToMinGrid),
     # arrow(tblock, tblocks)
     Primitive('split', arrow(tblock, tbool, tblocks), _split),
     # arrow(tblock, tint, tcolor)
@@ -658,19 +658,19 @@ def basePrimitives():
 
 ##### tgrid #####
 
-    # arrow(tgrid, tblocks)
-    Primitive('find_same_color_blocks', arrow(tgrid, tbool, tbool, tblocks), lambda grid: grid),
-    Primitive('find_blocks_by_black_b', arrow(tgrid, tbool, tbool, tblocks), lambda grid: grid),
-    Primitive('find_blocks_by_color', arrow(tgrid, tcolor, tbool, tbool, tblocks), lambda grid: grid),
+    # arrow(tgridin, tblocks)
+    Primitive('find_same_color_blocks', arrow(tgridin, tbool, tbool, tblocks), lambda grid: grid),
+    Primitive('find_blocks_by_black_b', arrow(tgridin, tbool, tbool, tblocks), lambda grid: grid),
+    Primitive('find_blocks_by_color', arrow(tgridin, tcolor, tbool, tbool, tblocks), lambda grid: grid),
     # Primitive('findRectanglesBlackB', arrow(tgrid, tblocks), _findRectanglesBlackB),
     # Primitive('findRectanglesByB', arrow(tgrid, tcolor, tblocks), _findRectanglesByB),
     # Primitive('findBlocksByColor', arrow(tgrid, tcolor, tbool, tblocks), _findBlocksByColor),
     # Primitive('findBlocksByCorner', arrow(tgrid, tbool, tblocks), _findBlocksByCorner),
     # Primitive('findBlocksByEdge', arrow(tgrid, tbool, tblocks), _findBlocksByEdge),
 
-    # #arrow(tgrid, tblock)
+    # #arrow(tgridin, tblock)
     # Primitive('identity', arrow(tgrid, tgrid), lambda grid: grid),
-    Primitive('grid_to_block', arrow(tgrid, tblock), lambda grid: grid),
+    Primitive('grid_to_block', arrow(tgridin, tblock), lambda grid: grid),
     # arrow(tgrid, grid)
     # Primitive('solve0520fde7', arrow(tgrid, tgrid), _solve0520fde7),
     # Primitive('solve007bbfb7', arrow(tgrid, tgrid), _solve007bbfb7),
@@ -771,7 +771,7 @@ if __name__ == "__main__":
         #     a.pprint()
         #
         #     refB.pprint()
-        #     b.pprint()
+        #     b.pprin t()
         #     print(block.isSymmetrical(isHorizontal))
         #     print('\n')
 
