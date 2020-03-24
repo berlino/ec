@@ -285,7 +285,8 @@ let tblock = make_ground "tblock" ;;
 let tcolor = make_ground "tcolor" ;;
 let tdirection = make_ground "tdirection" ;;
 let tblocks = tlist tblock ;;
-let tgrid = make_ground "tgrid" ;;
+let tgridin = make_ground "tgridin" ;;
+let tgridout = make_ground "tgridout" ;;
 let ttile = make_ground "ttile" ;;
 
 let unify_many_types ts =
