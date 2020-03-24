@@ -616,6 +616,7 @@ def basePrimitives():
     Primitive('filter_tiles', arrow(tblock, arrow(ttile, tbool), tblock), None),
     # Primitive('fillWithNthColor', arrow(tblock, tint, tblock), _fillWithNthColor),
     Primitive('replace_color', arrow(tblock, tcolor, tcolor, tblock), _replaceColors),
+    Primitive('remove_black_b', arrow(tblock, tblock), None),
     # Primitive('_replaceNthColors', arrow(tblock, tint, tint, tblock), _replaceNthColors),
     Primitive('reflect', arrow(tblock, tbool, tblock), _reflect),
     # Primitive('move_dir', arrow(tblock, tint, tdirection, tblock), _move),
@@ -645,8 +646,9 @@ def basePrimitives():
     # arrow(tblock, tint)
     Primitive('get_height', arrow(tblock, tint), None),
     Primitive('get_width', arrow(tblock, tint), None),
-    # Primitive('get_num_colors', arrow(tblock, tint), _numColors),
     Primitive('get_num_tiles', arrow(tblock, tint), None),
+    # arrow(tblock, tcolor)
+    Primitive('nth_primary_color', arrow(tblock, tint, tcolor), None),
 
 ##### tcolor ######
 
@@ -691,9 +693,11 @@ def basePrimitives():
 
 ##### ttile #####
 
-    Primitive('is_interior', arrow(ttile, tbool, tbool), lambda grid: grid)]
+    Primitive('is_interior', arrow(ttile, tbool, tbool), lambda grid: grid),
 
 ##### t0 #####
+
+    Primitive("nth_of_sorted_object_list", arrow(tblocks, arrow(tblock, tint), tint, tblock), None)]
 
     # t0
     # Primitive("reduce", arrow(arrow(t1, t0, t1), t1, tlist(t0), t1), _reduce),
