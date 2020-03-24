@@ -1,11 +1,11 @@
 open Core
-(* open Client
+open Client
 open Timeout
 open Utils
 open Program
 open Task
 open Type
- *)
+
 (* Types and Helpers*)
 
 type block = {points : ((int*int)*int) list; original_grid : ((int*int)*int) list} ;;
@@ -342,7 +342,7 @@ let nth_primary_color block n =
   let nth_color, count = List.nth_exn sorted_colors_with_ints n in 
   nth_color ;;
 
-(* register_special_task "arc" (fun extras ?timeout:(timeout = 0.001) name ty examples ->
+register_special_task "arc" (fun extras ?timeout:(timeout = 0.001) name ty examples ->
 (* Printf.eprintf "Making an arc task %s \n" name; *)
 { name = name    ;
     task_type = ty ;
@@ -395,50 +395,42 @@ ignore(primitive "merge_blocks" (tblocks @> tblock) merge_blocks) ;;
 ignore(primitive "filter_blocks" ((tblock @> tboolean) @> tblocks @> tblocks) (fun f l -> List.filter ~f:f l));;
 ignore(primitive "map_blocks" ((tblock @> tblock) @> tblocks @> tblocks) (fun f l -> List.map ~f:f l));;
 
-
 (* tblock -> tblock *)
 ignore(primitive "reflect" (tblock @> tboolean @> tblock) reflect) ;;
 ignore(primitive "move" (tblock @> tint @> tint @> tboolean @> tblock) move) ;;
 ignore(primitive "grow" (tblock @> tint @> tblock) grow) ;;
 ignore(primitive "fill_color" (tblock @> tcolor @> tblock) fill_color) ;;
 ignore(primitive "replace_color" (tblock @> tcolor @> tcolor @> tblock) replace_color) ;;
+ignore(primitive "remove_black_b" (tblock @> tblock) remove_black_b) ;;
 ignore(primitive "box_block" (tblock @> tblock) box_block) ;;
 ignore(primitive "filter_tiles" (tblock @> (ttile @> tboolean) @> tblock) filter_tiles) ;;
 (* tblock -> tblocks *)
 ignore(primitive "split" (tblock @> tboolean @> tblocks) split) ;;
-(* tblock -> tgrid *)
-ignore(primitive "to_min_grid" (tblock @> tboolean @> tgrid) to_min_grid) ;;
-ignore(primitive "to_original_grid_overlay" (tblock @> tboolean @> tgrid) to_original_grid_overlay) ;;
+(* tblock -> tgridout *)
+ignore(primitive "to_min_grid" (tblock @> tboolean @> tgridout) to_min_grid) ;;
+ignore(primitive "to_original_grid_overlay" (tblock @> tboolean @> tgridout) to_original_grid_overlay) ;;
 (* tblock -> tint *)
 ignore(primitive "get_height" (tblock @> tint) (fun block -> (get_max_y block) - (get_min_y block))) ;;
 ignore(primitive "get_width" (tblock @> tint) (fun block -> (get_max_x block) - (get_max_x block))) ;;
 ignore(primitive "get_num_tiles" (tblock @> tint) (fun {points;original_grid} -> List.length points)) ;;
+(* tblock -> tcolor *)
+ignore(primitive "nth_primary_color" (tblock @> tint @> tcolor) nth_primary_color) ;;
 (* tblock -> tboolean *)
 ignore(primitive "is_symmetrical" (tblock @> tboolean @> tboolean) is_symmetrical) ;;
 ignore(primitive "is_rectangle" (tblock @> tboolean @> tboolean) is_rectangle) ;;
 ignore(primitive "has_min_tiles" (tblock @> tint @> tboolean) has_min_tiles) ;;
 
-(* tgrid -> tblocks *)
-ignore(primitive "grid_to_block" (tgrid @> tblock) (fun x -> x)) ;;
-ignore(primitive "find_same_color_blocks" (tgrid @> tboolean @> tboolean @> tblocks) find_same_color_blocks) ;;
-ignore(primitive "find_blocks_by_black_b" (tgrid @> tboolean @> tboolean @> tblocks) find_blocks_by_black_b) ;;
-ignore(primitive "find_blocks_by_color" (tgrid @> tcolor @> tboolean @> tboolean @> tblocks) find_blocks_by_color) ;;
+(* tgridin -> tblocks *)
+ignore(primitive "grid_to_block" (tgridin @> tblock) (fun x -> x)) ;;
+ignore(primitive "find_same_color_blocks" (tgridin @> tboolean @> tboolean @> tblocks) find_same_color_blocks) ;;
+ignore(primitive "find_blocks_by_black_b" (tgridin @> tboolean @> tboolean @> tblocks) find_blocks_by_black_b) ;;
+ignore(primitive "find_blocks_by_color" (tgridin @> tcolor @> tboolean @> tboolean @> tblocks) find_blocks_by_color) ;;
 
-(* ttile -> tbool *)
-ignore(primitive "is_interior" (ttile @> tbool @> tbool) is_interior)
+(* ttile -> tboolean *)
+ignore(primitive "is_interior" (ttile @> tboolean @> tboolean) is_interior) ;;
 
-
-
-
-
-
-
-
-
-
-
- *)
-
+(* t0 *)
+ignore(primitive "nth_of_sorted_object_list" (tblocks @> (tblock @> tint) @> tint @> tblock) nth_of_sorted_object_list) ;;
 
 
 
@@ -529,8 +521,8 @@ let p_72ca375d grid =
   let blocks = find_same_color_blocks grid true false in
   let filtered_blocks = List.filter blocks ~f:(fun block -> is_symmetrical block false) in
   let merged_block = merge_blocks filtered_blocks in
-  to_min_grid merged_block false in
-test_task "72ca375d" (-1) p_72ca375d ;;
+  to_min_grid merged_block false ;;
+(* test_task "72ca375d" (-1) p_72ca375d ;; *)
 
 
 let p_5521c0d9 grid = 
@@ -538,23 +530,23 @@ let p_5521c0d9 grid =
   let get_height block = ((get_max_y block) - (get_min_y block)) + 1 in
   let shifted_blocks = map_blocks (fun block -> move block (-(get_height block)) 0 false) blocks in
   let merged_blocks = merge_blocks shifted_blocks in
-  to_original_grid_overlay merged_blocks false in
-test_task "5521c0d9" (-1) p_5521c0d9;;
+  to_original_grid_overlay merged_blocks false ;;
+(* test_task "5521c0d9" (-1) p_5521c0d9;; *)
 
 let p_f25fbde4 grid = 
   let blocks = find_blocks_by_black_b grid true false in 
   let block = merge_blocks blocks in
   let grow_block = grow block 1 in
-  to_min_grid grow_block false in
-test_task "f25fbde4" (-1) p_f25fbde4;;
+  to_min_grid grow_block false ;;
+(* test_task "f25fbde4" (-1) p_f25fbde4;; *)
 
 let p_50cb2852 grid = 
   let blocks = find_blocks_by_black_b grid true false  in
   let interior_blocks = map_blocks (fun block -> filter_tiles block (fun tile -> is_interior tile true)) blocks in
   let filled_interior_blocks = map_blocks (fun block -> fill_color block 8) interior_blocks in
   let merged_blocks = merge_blocks filled_interior_blocks in
-  to_original_grid_overlay merged_blocks true in
-test_task "50cb2852" (-1) p_50cb2852 ;;
+  to_original_grid_overlay merged_blocks true ;;
+(* test_task "50cb2852" (-1) p_50cb2852 ;; *)
 
 
 let p_fcb5c309 grid = 
@@ -562,8 +554,8 @@ let p_fcb5c309 grid =
   let largest_block = nth_of_sorted_object_list blocks (fun block -> List.length block.points) 0 in
   let largest_block_no_b = remove_black_b largest_block in
   let colored_block = replace_color largest_block (nth_primary_color largest_block_no_b 0) (nth_primary_color largest_block_no_b 1) in
-  to_min_grid colored_block false in
-test_task "fcb5c309" (-1) p_fcb5c309 ;;
+  to_min_grid colored_block false ;;
+(* test_task "fcb5c309" (-1) p_fcb5c309 ;; *)
 
 (* 
 let example_grid = {points = [((1,3),4); ((1,2),4); ((1,1),4); ((1,4),4); ((2,4),4); ((3,4),4); ((4,4),3); ((2,3),4); ((2,2),4); ((2,1),4); ((3,3),4); ((3,2),4); ((3,1),4); ((4,3),4); ((4,2),4); ((4,1),4)] ; original_grid = empty_grid 4 4 0} in
