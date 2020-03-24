@@ -526,13 +526,13 @@ def _solve72ca375d(a): return _filterAndMinGrid(lambda block: _isSymmetrical(blo
 def _solve5521c0d9(a): return _solveGenericBlockMap(a)(_findRectanglesBlackB)(lambda block: _move(block)(_numRows(block))('up')(False))(lambda blocks: _blocksAsGrid(blocks)(False))
 def _solvef25fbde4(a): return _solveGenericBlockMap(a)(lambda grid: _findBlocksByCorner(grid)(False))(lambda block: _grow(block)(2))(lambda block: _blocksToMinGrid(block)(False))
 def _solve50cb2852(grid): return lambda c: _blocksAsGrid(_map(lambda block: _fillIn(block)(c))(_findRectanglesBlackB(grid)))(False)
-
 def _solvefcb5c309(grid): return _blockToMinGrid(_fill(_highestTileBlock(_findBlocksByColor(grid)(False)(_findNthColor(grid)(2))))(_findNthColor(grid)(3)))(True)
+def _solvece4f8723(a): return _splitAndMerge(a)(_keepBlackAnd(_green))(True)
 def _solve0520fde7(a): return _zipGrids2(_split(a)(False))(_keepBlackOr(_red))
+
 def _solve007bbfb7(a): return _zipGrids(_grow(a)(3))(_duplicate2dN(a)(2))(_keepNonBlacks)
 def _solvec9e6f938(a): return _concatNAndReflect(a)(False)('right')
 def _solve97999447(a): return _solveGenericBlockMap(a)(lambda grid: _findRectanglesBlackB(grid))(lambda block: (_duplicateUntilEdge(_concat(block)(_fill(block)(_grey))('right'))('right')))(lambda blocks: _blocksAsGrid(blocks)(False))
-def _solvece4f8723(a): return _splitAndMerge(a)(_keepBlackAnd(_green))(True)
 
 #### Function Blueprints ####
 
@@ -550,8 +550,12 @@ if runFull:
     tgridin = baseType('tgridin')
     tgridout = baseType('tgridout')
     tblock = baseType('tblock')
-    tblocks = tlist(tblock)
     ttile = baseType('ttile')
+    tsplitblock = baseType('tsplitblock')
+    tlogical = baseType('tlogical')
+
+    tblocks = tlist(tblock)
+    tsplitblocks = tlist(tsplitblock)
 
 def leafPrimitives():
     return [
@@ -605,6 +609,7 @@ def basePrimitives():
     # Primitive('sortBlocks',arrow(tblocks, arrow(tblock, tint), tblocks), _sortBlocks),
     Primitive("filter_blocks", arrow(arrow(tblock, tbool), tblocks, tblocks), _filter),
     Primitive("map_blocks", arrow(arrow(tblock, tblock), tblocks, tblocks), _map),
+    Primitive("nth_of_sorted_object_list", arrow(tblocks, arrow(tblock, tint), tint, tblock), None)]
     # arrow(tblocks, tint)
     # Primitive('highestTileBlock', arrow(tblocks, tint), _highestTileBlock),
 
@@ -630,23 +635,25 @@ def basePrimitives():
     # Primitive('duplicateN', arrow(tblock, tdirection, tint, tblock), _duplicateN),
     # Primitive('duplicateUntilEdge', arrow(tblock, tdirection, tblock), _duplicateUntilEdge),
     # Primitive('concatNAndReflect', arrow(tblock, tbool, tdirection, tblock), _concatNAndReflect),
+    
     # arrow(tblock, tbool)
     Primitive('is_symmetrical', arrow(tblock, tbool, tbool), _isSymmetrical),
     Primitive('is_rectangle', arrow(tblock, tbool, tbool), None),
     Primitive('has_min_tiles', arrow(tblock, tint, tbool), _hasGeqNTiles),
     # Primitive('hasGeqNcolors', arrow(tblock, tint, tbool), _hasGeqNColors), # (5117e062)
-    # # arrow(tblock, tgrid)
+    
+    # arrow(tblock, tgrid)
     # Primitive("blockToGrid", arrow(tblock, tint, tint, tbool, tgrid), _blockToGrid),
     Primitive("to_original_grid_overlay", arrow(tblock, tbool, tgridout), None),
     Primitive("to_min_grid", arrow(tblock, tbool, tgridout), _blockToMinGrid),
-    # arrow(tblock, tblocks)
-    Primitive('split', arrow(tblock, tbool, tblocks), _split),
-    # arrow(tblock, tint, tcolor)
+    # arrow(tblock, tcolor)
     # Primitive('findNthBlockColor', arrow(tblock, tint, tcolor), _findNthColor),
+
     # arrow(tblock, tint)
     Primitive('get_height', arrow(tblock, tint), None),
     Primitive('get_width', arrow(tblock, tint), None),
     Primitive('get_num_tiles', arrow(tblock, tint), None),
+
     # arrow(tblock, tcolor)
     Primitive('nth_primary_color', arrow(tblock, tint, tcolor), None),
 
@@ -669,9 +676,13 @@ def basePrimitives():
     # Primitive('findBlocksByCorner', arrow(tgrid, tbool, tblocks), _findBlocksByCorner),
     # Primitive('findBlocksByEdge', arrow(tgrid, tbool, tblocks), _findBlocksByEdge),
 
+    # arrow(tgridin, tsplitblocks)
+    Primitive('split_grid', arrow(tgrid, tboolean, tsplitblocks), None),
+    
     # #arrow(tgridin, tblock)
     # Primitive('identity', arrow(tgrid, tgrid), lambda grid: grid),
     Primitive('grid_to_block', arrow(tgridin, tblock), lambda grid: grid),
+    
     # arrow(tgrid, grid)
     # Primitive('solve0520fde7', arrow(tgrid, tgrid), _solve0520fde7),
     # Primitive('solve007bbfb7', arrow(tgrid, tgrid), _solve007bbfb7),
@@ -683,10 +694,13 @@ def basePrimitives():
     # Primitive('solve72ca375d', arrow(tgrid, tgrid), _solve72ca375d),
     # Primitive('solve5521c0d9', arrow(tgrid, tgrid), _solve5521c0d9),
     # Primitive('solvece4f8723', arrow(tgrid, tgrid), _solvece4f8723),
+    
     # arrow(tgrid, tcolor)
     # Primitive('findNthGridColor', arrow(tgrid, tint, tcolor), _findNthColor),
+    
     # arrow(tgrid, tgrid)
     # Primitive('splitAndMergeGrid', arrow(tgrid, arrow(tcolor, tcolor, tcolor), tbool, tgrid), _splitAndMerge),
+    
     # arrow(tgrid, tint)
     # Primitive('numRows', arrow(tgrid, tint), _numRows),
     # Primitive('numCols', arrow(tgrid, tint), _numCols),
@@ -694,10 +708,24 @@ def basePrimitives():
 ##### ttile #####
 
     Primitive('is_interior', arrow(ttile, tbool, tbool), lambda grid: grid),
+    Primitive('to_block', arrow(ttile, tblock), lambda tile: tile),
+
+##### tsplitblocks #####
+
+    Primitive('overlap_split_blocks', arrow(tsplitblocks, arrow(tcolor, tcolor, tcolor), tgridout), None),
+
+
+##### tcolor #####
+
+    Primitive('color_logical', arrow(tcolor, tcolor, tcolor, tlogical, tcolor), None)
+
+##### tlogical #####
+
+    Primitive("land", tlogical, None) ;;
+    Primitive("lor", tlogical, None) ;;
+    Primitive("lxor", tlogical, None) ;;
 
 ##### t0 #####
-
-    Primitive("nth_of_sorted_object_list", arrow(tblocks, arrow(tblock, tint), tint, tblock), None)]
 
     # t0
     # Primitive("reduce", arrow(arrow(t1, t0, t1), t1, tlist(t0), t1), _reduce),
