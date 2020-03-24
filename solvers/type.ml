@@ -282,12 +282,17 @@ let tprogram           = make_ground "program"
 let tmaybe t           = kind "maybe" [t]
 let tcanvas            = tlist tint
 let tblock = make_ground "tblock" ;;
+let tsplitblock = make_ground "tsplitblock" ;;
 let tcolor = make_ground "tcolor" ;;
 let tdirection = make_ground "tdirection" ;;
 let tblocks = tlist tblock ;;
 let tgridin = make_ground "tgridin" ;;
 let tgridout = make_ground "tgridout" ;;
 let ttile = make_ground "ttile" ;;
+let tlogical = make_ground "tlogical" ;;
+
+let tblocks = tlist tblock ;;
+let tsplitblocks = tlist tsplitblock ;;
 
 let unify_many_types ts =
   let k = empty_context in

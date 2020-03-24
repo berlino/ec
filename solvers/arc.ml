@@ -342,6 +342,26 @@ let nth_primary_color block n =
   let nth_color, count = List.nth_exn sorted_colors_with_ints n in 
   nth_color ;;
 
+
+let overlap_split_blocks split_blocks f_tile = 
+  let center_blocks = List.map split_blocks ~f:(fun block -> to_min_grid block false) in
+
+  let overlap_tilewise a b f_tile = 
+    let overlapped = List.map a.points ~f:(fun ((a_y,a_x),a_c) -> 
+      let b_c = List.Assoc.find_exn b.points ~equal:(=) (a_y,a_x) in
+      ((a_y,a_x), (f_tile a_c b_c))) in 
+    block_of_points overlapped a.original_grid in
+
+  List.reduce_exn center_blocks ~f:(fun state el -> overlap_tilewise state el f_tile);;
+
+let color_logical c_1 c_2 new_color binary_f = 
+  let binary_1 = if c_1 > 0 then 1 else 0 in
+  let binary_2 = if c_2 > 0 then 1 else 0 in
+  let flag = (binary_f binary_1 binary_2) in
+  if (flag = 1) then new_color else 0 ;;
+
+
+
 register_special_task "arc" (fun extras ?timeout:(timeout = 0.001) name ty examples ->
 (* Printf.eprintf "Making an arc task %s \n" name; *)
 { name = name    ;
@@ -394,6 +414,7 @@ ignore(primitive "maroon" tcolor 9) ;;
 ignore(primitive "merge_blocks" (tblocks @> tblock) merge_blocks) ;;
 ignore(primitive "filter_blocks" ((tblock @> tboolean) @> tblocks @> tblocks) (fun f l -> List.filter ~f:f l));;
 ignore(primitive "map_blocks" ((tblock @> tblock) @> tblocks @> tblocks) (fun f l -> List.map ~f:f l));;
+ignore(primitive "nth_of_sorted_object_list" (tblocks @> (tblock @> tint) @> tint @> tblock) nth_of_sorted_object_list) ;;
 
 (* tblock -> tblock *)
 ignore(primitive "reflect" (tblock @> tboolean @> tblock) reflect) ;;
@@ -404,8 +425,6 @@ ignore(primitive "replace_color" (tblock @> tcolor @> tcolor @> tblock) replace_
 ignore(primitive "remove_black_b" (tblock @> tblock) remove_black_b) ;;
 ignore(primitive "box_block" (tblock @> tblock) box_block) ;;
 ignore(primitive "filter_tiles" (tblock @> (ttile @> tboolean) @> tblock) filter_tiles) ;;
-(* tblock -> tblocks *)
-ignore(primitive "split" (tblock @> tboolean @> tblocks) split) ;;
 (* tblock -> tgridout *)
 ignore(primitive "to_min_grid" (tblock @> tboolean @> tgridout) to_min_grid) ;;
 ignore(primitive "to_original_grid_overlay" (tblock @> tboolean @> tgridout) to_original_grid_overlay) ;;
@@ -425,15 +444,26 @@ ignore(primitive "grid_to_block" (tgridin @> tblock) (fun x -> x)) ;;
 ignore(primitive "find_same_color_blocks" (tgridin @> tboolean @> tboolean @> tblocks) find_same_color_blocks) ;;
 ignore(primitive "find_blocks_by_black_b" (tgridin @> tboolean @> tboolean @> tblocks) find_blocks_by_black_b) ;;
 ignore(primitive "find_blocks_by_color" (tgridin @> tcolor @> tboolean @> tboolean @> tblocks) find_blocks_by_color) ;;
+(* tgridin -> tsplitblocks *)
+ignore(primitive "split_grid" (tgridin @> tboolean @> tsplitblocks) split) ;;
 
 (* ttile -> tboolean *)
 ignore(primitive "is_interior" (ttile @> tboolean @> tboolean) is_interior) ;;
+(* ttile -> tblock *)
+ignore(primitive "to_block" (ttile @> tblock) (fun tile -> {points=[tile.point] ; original_grid = tile.block.original_grid})) ;;
 
-(* t0 *)
-ignore(primitive "nth_of_sorted_object_list" (tblocks @> (tblock @> tint) @> tint @> tblock) nth_of_sorted_object_list) ;;
+(* tsplitblocks -> tgridout *)
+ignore(primitive "overlap_split_blocks" (tsplitblocks @> (tcolor @> tcolor @> tcolor) @> tgridout) overlap_split_blocks) ;;
+ignore(primitive "to_blocks" (tsplitblocks @> tblocks) (fun blocks -> blocks)) ;;
 
 
+(* tcolor -> tcolor *)
+ignore(primitive "color_logical" (tcolor @> tcolor @> tcolor @> tlogical @> tcolor) color_logical) ;;
 
+(* tlogical *)
+ignore(primitive "land" tlogical (land)) ;;
+ignore(primitive "lor" tlogical (lor)) ;;
+ignore(primitive "lxor" tlogical (lxor)) ;;
 
 
 
@@ -556,6 +586,16 @@ let p_fcb5c309 grid =
   let colored_block = replace_color largest_block (nth_primary_color largest_block_no_b 0) (nth_primary_color largest_block_no_b 1) in
   to_min_grid colored_block false ;;
 (* test_task "fcb5c309" (-1) p_fcb5c309 ;; *)
+
+let p_ce4f8723 grid = 
+  let split_blocks = split grid true in
+  overlap_split_blocks split_blocks (fun a b -> color_logical a b 3 (lor)) ;;
+(* test_task "ce4f8723" (-1) p_ce4f8723 ;; *)
+
+let p_0520fde7 grid = 
+  let split_blocks = split grid false in
+  overlap_split_blocks split_blocks (fun a b -> color_logical a b 2 (land)) ;;
+(* test_task "0520fde7" (-1) p_0520fde7 ;; *)
 
 (* 
 let example_grid = {points = [((1,3),4); ((1,2),4); ((1,1),4); ((1,4),4); ((2,4),4); ((3,4),4); ((4,4),3); ((2,3),4); ((2,2),4); ((2,1),4); ((3,3),4); ((3,2),4); ((3,1),4); ((4,3),4); ((4,2),4); ((4,1),4)] ; original_grid = empty_grid 4 4 0} in
