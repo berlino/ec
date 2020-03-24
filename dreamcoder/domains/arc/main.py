@@ -18,9 +18,8 @@ from dreamcoder.domains.arc.arcPrimitives import (
     basePrimitives,
     pprint,
     tcolor,
-    tgrid,
-    tgrid,
-    tgrids,
+    tgridin,
+    tgridout,
     tdirection,
     Grid,
 )
@@ -92,7 +91,7 @@ def retrieveARCJSONTask(filename, directory):
 
     train = Task(
         filename,
-        arrow(tgrid, tgrid),
+        arrow(tgridin, tgridout),
         [
             ((Grid(gridArray=example["input"]),), Grid(gridArray=example["output"]))
             for example in loaded["train"]
@@ -102,7 +101,7 @@ def retrieveARCJSONTask(filename, directory):
     train.specialTask = ('arc', 5)
     test = Task(
         filename,
-        arrow(tgrid, tgrid),
+        arrow(tgridin, tgridout),
         [
             ((Grid(gridArray=example["input"]),), Grid(gridArray=example["output"]))
             for example in loaded["test"]
@@ -323,7 +322,7 @@ def train_necessary(t):
 
 def list_options(parser):
     parser.add_argument("--random-seed", type=int, default=17)
-    parser.add_argument("--single-train-task", default=False, action="store_true")
+    parser.add_argument("--train-few", default=False, action="store_true")
 
     # parser.add_argument("-i", type=int, default=10)
 
@@ -353,7 +352,7 @@ def main(args):
     """
     random.seed(args.pop("random_seed"))
 
-    single_train_task = args.pop("single_train_task")
+    single_train_task = args.pop("train_few")
 
     samples = {
         "007bbfb7.json": _solve007bbfb7,
@@ -379,7 +378,7 @@ def main(args):
 
 
     if single_train_task:
-        trainTasks = retrieveARCJSONTasks(directory, ["72ca375d.json"])
+        trainTasks = retrieveARCJSONTasks(directory, ["fcb5c309.json", "50cb2852.json", "72ca375d.json", "5521c0d9.json", "f25fbde4.json"][0])
     else:
         trainTasks = retrieveARCJSONTasks(directory, None)
 
