@@ -324,7 +324,25 @@ let is_interior tile is_corner =
   let expected_num_neighbors = if is_corner then 8 else 4 in 
 ((List.length actual_neighbors) = expected_num_neighbors) ;;
 
-register_special_task "arc" (fun extras ?timeout:(timeout = 0.001) name ty examples ->
+let nth_of_sorted_object_list objects f n = 
+  let with_ints = List.map objects ~f:(fun x -> (f x, x)) in
+  let sorted_with_ints = List.sort with_ints ~compare:(fun (a_v, a_x) (b_v, b_x) -> b_v - a_v) in
+  let sorted = List.map sorted_with_ints ~f:(fun (v, x) -> x) in
+  List.nth_exn sorted n ;;
+
+let remove_black_b block = 
+  let new_points = List.filter block.points ~f:(fun ((y,x),c) -> not (c = 0)) in
+  block_of_points new_points block.original_grid ;; 
+
+let nth_primary_color block n = 
+  let get_color_count block color = 
+      List.fold_left ~init:0 ~f:(fun count ((y,x),c) -> if (c = color) then (count + 1) else count) block.points in
+  let color_counts = List.map ~f:(fun color -> (color, get_color_count block color)) (0 -- 9) in 
+  let sorted_colors_with_ints = List.sort color_counts ~compare:(fun (a_color, a_count) (b_color, b_count) -> b_count - a_count) in
+  let nth_color, count = List.nth_exn sorted_colors_with_ints n in 
+  nth_color ;;
+
+(* register_special_task "arc" (fun extras ?timeout:(timeout = 0.001) name ty examples ->
 (* Printf.eprintf "Making an arc task %s \n" name; *)
 { name = name    ;
     task_type = ty ;
@@ -385,7 +403,7 @@ ignore(primitive "grow" (tblock @> tint @> tblock) grow) ;;
 ignore(primitive "fill_color" (tblock @> tcolor @> tblock) fill_color) ;;
 ignore(primitive "replace_color" (tblock @> tcolor @> tcolor @> tblock) replace_color) ;;
 ignore(primitive "box_block" (tblock @> tblock) box_block) ;;
-ignore(primitive "filter_tiles" (tblock @> (ttile @> tbool) @> tblock) filter_tiles) ;;
+ignore(primitive "filter_tiles" (tblock @> (ttile @> tboolean) @> tblock) filter_tiles) ;;
 (* tblock -> tblocks *)
 ignore(primitive "split" (tblock @> tboolean @> tblocks) split) ;;
 (* tblock -> tgrid *)
@@ -419,7 +437,7 @@ ignore(primitive "is_interior" (ttile @> tbool @> tbool) is_interior)
 
 
 
-
+ *)
 
 
 
@@ -538,6 +556,14 @@ let p_50cb2852 grid =
   to_original_grid_overlay merged_blocks true in
 test_task "50cb2852" (-1) p_50cb2852 ;;
 
+
+let p_fcb5c309 grid = 
+  let blocks = find_same_color_blocks grid true true in
+  let largest_block = nth_of_sorted_object_list blocks (fun block -> List.length block.points) 0 in
+  let largest_block_no_b = remove_black_b largest_block in
+  let colored_block = replace_color largest_block (nth_primary_color largest_block_no_b 0) (nth_primary_color largest_block_no_b 1) in
+  to_min_grid colored_block false in
+test_task "fcb5c309" (-1) p_fcb5c309 ;;
 
 (* 
 let example_grid = {points = [((1,3),4); ((1,2),4); ((1,1),4); ((1,4),4); ((2,4),4); ((3,4),4); ((4,4),3); ((2,3),4); ((2,2),4); ((2,1),4); ((3,3),4); ((3,2),4); ((3,1),4); ((4,3),4); ((4,2),4); ((4,1),4)] ; original_grid = empty_grid 4 4 0} in
