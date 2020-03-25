@@ -41,7 +41,7 @@ function loadEcOutputFile(e) {
         try {
             let regex = new RegExp('HIT[^\n]+', 'g')
             if (contents.includes('Generative model enumeration results:')) {
-                contents = contents.slice(contents.search('Generative model enumeration results:'))
+                contents = contents.slice(contents.lastIndexOf('Generative model enumeration results:'))
             }
             hitList = contents.match(regex)
             TASK_NAME_LIST = hitList.map((element) => element.slice(4, element.search('json') + 4))
