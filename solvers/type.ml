@@ -292,6 +292,7 @@ let ttile = make_ground "ttile" ;;
 let tlogical = make_ground "tlogical" ;;
 
 let tblocks = tlist tblock ;;
+let tcolors = tlist tcolor ;;
 let tsplitblocks = tlist tsplitblock ;;
 
 let unify_many_types ts =

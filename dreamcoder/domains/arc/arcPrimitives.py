@@ -555,6 +555,7 @@ if runFull:
     tlogical = baseType('tlogical')
 
     tblocks = tlist(tblock)
+    tcolors = tlist(tcolor)
     tsplitblocks = tlist(tsplitblock)
 
 def leafPrimitives():
@@ -578,11 +579,6 @@ def leafPrimitives():
 
         Primitive('true', tbool, True),
         Primitive('false', tbool, False),
-
-        # Primitive("left", tdirection, "left"),
-        # Primitive("right", tdirection, "right"),
-        # Primitive("down", tdirection, "down"),
-        # Primitive("up", tdirection, "up"),
 
         Primitive("black", tcolor, _black),
         Primitive("blue", tcolor, _blue),
@@ -623,6 +619,7 @@ def basePrimitives():
     # arrow(tblock, tblock)
     # Primitive('fillIn', arrow(tblock, tcolor, tblock), _fillIn),
     Primitive('fill_color', arrow(tblock, tcolor, tblock), _fill),
+    Primitive('fill_snakewise', arrow(tblock, tcolors, tblock), None),
     Primitive('filter_tiles', arrow(tblock, arrow(ttile, tbool), tblock), None),
     # Primitive('fillWithNthColor', arrow(tblock, tint, tblock), _fillWithNthColor),
     Primitive('replace_color', arrow(tblock, tcolor, tcolor, tblock), _replaceColors),
@@ -645,6 +642,7 @@ def basePrimitives():
     Primitive('is_symmetrical', arrow(tblock, tbool, tbool), _isSymmetrical),
     Primitive('is_rectangle', arrow(tblock, tbool, tbool), None),
     Primitive('has_min_tiles', arrow(tblock, tint, tbool), _hasGeqNTiles),
+    Primitive('touches_edge', arrow(tblock, tbool), None),
     # Primitive('hasGeqNcolors', arrow(tblock, tint, tbool), _hasGeqNColors), # (5117e062)
     
     # arrow(tblock, tgrid)
@@ -657,10 +655,15 @@ def basePrimitives():
     # arrow(tblock, tint)
     Primitive('get_height', arrow(tblock, tint), None),
     Primitive('get_width', arrow(tblock, tint), None),
+    Primitive('get_original_grid_height', arrow(tblock, tint), None),
+    Primitive('get_original_grid_width', arrow(tblock, tint), None),
     Primitive('get_num_tiles', arrow(tblock, tint), None),
 
     # arrow(tblock, tcolor)
     Primitive('nth_primary_color', arrow(tblock, tint, tcolor), None),
+
+    # arrow(tblock, ttile)
+    Primitive("block_to_tile", arrow(tblock, ttile), None),
 
 ##### tcolor ######
 
@@ -685,8 +688,10 @@ def basePrimitives():
     Primitive('split_grid', arrow(tgridin, tbool, tsplitblocks), None),
     
     # #arrow(tgridin, tblock)
-    # Primitive('identity', arrow(tgrid, tgrid), lambda grid: grid),
     Primitive('grid_to_block', arrow(tgridin, tblock), lambda grid: grid),
+
+    # arrow(tgridin, ttiles)
+    Primitive('find_tiles_by_black_b', arrow(tgridin, ttiles), None),
     
     # arrow(tgrid, grid)
     # Primitive('solve0520fde7', arrow(tgrid, tgrid), _solve0520fde7),
@@ -712,8 +717,11 @@ def basePrimitives():
 
 ##### ttile #####
 
+    # arrow(ttile, tbool)
     Primitive('is_interior', arrow(ttile, tbool, tbool), lambda grid: grid),
-    Primitive('to_block', arrow(ttile, tblock), lambda tile: tile),
+    # arrow(ttile, tblock)
+    Primitive('to_block', arrow(ttile, tblock), None),
+    Primitive('extend_towards_until', arrow(ttile, tdirection, arrow(tblock, tbool), tblock), None),
 
 ##### tsplitblocks #####
 
@@ -723,6 +731,7 @@ def basePrimitives():
 ##### tcolor #####
 
     Primitive('color_logical', arrow(tcolor, tcolor, tcolor, tlogical, tcolor), None),
+    Primitive('color_pair', arrow(tcolor, tcolor, tcolors), None),
 
 ##### tlogical #####
 

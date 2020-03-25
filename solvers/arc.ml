@@ -1,11 +1,11 @@
 open Core
-(* open Client
+open Client
 open Timeout
 open Utils
 open Program
 open Task
 open Type
- *)
+
 (* Types and Helpers*)
 
 type block = {points : ((int*int)*int) list; original_grid : ((int*int)*int) list} ;;
@@ -368,7 +368,7 @@ let color_logical c_1 c_2 new_color binary_f =
   if (flag = 1) then new_color else 0 ;;
 
 
-(* 
+
 register_special_task "arc" (fun extras ?timeout:(timeout = 0.001) name ty examples ->
 (* Printf.eprintf "Making an arc task %s \n" name; *)
 { name = name    ;
@@ -434,6 +434,7 @@ ignore(primitive "reflect" (tblock @> tboolean @> tblock) reflect) ;;
 ignore(primitive "move" (tblock @> tint @> tdirection @> tboolean @> tblock) move) ;;
 ignore(primitive "grow" (tblock @> tint @> tblock) grow) ;;
 ignore(primitive "fill_color" (tblock @> tcolor @> tblock) fill_color) ;;
+ignore(primitive "fill_snakewise" (tblock @> tcolors @> tblock) fill_snakewise) ;;
 ignore(primitive "replace_color" (tblock @> tcolor @> tcolor @> tblock) replace_color) ;;
 ignore(primitive "remove_black_b" (tblock @> tblock) remove_black_b) ;;
 ignore(primitive "box_block" (tblock @> tblock) box_block) ;;
@@ -442,8 +443,10 @@ ignore(primitive "filter_tiles" (tblock @> (ttile @> tboolean) @> tblock) filter
 ignore(primitive "to_min_grid" (tblock @> tboolean @> tgridout) to_min_grid) ;;
 ignore(primitive "to_original_grid_overlay" (tblock @> tboolean @> tgridout) to_original_grid_overlay) ;;
 (* tblock -> tint *)
-ignore(primitive "get_height" (tblock @> tint) (fun block -> (get_max_y block) - (get_min_y block))) ;;
-ignore(primitive "get_width" (tblock @> tint) (fun block -> (get_max_x block) - (get_min_x block))) ;;
+ignore(primitive "get_height" (tblock @> tint) (fun block -> get_height)) ;;
+ignore(primitive "get_width" (tblock @> tint) (fun block -> get_width)) ;;
+ignore(primitive "get_original_grid_height" (tblock @> tint) (fun block -> get_original_grid_height)) ;;
+ignore(primitive "get_original_grid_width" (tblock @> tint) (fun block -> get_original_grid_width)) ;;
 ignore(primitive "get_num_tiles" (tblock @> tint) (fun {points;original_grid} -> List.length points)) ;;
 (* tblock -> tcolor *)
 ignore(primitive "nth_primary_color" (tblock @> tint @> tcolor) nth_primary_color) ;;
@@ -451,6 +454,9 @@ ignore(primitive "nth_primary_color" (tblock @> tint @> tcolor) nth_primary_colo
 ignore(primitive "is_symmetrical" (tblock @> tboolean @> tboolean) is_symmetrical) ;;
 ignore(primitive "is_rectangle" (tblock @> tboolean @> tboolean) is_rectangle) ;;
 ignore(primitive "has_min_tiles" (tblock @> tint @> tboolean) has_min_tiles) ;;
+ignore(primitive "touches_edge" (tblock @> tboolean) touches_edge) ;;
+(* tblock -> ttile *)
+ignore(primitive "block_to_tile" (tblock @> ttile) block_to_tile) ;;
 
 (* tgridin -> tblocks *)
 ignore(primitive "grid_to_block" (tgridin @> tblock) (fun x -> x)) ;;
@@ -459,26 +465,30 @@ ignore(primitive "find_blocks_by_black_b" (tgridin @> tboolean @> tboolean @> tb
 ignore(primitive "find_blocks_by_color" (tgridin @> tcolor @> tboolean @> tboolean @> tblocks) find_blocks_by_color) ;;
 (* tgridin -> tsplitblocks *)
 ignore(primitive "split_grid" (tgridin @> tboolean @> tsplitblocks) split) ;;
+(* tgridin -> ttiles *)
+ignore(primitive "find_tiles_by_black_b" (tgridin @> ttiles) find_tiles_by_black_b) ;;
 
 (* ttile -> tboolean *)
 ignore(primitive "is_interior" (ttile @> tboolean @> tboolean) is_interior) ;;
 (* ttile -> tblock *)
 ignore(primitive "to_block" (ttile @> tblock) (fun tile -> {points=[tile.point] ; original_grid = tile.block.original_grid})) ;;
+(* ttile -> tblock *)
+ignore(primitive "extend_towards_until" (ttile @> tdirection @> (tblock @> tboolean) @> tblock) extend_towards_until) ;;
 
 (* tsplitblocks -> tgridout *)
 ignore(primitive "overlap_split_blocks" (tsplitblocks @> (tcolor @> tcolor @> tcolor) @> tgridout) overlap_split_blocks) ;;
 ignore(primitive "to_blocks" (tsplitblocks @> tblocks) (fun blocks -> blocks)) ;;
 
-
 (* tcolor -> tcolor *)
 ignore(primitive "color_logical" (tcolor @> tcolor @> tcolor @> tlogical @> tcolor) color_logical) ;;
+ignore(primitive "color_pair" (tcolor @> tcolor @> tcolors) color_pair) ;;
 
 (* tlogical *)
 ignore(primitive "land" tlogical (land)) ;;
 ignore(primitive "lor" tlogical (lor)) ;;
 ignore(primitive "lxor" tlogical (lxor)) ;;
 
- *)
+
 
 
 
@@ -616,7 +626,9 @@ let block_to_tile block =
 let find_tiles_by_black_b grid = 
   let blocks = find_blocks_by_black_b grid false false in 
   let tiles = filter_blocks (fun block -> has_min_tiles block 1) blocks in
-  List.map tiles ~f:block_to_tile ;;
+  match tiles with 
+  | [] -> raise (Failure ("No tiles"))
+  | tiles -> List.map tiles ~f:block_to_tile
 
 let touches_edge block = 
   let right_edge = get_original_grid_width block - 1 in
@@ -644,21 +656,21 @@ let fill_snakewise block colors =
   let new_points = List.mapi sorted_points ~f:color_tile_snakewise in
   block_of_points new_points block.original_grid ;;
 
+let color_pair c_1 c_2 = [c_1 ; c_2] ;;
 
 let p_97999447 grid = 
   let tiles = find_tiles_by_black_b grid in 
   let extended_tiles = List.map tiles ~f:(fun tile -> extend_towards_until tile (0, 1) touches_edge) in
-  let colored_tiles = map_blocks (fun block -> fill_snakewise block [-1;5]) extended_tiles in
+  let colored_tiles = map_blocks (fun block -> fill_snakewise block (color_pair (-1) 5)) extended_tiles in
   to_original_grid_overlay (merge_blocks colored_tiles) false ;;
-
-test_task "97999447" (-1) p_97999447 ;;
+(* test_task "97999447" (-1) p_97999447 ;; *)
 
 let p_5521c0d9 grid = 
   let blocks = find_same_color_blocks grid true false in
   let shifted_blocks = map_blocks (fun block -> move block ((get_height block)) (-1,0) false) blocks in
   let merged_blocks = merge_blocks shifted_blocks in
   to_original_grid_overlay merged_blocks false ;;
-test_task "5521c0d9" (-1) p_5521c0d9;;
+(* test_task "5521c0d9" (-1) p_5521c0d9;; *)
 
 
 (* 
