@@ -609,7 +609,7 @@ def basePrimitives():
     # Primitive('sortBlocks',arrow(tblocks, arrow(tblock, tint), tblocks), _sortBlocks),
     Primitive("filter_blocks", arrow(arrow(tblock, tbool), tblocks, tblocks), _filter),
     Primitive("map_blocks", arrow(arrow(tblock, tblock), tblocks, tblocks), _map),
-    Primitive("nth_of_sorted_object_list", arrow(tblocks, arrow(tblock, tint), tint, tblock), None)]
+    Primitive("nth_of_sorted_object_list", arrow(tblocks, arrow(tblock, tint), tint, tblock), None),
     # arrow(tblocks, tint)
     # Primitive('highestTileBlock', arrow(tblocks, tint), _highestTileBlock),
 
@@ -677,7 +677,7 @@ def basePrimitives():
     # Primitive('findBlocksByEdge', arrow(tgrid, tbool, tblocks), _findBlocksByEdge),
 
     # arrow(tgridin, tsplitblocks)
-    Primitive('split_grid', arrow(tgrid, tboolean, tsplitblocks), None),
+    Primitive('split_grid', arrow(tgridin, tbool, tsplitblocks), None),
     
     # #arrow(tgridin, tblock)
     # Primitive('identity', arrow(tgrid, tgrid), lambda grid: grid),
@@ -717,13 +717,13 @@ def basePrimitives():
 
 ##### tcolor #####
 
-    Primitive('color_logical', arrow(tcolor, tcolor, tcolor, tlogical, tcolor), None)
+    Primitive('color_logical', arrow(tcolor, tcolor, tcolor, tlogical, tcolor), None),
 
 ##### tlogical #####
 
-    Primitive("land", tlogical, None) ;;
-    Primitive("lor", tlogical, None) ;;
-    Primitive("lxor", tlogical, None) ;;
+    Primitive("land", tlogical, None),
+    Primitive("lor", tlogical, None),
+    Primitive("lxor", tlogical, None)]
 
 ##### t0 #####
 
