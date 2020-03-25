@@ -560,6 +560,11 @@ if runFull:
 def leafPrimitives():
     return [
 
+        Primitive("north", tdirection, "north"),
+        Primitive("south", tdirection, "south"),
+        Primitive("west", tdirection, "west"),
+        Primitive("east", tdirection, "east"),
+
         Primitive('0', tint, 0),
         Primitive('1', tint, 1),
         Primitive('2', tint, 2),
@@ -625,7 +630,7 @@ def basePrimitives():
     # Primitive('_replaceNthColors', arrow(tblock, tint, tint, tblock), _replaceNthColors),
     Primitive('reflect', arrow(tblock, tbool, tblock), _reflect),
     # Primitive('move_dir', arrow(tblock, tint, tdirection, tblock), _move),
-    Primitive('move', arrow(tblock, tint, tint, tbool, tblock), lambda x : x),
+    Primitive('move', arrow(tblock, tint, tdirection, tbool, tblock), lambda x : x),
     Primitive('grow', arrow(tblock, tint, tblock), _grow),
     Primitive('box_block', arrow(tblock, tblock), lambda x : x),
     # Primitive('concat', arrow(tblock, tblock, tdirection, tblock), _concat),
