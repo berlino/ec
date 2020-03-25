@@ -529,9 +529,9 @@ def _solve50cb2852(grid): return lambda c: _blocksAsGrid(_map(lambda block: _fil
 def _solvefcb5c309(grid): return _blockToMinGrid(_fill(_highestTileBlock(_findBlocksByColor(grid)(False)(_findNthColor(grid)(2))))(_findNthColor(grid)(3)))(True)
 def _solvece4f8723(a): return _splitAndMerge(a)(_keepBlackAnd(_green))(True)
 def _solve0520fde7(a): return _zipGrids2(_split(a)(False))(_keepBlackOr(_red))
+def _solvec9e6f938(a): return _concatNAndReflect(a)(False)('right')
 
 def _solve007bbfb7(a): return _zipGrids(_grow(a)(3))(_duplicate2dN(a)(2))(_keepNonBlacks)
-def _solvec9e6f938(a): return _concatNAndReflect(a)(False)('right')
 def _solve97999447(a): return _solveGenericBlockMap(a)(lambda grid: _findRectanglesBlackB(grid))(lambda block: (_duplicateUntilEdge(_concat(block)(_fill(block)(_grey))('right'))('right')))(lambda blocks: _blocksAsGrid(blocks)(False))
 
 #### Function Blueprints ####

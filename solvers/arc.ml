@@ -430,7 +430,7 @@ ignore(primitive "to_min_grid" (tblock @> tboolean @> tgridout) to_min_grid) ;;
 ignore(primitive "to_original_grid_overlay" (tblock @> tboolean @> tgridout) to_original_grid_overlay) ;;
 (* tblock -> tint *)
 ignore(primitive "get_height" (tblock @> tint) (fun block -> (get_max_y block) - (get_min_y block))) ;;
-ignore(primitive "get_width" (tblock @> tint) (fun block -> (get_max_x block) - (get_max_x block))) ;;
+ignore(primitive "get_width" (tblock @> tint) (fun block -> (get_max_x block) - (get_min_x block))) ;;
 ignore(primitive "get_num_tiles" (tblock @> tint) (fun {points;original_grid} -> List.length points)) ;;
 (* tblock -> tcolor *)
 ignore(primitive "nth_primary_color" (tblock @> tint @> tcolor) nth_primary_color) ;;
@@ -464,9 +464,6 @@ ignore(primitive "color_logical" (tcolor @> tcolor @> tcolor @> tlogical @> tcol
 ignore(primitive "land" tlogical (land)) ;;
 ignore(primitive "lor" tlogical (lor)) ;;
 ignore(primitive "lxor" tlogical (lxor)) ;;
-
-
-
 
 
 
@@ -596,6 +593,12 @@ let p_0520fde7 grid =
   let split_blocks = split grid false in
   overlap_split_blocks split_blocks (fun a b -> color_logical a b 2 (land)) ;;
 (* test_task "0520fde7" (-1) p_0520fde7 ;; *)
+
+let p_c9e6f938 grid = 
+  let reflected_block = reflect grid false in
+  let shifted_block = move reflected_block 0 3 true in
+  to_min_grid shifted_block false ;;
+test_task "c9e6f938" (-1) p_c9e6f938 ;;
 
 (* 
 let example_grid = {points = [((1,3),4); ((1,2),4); ((1,1),4); ((1,4),4); ((2,4),4); ((3,4),4); ((4,4),3); ((2,3),4); ((2,2),4); ((2,1),4); ((3,3),4); ((3,2),4); ((3,1),4); ((4,3),4); ((4,2),4); ((4,1),4)] ; original_grid = empty_grid 4 4 0} in
