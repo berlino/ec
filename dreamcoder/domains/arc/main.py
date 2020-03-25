@@ -378,7 +378,7 @@ def main(args):
 
 
     if single_train_task:
-        trainTasks = retrieveARCJSONTasks(directory, ["ce4f8723.json", "0520fde7.json", "fcb5c309.json", "50cb2852.json", "72ca375d.json", "5521c0d9.json", "f25fbde4.json"][:2])
+        trainTasks = retrieveARCJSONTasks(directory, ["c9e6f938.json", "ce4f8723.json", "0520fde7.json", "fcb5c309.json", "50cb2852.json", "72ca375d.json", "5521c0d9.json", "f25fbde4.json"][0:1])
     else:
         trainTasks = retrieveARCJSONTasks(directory, None)
 
