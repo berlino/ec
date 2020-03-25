@@ -1,8 +1,6 @@
 open Core
 
-
 open Gc
-
 open Physics
 open Pregex
 open Tower
@@ -11,6 +9,7 @@ open Type
 open Program
 open Enumeration
 open Task
+open Arc
 open Grammar
 
 (* open Eg *)

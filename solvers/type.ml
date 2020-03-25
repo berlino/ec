@@ -285,7 +285,9 @@ let tblock = make_ground "tblock" ;;
 let tsplitblock = make_ground "tsplitblock" ;;
 let tcolor = make_ground "tcolor" ;;
 let tdirection = make_ground "tdirection" ;;
-let tgrid = make_ground "tgrid" ;;
+let tblocks = tlist tblock ;;
+let tgridin = make_ground "tgridin" ;;
+let tgridout = make_ground "tgridout" ;;
 let ttile = make_ground "ttile" ;;
 let tlogical = make_ground "tlogical" ;;
 
