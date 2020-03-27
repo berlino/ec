@@ -544,7 +544,7 @@ class RecursionDepthExceeded(Exception):
     pass
 
 if runFull:
-    tdirection = baseType('direction')
+    tdirection = baseType('tdirection')
     tdisplacement = baseType('tdisplacement')
     tcolor = baseType('tcolor')
     tgridin = baseType('tgridin')
