@@ -643,7 +643,8 @@ def basePrimitives():
     Primitive('is_symmetrical', arrow(tblock, tbool, tbool), _isSymmetrical),
     Primitive('is_rectangle', arrow(tblock, tbool, tbool), None),
     Primitive('has_min_tiles', arrow(tblock, tint, tbool), _hasGeqNTiles),
-    Primitive('touches_edge', arrow(tblock, tbool), None),
+    Primitive('touches_any_boundary', arrow(tblock, tbool), None),
+    Primitive('touches_boundary', arrow(tblock, tdirection, tbool), None),
     # Primitive('hasGeqNcolors', arrow(tblock, tint, tbool), _hasGeqNColors), # (5117e062)
     
     # arrow(tblock, tgrid)
@@ -723,6 +724,7 @@ def basePrimitives():
     # arrow(ttile, tblock)
     Primitive('to_block', arrow(ttile, tblock), None),
     Primitive('extend_towards_until', arrow(ttile, tdirection, arrow(tblock, tbool), tblock), None),
+    Primitive('extend_towards_until_edge', arrow(ttile, tdirection, tblock), None),
 
 ##### tsplitblocks #####
 

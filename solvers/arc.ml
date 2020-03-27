@@ -550,6 +550,9 @@ register_special_task "arc" (fun extras ?timeout:(timeout = 0.001) name ty examp
           else log 0.0)
 }) ;;
 
+let map_blocks func l = List.map ~f:func l ;;
+let filter_blocks func l = List.filter ~f:func l ;;
+
 
 (* primitives *)
 
@@ -574,8 +577,8 @@ ignore(primitive "maroon" tcolor 9) ;;
 ignore(primitive "merge_blocks" (tblocks @> tblock) merge_blocks) ;;
 ignore(primitive "nth_of_sorted_object_list" (tblocks @> (tblock @> tint) @> tint @> tblock) nth_of_sorted_object_list) ;;
 (* tblocks -> tblocks *)
-ignore(primitive "filter_blocks" ((tblock @> tboolean) @> tblocks @> tblocks) (fun f l -> List.filter ~f:f l));;
-ignore(primitive "map_blocks" ((tblock @> tblock) @> tblocks @> tblocks) (fun f l -> List.map ~f:f l));;
+ignore(primitive "filter_blocks" ((tblock @> tboolean) @> tblocks @> tblocks) filter_blocks) ;;
+ignore(primitive "map_blocks" ((tblock @> tblock) @> tblocks @> tblocks) map_blocks) ;;
 
 (* tblock -> tblock *)
 ignore(primitive "reflect" (tblock @> tboolean @> tblock) reflect) ;;
