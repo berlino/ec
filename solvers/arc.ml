@@ -369,6 +369,7 @@ let color_logical c_1 c_2 new_color binary_f =
 
 
 
+
 register_special_task "arc" (fun extras ?timeout:(timeout = 0.001) name ty examples ->
 (* Printf.eprintf "Making an arc task %s \n" name; *)
 { name = name    ;
@@ -406,7 +407,7 @@ register_special_task "arc" (fun extras ?timeout:(timeout = 0.001) name ty examp
 
 (* primitives *)
 
-ignore(primitive "north" tdirection (-1,0)) ;;
+(ignore(primitive "north" tdirection (-1,0)) ;;
 ignore(primitive "south" tdirection (1,0)) ;;
 ignore(primitive "west" tdirection (0,-1)) ;;
 ignore(primitive "east" tdirection (0,1)) ;;
@@ -432,6 +433,7 @@ ignore(primitive "nth_of_sorted_object_list" (tblocks @> (tblock @> tint) @> tin
 (* tblock -> tblock *)
 ignore(primitive "reflect" (tblock @> tboolean @> tblock) reflect) ;;
 ignore(primitive "move" (tblock @> tint @> tdirection @> tboolean @> tblock) move) ;;
+ignore(primitive "duplicate" (tblock @> tdirection @> tint @> tblock) duplicate) ;;
 ignore(primitive "grow" (tblock @> tint @> tblock) grow) ;;
 ignore(primitive "fill_color" (tblock @> tcolor @> tblock) fill_color) ;;
 ignore(primitive "fill_snakewise" (tblock @> tcolors @> tblock) fill_snakewise) ;;
@@ -487,7 +489,7 @@ ignore(primitive "color_pair" (tcolor @> tcolor @> tcolors) color_pair) ;;
 ignore(primitive "land" tlogical (land)) ;;
 ignore(primitive "lor" tlogical (lor)) ;;
 ignore(primitive "lxor" tlogical (lxor)) ;;
-
+ 
 
 
 
@@ -671,6 +673,45 @@ let p_5521c0d9 grid =
   let merged_blocks = merge_blocks shifted_blocks in
   to_original_grid_overlay merged_blocks false ;;
 (* test_task "5521c0d9" (-1) p_5521c0d9;; *)
+
+let blocks_overlap block_a block_b = 
+  let in_block_b = List.map block_a.points ~f:(fun ((y,x),c) -> List.Assoc.mem block_b.points (y,x) ~equal:(=)) in
+  List.fold_left in_block_b ~init:false ~f:(fun state el -> state || el) ;;
+ 
+let overlaps_other_block block blocks include_self = 
+  let overlap_list = List.map blocks ~f:(fun other_block -> 
+    match include_self with 
+      | false -> (not (other_block === block)) && (blocks_overlap other_block block)
+      | true -> (blocks_overlap other_block block)
+    ) in
+  List.fold_left overlap_list ~init:false ~f:(fun state el -> state || el) ;;
+
+let move_block_until block blocks direction condition = 
+  let rec move_until block direction condition = 
+    if (condition block) then block else 
+      let moved_block = move block 1 direction false in
+      move_until moved_block direction condition in
+  let moved_block = move_until block direction condition in
+  moved_block :: blocks ;;
+
+let duplicate block direction n = 
+  let blocks = List.fold_left ~init:[block] ~f:(fun state _ -> move_block_until block state direction (fun block -> not (overlaps_other_block block state true))) (0 -- (n-1)) in
+  merge_blocks blocks;;
+
+let p_007bbfb7 grid = 
+(*   let blocks = [grid] in
+  let first_move = move_block_until blocks (0,1) (fun block -> not (overlaps_other_block block blocks true)) 0 in
+  let second_move = move_block_until first_move (0,1) (fun block -> not (overlaps_other_block block first_move true)) 0 in
+  let block_row = merge_blocks second_move in
+  let first_move = move_block_until [block_row] (1,0) (fun block -> not (overlaps_other_block block [block_row] true)) 0 in
+  let second_move = move_block_until first_move (1,0) (fun block -> not (overlaps_other_block block first_move true)) 0 in *)
+
+  let row_block = duplicate grid (0,1) 2 in
+  let duplicated = duplicate row_block (1,0) 2 in
+  let grown = grow grid 2 in 
+  overlap_split_blocks [duplicated ; grown] (fun c_1 c_2 -> color_logical c_1 c_2 c_1 (land)) ;;
+
+test_task "007bbfb7" (-1) p_007bbfb7 ;;
 
 
 (* 

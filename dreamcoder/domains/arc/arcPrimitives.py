@@ -530,9 +530,9 @@ def _solvefcb5c309(grid): return _blockToMinGrid(_fill(_highestTileBlock(_findBl
 def _solvece4f8723(a): return _splitAndMerge(a)(_keepBlackAnd(_green))(True)
 def _solve0520fde7(a): return _zipGrids2(_split(a)(False))(_keepBlackOr(_red))
 def _solvec9e6f938(a): return _concatNAndReflect(a)(False)('right')
+def _solve97999447(a): return _solveGenericBlockMap(a)(lambda grid: _findRectanglesBlackB(grid))(lambda block: (_duplicateUntilEdge(_concat(block)(_fill(block)(_grey))('right'))('right')))(lambda blocks: _blocksAsGrid(blocks)(False))
 
 def _solve007bbfb7(a): return _zipGrids(_grow(a)(3))(_duplicate2dN(a)(2))(_keepNonBlacks)
-def _solve97999447(a): return _solveGenericBlockMap(a)(lambda grid: _findRectanglesBlackB(grid))(lambda block: (_duplicateUntilEdge(_concat(block)(_fill(block)(_grey))('right'))('right')))(lambda blocks: _blocksAsGrid(blocks)(False))
 
 #### Function Blueprints ####
 
@@ -628,6 +628,7 @@ def basePrimitives():
     Primitive('reflect', arrow(tblock, tbool, tblock), _reflect),
     # Primitive('move_dir', arrow(tblock, tint, tdirection, tblock), _move),
     Primitive('move', arrow(tblock, tint, tdirection, tbool, tblock), lambda x : x),
+    Primitive('duplicate', arrow(tblock, tdirection, tint, tblock), None),
     Primitive('grow', arrow(tblock, tint, tblock), _grow),
     Primitive('box_block', arrow(tblock, tblock), lambda x : x),
     # Primitive('concat', arrow(tblock, tblock, tdirection, tblock), _concat),
