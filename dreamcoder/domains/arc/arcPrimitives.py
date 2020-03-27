@@ -544,7 +544,7 @@ class RecursionDepthExceeded(Exception):
     pass
 
 if runFull:
-    tdirection = baseType('direction')
+    tdirection = baseType('tdirection')
     tdisplacement = baseType('tdisplacement')
     tcolor = baseType('tcolor')
     tgridin = baseType('tgridin')
@@ -554,6 +554,7 @@ if runFull:
     tsplitblock = baseType('tsplitblock')
     tlogical = baseType('tlogical')
 
+    ttiles = tlist(ttile)
     tblocks = tlist(tblock)
     tcolors = tlist(tcolor)
     tsplitblocks = tlist(tsplitblock)
@@ -561,10 +562,10 @@ if runFull:
 def leafPrimitives():
     return [
 
-        Primitive("north", tdirection, "north"),
-        Primitive("south", tdirection, "south"),
-        Primitive("west", tdirection, "west"),
-        Primitive("east", tdirection, "east"),
+        Primitive("north", tdirection, (-1,0)),
+        Primitive("south", tdirection, (1,0)),
+        Primitive("west", tdirection, (0,-1)),
+        Primitive("east", tdirection, (0,1)),
 
         Primitive('0', tint, 0),
         Primitive('1', tint, 1),
@@ -580,6 +581,7 @@ def leafPrimitives():
         Primitive('true', tbool, True),
         Primitive('false', tbool, False),
 
+        Primitive('invisible', tcolor, (-1)),
         Primitive("black", tcolor, _black),
         Primitive("blue", tcolor, _blue),
         Primitive("red", tcolor, _red),

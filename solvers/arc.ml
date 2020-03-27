@@ -86,6 +86,21 @@ let get_min_y {points;original_grid} =
 let get_min_x {points;original_grid} = 
   List.fold ~init:100 ~f:(fun curr_sum ((y,x),c)-> (Int.min curr_sum x)) points
 
+
+let get_height block = (get_max_y block) - (get_min_y block) + 1
+let get_width block = (get_max_x block) - (get_min_x block) + 1
+let get_original_grid_height block = List.fold ~init:0 ~f:(fun curr_sum ((y,x),c)-> (Int.max curr_sum y)) block.original_grid + 1
+let get_original_grid_width block = List.fold ~init:0 ~f:(fun curr_sum ((y,x),c)-> (Int.max curr_sum x)) block.original_grid + 1
+
+let block_to_tile block = 
+  {point = List.nth_exn block.points 0 ; block = block} ;;
+
+let touches_edge block = 
+  let right_edge = get_original_grid_width block - 1 in
+  let bottom_edge = get_original_grid_height block - 1 in
+  let touching_tiles = List.filter block.points ~f:(fun ((y,x),c) -> ((y = 0) || (y = bottom_edge) || (x = 0) || (x = right_edge))) in
+  not (List.length touching_tiles = 0) ;;
+
 let nth_highest_color block n = 
   let colors = (1 -- 9) in
   let counts = List.map colors ~f:(fun color -> (List.count block.points ~f:(fun ((y,x),c) -> c = color))) in
@@ -93,20 +108,6 @@ let nth_highest_color block n =
   let sorted = List.sort counts_with_idx ~compare:(fun (i_x, x) (i_y, y) -> (Int.descending x y)) in 
   let color,count = List.nth_exn sorted (n-1) in
   color+1 ;;
-
-let to_original_grid_overlay {points ; original_grid} with_original = 
-  let maxY = get_max_y {points=original_grid;original_grid} in
-  let maxX = get_max_x {points=original_grid;original_grid} in
-  let indices = List.cartesian_product (0 -- maxY) (0 -- maxX) in
-  let tile_from_original (y,x) = match List.Assoc.find original_grid (y,x) ~equal:(=) with 
-        | Some c_original -> c_original
-        | None -> 0 in
-  let deduce_val (y,x) = match List.Assoc.find points (y,x) ~equal:(=) with
-      | Some c -> c
-      | None -> if with_original then tile_from_original (y,x) else 0 in
-  let points = List.map ~f:(fun (y,x) -> ((y,x), deduce_val (y,x))) indices in
-  block_of_points points original_grid
-
 
 let print_block {points ; original_grid}  =
   printf "\n Block has %d tiles" (List.length points);
@@ -126,6 +127,18 @@ let print_block {points ; original_grid}  =
       print_points rest y; in
     print_points points (-1)
 
+let to_original_grid_overlay {points ; original_grid} with_original = 
+  let maxY = get_max_y {points=original_grid;original_grid} in
+  let maxX = get_max_x {points=original_grid;original_grid} in
+  let indices = List.cartesian_product (0 -- maxY) (0 -- maxX) in
+  let tile_from_original (y,x) = match List.Assoc.find original_grid (y,x) ~equal:(=) with 
+        | Some c_original -> c_original
+        | None -> 0 in
+  let deduce_val (y,x) = match List.Assoc.find points (y,x) ~equal:(=) with
+      | Some c -> c
+      | None -> if with_original then tile_from_original (y,x) else 0 in
+  let points = List.map ~f:(fun (y,x) -> ((y,x), deduce_val (y,x))) indices in
+  block_of_points points original_grid
 
 let to_min_grid {points;original_grid} with_original = 
   let minY = get_min_y {points;original_grid} in
@@ -302,10 +315,26 @@ let find_same_color_blocks block is_corner box_blocks =
   let blocks_by_color = List.map (1 -- 9) ~f:(fun color -> find_blocks_by block [color] is_corner box_blocks) in
   List.concat blocks_by_color ;;
 
+let find_tiles_by_black_b grid = 
+  let blocks = find_blocks_by_black_b grid false false in 
+  let tiles = filter_blocks (fun block -> has_min_tiles block 1) blocks in
+  match tiles with 
+  | [] -> raise (Failure ("No tiles"))
+  | tiles -> List.map tiles ~f:block_to_tile
 
 let fill_color block new_color = 
   let points = List.map block.points ~f:(fun ((y,x),_) -> (y,x),new_color) in
   block_of_points points block.original_grid
+
+let fill_snakewise block colors = 
+  let sorted_points = List.sort ~compare:(fun ((a_y,a_x),_) ((b_y,b_x),_) -> (100 * (a_y - b_y)) + (a_x - b_x)) block.points in 
+  let color_tile_snakewise i ((y,x),c) = 
+    let tile_color = (List.nth_exn colors (i mod (List.length colors))) in
+    let tile_color_actual = if (tile_color = (-1)) then List.Assoc.find_exn block.points (y,x) ~equal:(=) else tile_color in 
+    ((y,x),tile_color_actual) in
+  let new_points = List.mapi sorted_points ~f:color_tile_snakewise in
+  block_of_points new_points block.original_grid ;;
+
 
 let replace_color block old_color new_color = 
   let points = List.map block.points ~f:(fun ((y,x),c) -> (y,x), if (c = old_color) then new_color else c) in
@@ -367,8 +396,45 @@ let color_logical c_1 c_2 new_color binary_f =
   let flag = (binary_f binary_1 binary_2) in
   if (flag = 1) then new_color else 0 ;;
 
+let color_pair c_1 c_2 = [c_1 ; c_2] ;;
+
+let rec extend_towards_until {point;block} (d_y,d_x) condition = 
+  let (y,x),c = point in
+  let condition_met = condition block in 
+  match condition_met with 
+  | true -> block
+  | false -> 
+  let new_point = ((y+d_y,x+d_x),c) in
+  let new_block_points = new_point :: block.points in
+  let new_block = block_of_points new_block_points block.original_grid in
+  extend_towards_until {point=new_point; block=new_block} (d_y,d_x) condition ;;
 
 
+
+let blocks_overlap block_a block_b = 
+  let in_block_b = List.map block_a.points ~f:(fun ((y,x),c) -> List.Assoc.mem block_b.points (y,x) ~equal:(=)) in
+  List.fold_left in_block_b ~init:false ~f:(fun state el -> state || el) ;;
+ 
+let overlaps_other_block block blocks include_self = 
+  let overlap_list = List.map blocks ~f:(fun other_block -> 
+    match include_self with 
+      | false -> (not (other_block === block)) && (blocks_overlap other_block block)
+      | true -> (blocks_overlap other_block block)
+    ) in
+  List.fold_left overlap_list ~init:false ~f:(fun state el -> state || el) ;;
+
+let move_block_until block blocks direction condition = 
+  let rec move_until block direction condition = 
+    if (condition block) then block else 
+      let moved_block = move block 1 direction false in
+      move_until moved_block direction condition in
+  let moved_block = move_until block direction condition in
+  moved_block :: blocks ;;
+
+let duplicate block direction n = 
+  let blocks = List.fold_left ~init:[block] ~f:(fun state _ -> move_block_until block state direction (fun block -> not (overlaps_other_block block state true))) (0 -- (n-1)) in
+  merge_blocks blocks;;
+  
 
 
 
