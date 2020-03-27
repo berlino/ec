@@ -291,6 +291,7 @@ let tgridout = make_ground "tgridout" ;;
 let ttile = make_ground "ttile" ;;
 let tlogical = make_ground "tlogical" ;;
 
+let ttiles = tlist ttile ;;
 let tblocks = tlist tblock ;;
 let tcolors = tlist tcolor ;;
 let tsplitblocks = tlist tsplitblock ;;

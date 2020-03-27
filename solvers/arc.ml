@@ -86,6 +86,21 @@ let get_min_y {points;original_grid} =
 let get_min_x {points;original_grid} = 
   List.fold ~init:100 ~f:(fun curr_sum ((y,x),c)-> (Int.min curr_sum x)) points
 
+
+let get_height block = (get_max_y block) - (get_min_y block) + 1
+let get_width block = (get_max_x block) - (get_min_x block) + 1
+let get_original_grid_height block = List.fold ~init:0 ~f:(fun curr_sum ((y,x),c)-> (Int.max curr_sum y)) block.original_grid + 1
+let get_original_grid_width block = List.fold ~init:0 ~f:(fun curr_sum ((y,x),c)-> (Int.max curr_sum x)) block.original_grid + 1
+
+let block_to_tile block = 
+  {point = List.nth_exn block.points 0 ; block = block} ;;
+
+let touches_edge block = 
+  let right_edge = get_original_grid_width block - 1 in
+  let bottom_edge = get_original_grid_height block - 1 in
+  let touching_tiles = List.filter block.points ~f:(fun ((y,x),c) -> ((y = 0) || (y = bottom_edge) || (x = 0) || (x = right_edge))) in
+  not (List.length touching_tiles = 0) ;;
+
 let nth_highest_color block n = 
   let colors = (1 -- 9) in
   let counts = List.map colors ~f:(fun color -> (List.count block.points ~f:(fun ((y,x),c) -> c = color))) in
@@ -93,20 +108,6 @@ let nth_highest_color block n =
   let sorted = List.sort counts_with_idx ~compare:(fun (i_x, x) (i_y, y) -> (Int.descending x y)) in 
   let color,count = List.nth_exn sorted (n-1) in
   color+1 ;;
-
-let to_original_grid_overlay {points ; original_grid} with_original = 
-  let maxY = get_max_y {points=original_grid;original_grid} in
-  let maxX = get_max_x {points=original_grid;original_grid} in
-  let indices = List.cartesian_product (0 -- maxY) (0 -- maxX) in
-  let tile_from_original (y,x) = match List.Assoc.find original_grid (y,x) ~equal:(=) with 
-        | Some c_original -> c_original
-        | None -> 0 in
-  let deduce_val (y,x) = match List.Assoc.find points (y,x) ~equal:(=) with
-      | Some c -> c
-      | None -> if with_original then tile_from_original (y,x) else 0 in
-  let points = List.map ~f:(fun (y,x) -> ((y,x), deduce_val (y,x))) indices in
-  block_of_points points original_grid
-
 
 let print_block {points ; original_grid}  =
   printf "\n Block has %d tiles" (List.length points);
@@ -126,6 +127,18 @@ let print_block {points ; original_grid}  =
       print_points rest y; in
     print_points points (-1)
 
+let to_original_grid_overlay {points ; original_grid} with_original = 
+  let maxY = get_max_y {points=original_grid;original_grid} in
+  let maxX = get_max_x {points=original_grid;original_grid} in
+  let indices = List.cartesian_product (0 -- maxY) (0 -- maxX) in
+  let tile_from_original (y,x) = match List.Assoc.find original_grid (y,x) ~equal:(=) with 
+        | Some c_original -> c_original
+        | None -> 0 in
+  let deduce_val (y,x) = match List.Assoc.find points (y,x) ~equal:(=) with
+      | Some c -> c
+      | None -> if with_original then tile_from_original (y,x) else 0 in
+  let points = List.map ~f:(fun (y,x) -> ((y,x), deduce_val (y,x))) indices in
+  block_of_points points original_grid
 
 let to_min_grid {points;original_grid} with_original = 
   let minY = get_min_y {points;original_grid} in
@@ -302,10 +315,26 @@ let find_same_color_blocks block is_corner box_blocks =
   let blocks_by_color = List.map (1 -- 9) ~f:(fun color -> find_blocks_by block [color] is_corner box_blocks) in
   List.concat blocks_by_color ;;
 
+let find_tiles_by_black_b grid = 
+  let blocks = find_blocks_by_black_b grid false false in 
+  let tiles = filter_blocks (fun block -> has_min_tiles block 1) blocks in
+  match tiles with 
+  | [] -> raise (Failure ("No tiles"))
+  | tiles -> List.map tiles ~f:block_to_tile
 
 let fill_color block new_color = 
   let points = List.map block.points ~f:(fun ((y,x),_) -> (y,x),new_color) in
   block_of_points points block.original_grid
+
+let fill_snakewise block colors = 
+  let sorted_points = List.sort ~compare:(fun ((a_y,a_x),_) ((b_y,b_x),_) -> (100 * (a_y - b_y)) + (a_x - b_x)) block.points in 
+  let color_tile_snakewise i ((y,x),c) = 
+    let tile_color = (List.nth_exn colors (i mod (List.length colors))) in
+    let tile_color_actual = if (tile_color = (-1)) then List.Assoc.find_exn block.points (y,x) ~equal:(=) else tile_color in 
+    ((y,x),tile_color_actual) in
+  let new_points = List.mapi sorted_points ~f:color_tile_snakewise in
+  block_of_points new_points block.original_grid ;;
+
 
 let replace_color block old_color new_color = 
   let points = List.map block.points ~f:(fun ((y,x),c) -> (y,x), if (c = old_color) then new_color else c) in
@@ -366,6 +395,19 @@ let color_logical c_1 c_2 new_color binary_f =
   let binary_2 = if c_2 > 0 then 1 else 0 in
   let flag = (binary_f binary_1 binary_2) in
   if (flag = 1) then new_color else 0 ;;
+
+let color_pair c_1 c_2 = [c_1 ; c_2] ;;
+
+let rec extend_towards_until {point;block} (d_y,d_x) condition = 
+  let (y,x),c = point in
+  let condition_met = condition block in 
+  match condition_met with 
+  | true -> block
+  | false -> 
+  let new_point = ((y+d_y,x+d_x),c) in
+  let new_block_points = new_point :: block.points in
+  let new_block = block_of_points new_block_points block.original_grid in
+  extend_towards_until {point=new_point; block=new_block} (d_y,d_x) condition ;;
 
 
 
@@ -572,14 +614,14 @@ let p_72ca375d grid =
   let filtered_blocks = List.filter blocks ~f:(fun block -> is_symmetrical block false) in
   let merged_block = merge_blocks filtered_blocks in
   to_min_grid merged_block false ;;
-test_task "72ca375d" (-1) p_72ca375d ;;
+(* test_task "72ca375d" (-1) p_72ca375d ;; *)
 
 let p_f25fbde4 grid = 
   let blocks = find_blocks_by_black_b grid true false in 
   let block = merge_blocks blocks in
   let grow_block = grow block 1 in
   to_min_grid grow_block false ;;
-test_task "f25fbde4" (-1) p_f25fbde4;;
+(* test_task "f25fbde4" (-1) p_f25fbde4;; *)
 
 let p_50cb2852 grid = 
   let blocks = find_blocks_by_black_b grid true false  in
@@ -587,7 +629,7 @@ let p_50cb2852 grid =
   let filled_interior_blocks = map_blocks (fun block -> fill_color block 8) interior_blocks in
   let merged_blocks = merge_blocks filled_interior_blocks in
   to_original_grid_overlay merged_blocks true ;;
-test_task "50cb2852" (-1) p_50cb2852 ;;
+(* test_task "50cb2852" (-1) p_50cb2852 ;; *)
 
 
 let p_fcb5c309 grid = 
@@ -596,67 +638,24 @@ let p_fcb5c309 grid =
   let largest_block_no_b = remove_black_b largest_block in
   let colored_block = replace_color largest_block (nth_primary_color largest_block_no_b 0) (nth_primary_color largest_block_no_b 1) in
   to_min_grid colored_block false ;;
-test_task "fcb5c309" (-1) p_fcb5c309 ;;
+(* test_task "fcb5c309" (-1) p_fcb5c309 ;; *)
 
 let p_ce4f8723 grid = 
   let split_blocks = split grid true in
   overlap_split_blocks split_blocks (fun a b -> color_logical a b 3 (lor)) ;;
-test_task "ce4f8723" (-1) p_ce4f8723 ;;
+(* test_task "ce4f8723" (-1) p_ce4f8723 ;; *)
 
 let p_0520fde7 grid = 
   let split_blocks = split grid false in
   overlap_split_blocks split_blocks (fun a b -> color_logical a b 2 (land)) ;;
-test_task "0520fde7" (-1) p_0520fde7 ;;
+(* test_task "0520fde7" (-1) p_0520fde7 ;; *)
 
 let p_c9e6f938 grid = 
   let reflected_block = reflect grid false in
   let shifted_block = move reflected_block 3 (0,1) true in
   to_min_grid shifted_block false ;;
-test_task "c9e6f938" (-1) p_c9e6f938 ;;
+(* test_task "c9e6f938" (-1) p_c9e6f938 ;; *)
 
-
-let get_height block = (get_max_y block) - (get_min_y block) + 1
-let get_width block = (get_max_x block) - (get_min_x block) + 1
-let get_original_grid_height block = List.fold ~init:0 ~f:(fun curr_sum ((y,x),c)-> (Int.max curr_sum y)) block.original_grid + 1
-let get_original_grid_width block = List.fold ~init:0 ~f:(fun curr_sum ((y,x),c)-> (Int.max curr_sum x)) block.original_grid + 1
-
-let block_to_tile block = 
-  {point = List.nth_exn block.points 0 ; block = block} ;;
-
-let find_tiles_by_black_b grid = 
-  let blocks = find_blocks_by_black_b grid false false in 
-  let tiles = filter_blocks (fun block -> has_min_tiles block 1) blocks in
-  match tiles with 
-  | [] -> raise (Failure ("No tiles"))
-  | tiles -> List.map tiles ~f:block_to_tile
-
-let touches_edge block = 
-  let right_edge = get_original_grid_width block - 1 in
-  let bottom_edge = get_original_grid_height block - 1 in
-  let touching_tiles = List.filter block.points ~f:(fun ((y,x),c) -> ((y = 0) || (y = bottom_edge) || (x = 0) || (x = right_edge))) in
-  not (List.length touching_tiles = 0) ;;
-
-let rec extend_towards_until {point;block} (d_y,d_x) condition = 
-  let (y,x),c = point in
-  let condition_met = condition block in 
-  match condition_met with 
-  | true -> block
-  | false -> 
-  let new_point = ((y+d_y,x+d_x),c) in
-  let new_block_points = new_point :: block.points in
-  let new_block = block_of_points new_block_points block.original_grid in
-  extend_towards_until {point=new_point; block=new_block} (d_y,d_x) condition ;;
-
-let fill_snakewise block colors = 
-  let sorted_points = List.sort ~compare:(fun ((a_y,a_x),_) ((b_y,b_x),_) -> (100 * (a_y - b_y)) + (a_x - b_x)) block.points in 
-  let color_tile_snakewise i ((y,x),c) = 
-    let tile_color = (List.nth_exn colors (i mod (List.length colors))) in
-    let tile_color_actual = if (tile_color = (-1)) then List.Assoc.find_exn block.points (y,x) ~equal:(=) else tile_color in 
-    ((y,x),tile_color_actual) in
-  let new_points = List.mapi sorted_points ~f:color_tile_snakewise in
-  block_of_points new_points block.original_grid ;;
-
-let color_pair c_1 c_2 = [c_1 ; c_2] ;;
 
 let p_97999447 grid = 
   let tiles = find_tiles_by_black_b grid in 
