@@ -622,7 +622,6 @@ def basePrimitives():
     # Primitive('fillIn', arrow(tblock, tcolor, tblock), _fillIn),
     Primitive('fill_color', arrow(tblock, tcolor, tblock), _fill),
     Primitive('fill_snakewise', arrow(tblock, tcolors, tblock), None),
-    Primitive('filter_tiles', arrow(tblock, arrow(ttile, tbool), tblock), None),
     # Primitive('fillWithNthColor', arrow(tblock, tint, tblock), _fillWithNthColor),
     Primitive('replace_color', arrow(tblock, tcolor, tcolor, tblock), _replaceColors),
     Primitive('remove_black_b', arrow(tblock, tblock), None),
@@ -724,14 +723,20 @@ def basePrimitives():
     # arrow(ttile, tbool)
     Primitive('is_interior', arrow(ttile, tbool, tbool), lambda grid: grid),
     # arrow(ttile, tblock)
-    Primitive('to_block', arrow(ttile, tblock), None),
+    # Primitive('to_block', arrow(ttile, tblock), None),
     Primitive('extend_towards_until', arrow(ttile, tdirection, arrow(tblock, tbool), tblock), None),
     Primitive('extend_towards_until_edge', arrow(ttile, tdirection, tblock), None),
+
+##### ttiles ######
+
+    Primitive("filter_tiles", arrow(arrow(ttile, tbool), ttiles, ttiles), _filter),
+    Primitive("map_tiles", arrow(arrow(ttile, ttile), ttiles, ttiles), _map),
+    Primitive("tiles_to_blocks", arrow(ttiles, tblocks), None),
 
 ##### tsplitblocks #####
 
     Primitive('overlap_split_blocks', arrow(tsplitblocks, arrow(tcolor, tcolor, tcolor), tgridout), None),
-
+    Primitive('to_blocks', arrow(tsplitblocks, tblocks), None),
 
 ##### tcolor #####
 
