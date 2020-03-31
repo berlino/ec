@@ -498,7 +498,7 @@ let touches_boundary block direction =
       | (0,1) -> (right_edge,x) 
       | _,_ -> raise (Failure ("wrong direction")) in
     boundary = coord) in
-  not (List.length touching_tiles = 0) ;;
+  not ((List.length touching_tiles) = 0) ;;
 
 let rec extend_towards_until {point;block} (d_y,d_x) condition = 
   let (y,x),c = point in
@@ -616,7 +616,7 @@ register_special_task "arc" (fun extras ?timeout:(timeout = 0.001) name ty examp
     log_likelihood =
       (fun p -> 
         (* Printf.eprintf "Program: %s \n" (string_of_program p) ; *)
-        (* flush_everything () ; *)
+        flush_everything () ;
         let p = analyze_lazy_evaluation p in
         let rec loop = function
           | [] -> true
@@ -642,6 +642,8 @@ register_special_task "arc" (fun extras ?timeout:(timeout = 0.001) name ty examp
           then 0.0
           else log 0.0)
 }) ;;
+
+let tile_to_block tile = {points=[tile.point] ; original_grid = tile.block.original_grid} ;;
 
 (* primitives *)
 
@@ -679,7 +681,6 @@ ignore(primitive "fill_snakewise" (tblock @> tcolors @> tblock) fill_snakewise) 
 ignore(primitive "replace_color" (tblock @> tcolor @> tcolor @> tblock) replace_color) ;;
 ignore(primitive "remove_black_b" (tblock @> tblock) remove_black_b) ;;
 ignore(primitive "box_block" (tblock @> tblock) box_block) ;;
-ignore(primitive "filter_tiles" (tblock @> (ttile @> tboolean) @> tblock) filter_tiles) ;;
 ignore(primitive "replace_with_correct_color" (tblock @> tblock) replace_with_correct_color) ;;
 (* tblock -> tgridout *)
 ignore(primitive "to_min_grid" (tblock @> tboolean @> tgridout) to_min_grid) ;;
@@ -697,7 +698,7 @@ ignore(primitive "is_symmetrical" (tblock @> tboolean @> tboolean) is_symmetrica
 ignore(primitive "is_rectangle" (tblock @> tboolean @> tboolean) is_rectangle) ;;
 ignore(primitive "has_min_tiles" (tblock @> tint @> tboolean) has_min_tiles) ;;
 ignore(primitive "touches_any_boundary" (tblock @> tboolean) touches_any_boundary) ;;
-ignore(primitive "touches_boundary" (tblock @> tdirection @> tboolean) touches_any_boundary) ;;
+ignore(primitive "touches_boundary" (tblock @> tdirection @> tboolean) touches_boundary) ;;
 ignore(primitive "has_color" (tblock @> tcolor @> tboolean) has_color) ;;
 (* tblock -> ttile *)
 ignore(primitive "block_to_tile" (tblock @> ttile) block_to_tile) ;;
@@ -712,16 +713,23 @@ ignore(primitive "split_grid" (tgridin @> tboolean @> tsplitblocks) split) ;;
 (* tgridin -> ttiles *)
 ignore(primitive "find_tiles_by_black_b" (tgridin @> ttiles) find_tiles_by_black_b) ;;
 
+(* ttiles -> ttiles *)
+ignore(primitive "filter_tiles" ((ttile @> tboolean) @> ttiles @> ttiles) filter_blocks) ;;
+ignore(primitive "map_tiles" ((ttile @> ttile) @> ttiles @> ttiles) map_blocks) ;;
+(* ttiles -> tblocks *)
+ignore(primitive "tiles_to_blocks" (ttiles @> tblocks) (fun tiles -> (List.map tiles ~f:tile_to_block))) ;;
+
 (* ttile -> tboolean *)
 ignore(primitive "is_interior" (ttile @> tboolean @> tboolean) is_interior) ;;
 (* ttile -> tblock *)
-ignore(primitive "to_block" (ttile @> tblock) (fun tile -> {points=[tile.point] ; original_grid = tile.block.original_grid})) ;;
+(* ignore(primitive "to_block" (ttile @> tblock) tile_to_block) ;; *)
 (* ttile -> tblock *)
 ignore(primitive "extend_towards_until" (ttile @> tdirection @> (tblock @> tboolean) @> tblock) extend_towards_until) ;;
 ignore(primitive "extend_towards_until_edge" (ttile @> tdirection @> tblock) extend_towards_until_edge) ;;
 
 (* tsplitblocks -> tgridout *)
 ignore(primitive "overlap_split_blocks" (tsplitblocks @> (tcolor @> tcolor @> tcolor) @> tgridout) overlap_split_blocks) ;;
+(* tsplitblocks -> tblocks *)
 ignore(primitive "to_blocks" (tsplitblocks @> tblocks) (fun blocks -> blocks)) ;;
 
 (* tcolor -> tcolor *)
