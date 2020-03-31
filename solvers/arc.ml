@@ -239,6 +239,10 @@ let is_symmetrical block is_horizontal =
 
 let has_min_tiles block n = List.length block.points >= n ;;
 
+let has_color block color = 
+  let points_of_color = List.filter block.points ~f:(fun ((y,x),c) -> c = color) in
+  (List.length points_of_color > 0) ;; 
+
 let box_block {points;original_grid} = 
   let minY = get_min_y {points;original_grid} in
   let maxY = get_max_y {points;original_grid} in
@@ -508,7 +512,7 @@ let rec extend_towards_until {point;block} (d_y,d_x) condition =
   extend_towards_until {point=new_point; block=new_block} (d_y,d_x) condition ;;
 
 let extend_towards_until_edge {point;block} (d_y,d_x) = 
-  extend_towards_until {point;block} (0,1) (fun block -> touches_boundary block (0,1)) ;;
+  extend_towards_until {point;block} (d_y,d_x) (fun block -> touches_boundary block (d_y,d_x)) ;;
 
 
 let fill_snakewise block colors = 
@@ -582,6 +586,29 @@ let duplicate block direction n =
   let blocks = List.fold_left ~init:[block] ~f:(fun state _ -> move_block_until block state direction (fun block -> not (overlaps_other_block block state true))) (0 -- (n-1)) in
   merge_blocks blocks;;
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+let replace_with_correct_color block = 
+  let height = get_height block in 
+  let color = match height with 
+    | 5 -> 8
+    | 4 -> 7
+    | 3 -> 6
+    | _ -> raise (Failure ("failed")) in 
+    replace_color block 0 color ;;
+
+
 register_special_task "arc" (fun extras ?timeout:(timeout = 0.001) name ty examples ->
 (* Printf.eprintf "Making an arc task %s \n" name; *)
 { name = name    ;
@@ -615,10 +642,6 @@ register_special_task "arc" (fun extras ?timeout:(timeout = 0.001) name ty examp
           then 0.0
           else log 0.0)
 }) ;;
-
-let map_blocks func l = List.map ~f:func l ;;
-let filter_blocks func l = List.filter ~f:func l ;;
-
 
 (* primitives *)
 
@@ -657,6 +680,7 @@ ignore(primitive "replace_color" (tblock @> tcolor @> tcolor @> tblock) replace_
 ignore(primitive "remove_black_b" (tblock @> tblock) remove_black_b) ;;
 ignore(primitive "box_block" (tblock @> tblock) box_block) ;;
 ignore(primitive "filter_tiles" (tblock @> (ttile @> tboolean) @> tblock) filter_tiles) ;;
+ignore(primitive "replace_with_correct_color" (tblock @> tblock) replace_with_correct_color) ;;
 (* tblock -> tgridout *)
 ignore(primitive "to_min_grid" (tblock @> tboolean @> tgridout) to_min_grid) ;;
 ignore(primitive "to_original_grid_overlay" (tblock @> tboolean @> tgridout) to_original_grid_overlay) ;;
@@ -674,6 +698,7 @@ ignore(primitive "is_rectangle" (tblock @> tboolean @> tboolean) is_rectangle) ;
 ignore(primitive "has_min_tiles" (tblock @> tint @> tboolean) has_min_tiles) ;;
 ignore(primitive "touches_any_boundary" (tblock @> tboolean) touches_any_boundary) ;;
 ignore(primitive "touches_boundary" (tblock @> tdirection @> tboolean) touches_any_boundary) ;;
+ignore(primitive "has_color" (tblock @> tcolor @> tboolean) has_color) ;;
 (* tblock -> ttile *)
 ignore(primitive "block_to_tile" (tblock @> ttile) block_to_tile) ;;
 
@@ -708,9 +733,6 @@ ignore(primitive "land" tlogical (land)) ;;
 ignore(primitive "lor" tlogical (lor)) ;;
 ignore(primitive "lxor" tlogical (lxor)) ;;
  
-
-
-
 
 
 
@@ -860,6 +882,19 @@ let p_d037b0a7 grid =
   let extended_tiles = map_blocks (fun tile -> extend_towards_until tile (1,0) (fun block -> touches_boundary block (1,0))) tiles  in
   to_original_grid_overlay (merge_blocks extended_tiles) false ;;
 (* test_task "d037b0a7" (-1) p_d037b0a7 ;; *)
+
+let p_5117e062 grid = 
+  let blocks = find_blocks_by_black_b grid true false in
+  let filtered_blocks = filter_blocks (fun block -> has_color block 8) blocks in
+  let final_block = fill_color (merge_blocks filtered_blocks) (nth_primary_color (merge_blocks filtered_blocks) 0) in
+  to_min_grid final_block false ;;
+(* test_task "5117e062" (-1) p_5117e062 ;; *)
+
+let p_c0f76784 grid = 
+  let blocks = find_blocks_by_black_b grid true true in 
+  let colored_blocks = map_blocks replace_with_correct_color blocks in
+  to_original_grid_overlay (merge_blocks colored_blocks) false ;;
+(* test_task "c0f76784" (-1) p_c0f76784 ;; *)
 
 (* 
 let example_grid = {points = [((1,3),4); ((1,2),4); ((1,1),4); ((1,4),4); ((2,4),4); ((3,4),4); ((4,4),3); ((2,3),4); ((2,2),4); ((2,1),4); ((3,3),4); ((3,2),4); ((3,1),4); ((4,3),4); ((4,2),4); ((4,1),4)] ; original_grid = empty_grid 4 4 0} in

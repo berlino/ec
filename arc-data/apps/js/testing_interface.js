@@ -40,11 +40,12 @@ function loadEcOutputFile(e) {
         var contents = e.target.result;
         try {
             let regex = new RegExp('HIT[^\n]+', 'g')
-            if (contents.includes('Generative model enumeration results:')) {
-                contents = contents.slice(contents.lastIndexOf('Generative model enumeration results:'))
-            }
+            // if (contents.includes('Generative model enumeration results:')) {
+            //     contents = contents.slice(contents.lastIndexOf('Generative model enumeration results:'))
+            // }
             hitList = contents.match(regex)
             TASK_NAME_LIST = hitList.map((element) => element.slice(4, element.search('json') + 4))
+            TASK_NAME_LIST = [...new Set(TASK_NAME_LIST)]
             TASK_PROGRAM_LIST = hitList.map((element) => element.slice(element.search('json') + 8).replace(/log/g, '<br> log'))
             
             // tempName = new Array();

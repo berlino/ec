@@ -633,6 +633,7 @@ def basePrimitives():
     Primitive('duplicate', arrow(tblock, tdirection, tint, tblock), None),
     Primitive('grow', arrow(tblock, tint, tblock), _grow),
     Primitive('box_block', arrow(tblock, tblock), lambda x : x),
+    Primitive('replace_with_correct_color', arrow(tblock, tblock), None),
     # Primitive('concat', arrow(tblock, tblock, tdirection, tblock), _concat),
     # Primitive('concatN', arrow(tblock, tblock, tdirection, tint, tblock), _concatN),
     # Primitive('concatUntilEdge', arrow(tblock, tblock, tdirection, tblock), _concatUntilEdge),
@@ -647,6 +648,7 @@ def basePrimitives():
     Primitive('has_min_tiles', arrow(tblock, tint, tbool), _hasGeqNTiles),
     Primitive('touches_any_boundary', arrow(tblock, tbool), None),
     Primitive('touches_boundary', arrow(tblock, tdirection, tbool), None),
+    Primitive('has_color', arrow(tblock, tcolor, tbool), None),
     # Primitive('hasGeqNcolors', arrow(tblock, tint, tbool), _hasGeqNColors), # (5117e062)
     
     # arrow(tblock, tgrid)
