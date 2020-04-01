@@ -633,6 +633,8 @@ def basePrimitives():
     Primitive('grow', arrow(tblock, tint, tblock), _grow),
     Primitive('box_block', arrow(tblock, tblock), lambda x : x),
     Primitive('replace_with_correct_color', arrow(tblock, tblock), None),
+    Primitive("filter_block_tiles", arrow(tblock, arrow(ttile, tbool), tblock), None),
+    Primitive("map_block_tiles", arrow(tblock, arrow(ttile, ttile), tblock), None),
     # Primitive('concat', arrow(tblock, tblock, tdirection, tblock), _concat),
     # Primitive('concatN', arrow(tblock, tblock, tdirection, tint, tblock), _concatN),
     # Primitive('concatUntilEdge', arrow(tblock, tblock, tdirection, tblock), _concatUntilEdge),
@@ -724,15 +726,15 @@ def basePrimitives():
 
     # arrow(ttile, tbool)
     Primitive('is_interior', arrow(ttile, tbool, tbool), lambda grid: grid),
+    Primitive('is_exterior', arrow(ttile, tbool, tbool), lambda grid: grid),
     # arrow(ttile, tblock)
-    # Primitive('to_block', arrow(ttile, tblock), None),
     Primitive('extend_towards_until', arrow(ttile, tdirection, arrow(tblock, tbool), tblock), None),
     Primitive('extend_towards_until_edge', arrow(ttile, tdirection, tblock), None),
 
 ##### ttiles ######
 
-    Primitive("filter_tiles", arrow(arrow(ttile, tbool), ttiles, ttiles), _filter),
-    Primitive("map_tiles", arrow(arrow(ttile, ttile), ttiles, ttiles), _map),
+    Primitive("filter_tiles", arrow(ttiles, arrow(ttile, tbool), ttiles), _filter),
+    Primitive("map_tiles", arrow(ttiles, arrow(ttile, ttile), ttiles), _map),
     Primitive("tiles_to_blocks", arrow(ttiles, tblocks), None),
 
 ##### tsplitblocks #####

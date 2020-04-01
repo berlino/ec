@@ -351,10 +351,6 @@ let merge_blocks blocks =
     | None -> raise (Failure ("Merge with empty list"))
     | Some(block) -> block
 
-let filter_tiles block f = 
-  let new_points = List.filter block.points ~f:(fun point -> f {point ; block = block}) in
-  block_of_points new_points block.original_grid
-
 let is_interior tile is_corner = 
   let adjacent = [(1,0);(0,1);(0,-1);(-1,0)] in
   let corner_adjacent = [(1,1);(1,-1);(-1,-1);(-1,1)] in
@@ -599,15 +595,61 @@ let duplicate block direction n =
 
 
 
-let replace_with_correct_color block = 
-  let height = get_height block in 
-  let color = match height with 
-    | 5 -> 8
-    | 4 -> 7
-    | 3 -> 6
-    | _ -> raise (Failure ("failed")) in 
-    replace_color block 0 color ;;
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+let tiles_to_blocks tiles = 
+  let tile_to_block tile = {points=[tile.point] ; original_grid = tile.block.original_grid} in
+  List.map tiles ~f:tile_to_block ;;
+
+let is_exterior tile is_corner = 
+  not (is_interior tile is_corner) ;;
+
+let filter_tiles tiles f = 
+  List.filter tiles ~f:f ;;
+
+let map_tiles tiles f = 
+  List.map tiles ~f:f ;;
+
+let filter_block_tiles block f = 
+  let block_to_tiles block = 
+  List.map block.points ~f:(fun ((y,x),c) -> {point = ((y,x),c) ;block = block}) in
+  let tiles_to_block tiles = 
+    let tile = List.nth_exn tiles 0 in 
+    let block = tile.block in
+    {points=List.fold_left tiles ~init:([]) ~f:(fun points tile -> tile.point :: points); original_grid = block.original_grid} in
+  let tiles = filter_tiles (block_to_tiles block) f in 
+  tiles_to_block tiles ;;
+
+let map_block_tiles block f = 
+  let block_to_tiles block = 
+  List.map block.points ~f:(fun ((y,x),c) -> {point = ((y,x),c) ;block = block}) in
+  let tiles_to_block tiles = 
+    let tile = List.nth_exn tiles 0 in 
+    let block = tile.block in
+    {points=List.fold_left tiles ~init:([]) ~f:(fun points tile -> tile.point :: points); original_grid = block.original_grid} in
+  let tiles = map_tiles (block_to_tiles block) f in 
+  tiles_to_block tiles ;;
 
 register_special_task "arc" (fun extras ?timeout:(timeout = 0.001) name ty examples ->
 (* Printf.eprintf "Making an arc task %s \n" name; *)
@@ -642,8 +684,6 @@ register_special_task "arc" (fun extras ?timeout:(timeout = 0.001) name ty examp
           then 0.0
           else log 0.0)
 }) ;;
-
-let tile_to_block tile = {points=[tile.point] ; original_grid = tile.block.original_grid} ;;
 
 (* primitives *)
 
@@ -682,6 +722,8 @@ ignore(primitive "replace_color" (tblock @> tcolor @> tcolor @> tblock) replace_
 ignore(primitive "remove_black_b" (tblock @> tblock) remove_black_b) ;;
 ignore(primitive "box_block" (tblock @> tblock) box_block) ;;
 ignore(primitive "replace_with_correct_color" (tblock @> tblock) replace_with_correct_color) ;;
+ignore(primitive "filter_block_tiles" (tblock @> (ttile @> tboolean) @> tblock) filter_block_tiles) ;;
+ignore(primitive "map_block_tiles" (tblock @> (ttile @> ttile) @> tblock) map_block_tiles) ;;
 (* tblock -> tgridout *)
 ignore(primitive "to_min_grid" (tblock @> tboolean @> tgridout) to_min_grid) ;;
 ignore(primitive "to_original_grid_overlay" (tblock @> tboolean @> tgridout) to_original_grid_overlay) ;;
@@ -713,16 +755,16 @@ ignore(primitive "split_grid" (tgridin @> tboolean @> tsplitblocks) split) ;;
 (* tgridin -> ttiles *)
 ignore(primitive "find_tiles_by_black_b" (tgridin @> ttiles) find_tiles_by_black_b) ;;
 
-(* ttiles -> ttiles *)
-ignore(primitive "filter_tiles" ((ttile @> tboolean) @> ttiles @> ttiles) filter_blocks) ;;
-ignore(primitive "map_tiles" ((ttile @> ttile) @> ttiles @> ttiles) map_blocks) ;;
 (* ttiles -> tblocks *)
 ignore(primitive "tiles_to_blocks" (ttiles @> tblocks) (fun tiles -> (List.map tiles ~f:tile_to_block))) ;;
 
 (* ttile -> tboolean *)
 ignore(primitive "is_interior" (ttile @> tboolean @> tboolean) is_interior) ;;
+ignore(primitive "is_exterior" (ttile @> tboolean @> tboolean) is_exterior) ;;
 (* ttile -> tblock *)
 (* ignore(primitive "to_block" (ttile @> tblock) tile_to_block) ;; *)
+ignore(primitive "filter_tiles" (ttiles @> (ttile @> tboolean) @> ttiles) filter_tiles) ;;
+ignore(primitive "map_tiles" (ttiles @> (ttile @> ttile) @> ttiles) map_tiles) ;;
 (* ttile -> tblock *)
 ignore(primitive "extend_towards_until" (ttile @> tdirection @> (tblock @> tboolean) @> tblock) extend_towards_until) ;;
 ignore(primitive "extend_towards_until_edge" (ttile @> tdirection @> tblock) extend_towards_until_edge) ;;
@@ -830,15 +872,6 @@ let p_f25fbde4 grid =
   to_min_grid grow_block false ;;
 (* test_task "f25fbde4" (-1) p_f25fbde4;; *)
 
-let p_50cb2852 grid = 
-  let blocks = find_blocks_by_black_b grid true false  in
-  let interior_blocks = map_blocks (fun block -> filter_tiles block (fun tile -> is_interior tile true)) blocks in
-  let filled_interior_blocks = map_blocks (fun block -> fill_color block 8) interior_blocks in
-  let merged_blocks = merge_blocks filled_interior_blocks in
-  to_original_grid_overlay merged_blocks true ;;
-(* test_task "50cb2852" (-1) p_50cb2852 ;; *)
-
-
 let p_fcb5c309 grid = 
   let blocks = find_same_color_blocks grid true true in
   let largest_block = nth_of_sorted_object_list blocks (fun block -> List.length block.points) 0 in
@@ -898,11 +931,19 @@ let p_5117e062 grid =
   to_min_grid final_block false ;;
 (* test_task "5117e062" (-1) p_5117e062 ;; *)
 
-let p_c0f76784 grid = 
-  let blocks = find_blocks_by_black_b grid true true in 
-  let colored_blocks = map_blocks replace_with_correct_color blocks in
-  to_original_grid_overlay (merge_blocks colored_blocks) false ;;
-(* test_task "c0f76784" (-1) p_c0f76784 ;; *)
+let p_4347f46a grid = 
+  let blocks = find_same_color_blocks grid false false in 
+  let modified_blocks = List.map blocks ~f:(fun block -> filter_block_tiles block (fun tile -> is_exterior tile false)) in 
+  to_original_grid_overlay (merge_blocks modified_blocks) false ;;
+(* test_task "4347f46a" (-1) p_4347f46a ;; *)
+
+let p_50cb2852 grid = 
+  let blocks = find_blocks_by_black_b grid true false  in
+  let interior_blocks = map_blocks (fun block -> filter_block_tiles block (fun tile -> is_interior tile true)) blocks in
+  let filled_interior_blocks = map_blocks (fun block -> fill_color block 8) interior_blocks in
+  let merged_blocks = merge_blocks filled_interior_blocks in
+  to_original_grid_overlay merged_blocks true ;;
+(* test_task "50cb2852" (-1) p_50cb2852 ;; *)
 
 (* 
 let example_grid = {points = [((1,3),4); ((1,2),4); ((1,1),4); ((1,4),4); ((2,4),4); ((3,4),4); ((4,4),3); ((2,3),4); ((2,2),4); ((2,1),4); ((3,3),4); ((3,2),4); ((3,1),4); ((4,3),4); ((4,2),4); ((4,1),4)] ; original_grid = empty_grid 4 4 0} in
