@@ -665,11 +665,13 @@ ignore(primitive "teal" tcolor 8) ;;
 ignore(primitive "maroon" tcolor 9) ;;
 
 (* tblocks -> tblock *)
-ignore(primitive "merge_blocks" (tblocks @> tblock) merge_blocks) ;;
+ignore(primitive "blocks_to_original_grid" (tblocks @> tboolean @> tgridout) (fun blocks with_original -> to_original_grid_overlay (merge_blocks blocks) with_original)) ;;
+ignore(primitive "blocks_to_min_grid" (tblocks @> tboolean @> tgridout) (fun blocks with_original -> to_min_grid (merge_blocks blocks) with_original)) ;;
 ignore(primitive "nth_of_sorted_object_list" (tblocks @> (tblock @> tint) @> tint @> tblock) nth_of_sorted_object_list) ;;
 (* tblocks -> tblocks *)
-ignore(primitive "filter_blocks" ((tblock @> tboolean) @> tblocks @> tblocks) filter_blocks) ;;
-ignore(primitive "map_blocks" ((tblock @> tblock) @> tblocks @> tblocks) map_blocks) ;;
+ignore(primitive "filter_blocks" (tblocks @> (tblock @> tboolean) @> tblocks) (fun block f -> filter_blocks f block)) ;;
+ignore(primitive "map_blocks" (tblocks @> (tblock @> tblock) @> tblocks) (fun block f -> map_blocks f block)) ;;
+(* ignore(primitive "map_blocks_min" (tblocks @> (tblock @> tblock) @> tgridout) (fun block f -> to_min_grid (merge_blocks (map_blocks f block)) false)) ;; *)
 
 (* tblock -> tblock *)
 ignore(primitive "reflect" (tblock @> tboolean @> tblock) reflect) ;;

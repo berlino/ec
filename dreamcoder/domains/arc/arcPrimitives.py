@@ -601,7 +601,8 @@ def basePrimitives():
 
     # # arrow (tblocks, tblock)
     # Primitive('car', arrow(tblocks, tblock), _head),
-    Primitive('merge_blocks', arrow(tblocks, tblock),  _mergeBlocks),
+    Primitive('blocks_to_original_grid', arrow(tblocks, tbool, tgridout),  None),
+    Primitive('blocks_to_min_grid', arrow(tblocks, tbool, tgridout),  None),
     # Primitive('getListBlock', arrow(tblocks, tint, tblock), _getListBlock),
     # arrow(tblocks, tgrid)
     # Primitive('blocksToMinGrid', arrow(tblocks, tbool, tgrid), _blocksToMinGrid),
@@ -610,8 +611,8 @@ def basePrimitives():
     # Primitive("filterAndMinGrid", arrow(arrow(tblock, tbool), tblocks, tbool, tgrid), _filterAndMinGrid),
     # arrow(tblocks, tblocks)
     # Primitive('sortBlocks',arrow(tblocks, arrow(tblock, tint), tblocks), _sortBlocks),
-    Primitive("filter_blocks", arrow(arrow(tblock, tbool), tblocks, tblocks), _filter),
-    Primitive("map_blocks", arrow(arrow(tblock, tblock), tblocks, tblocks), _map),
+    Primitive("map_blocks", arrow(tblocks, arrow(tblock, tblock), tblocks), _map),
+    Primitive("filter_blocks", arrow(tblocks, arrow(tblock, tbool), tblocks), _filter),
     Primitive("nth_of_sorted_object_list", arrow(tblocks, arrow(tblock, tint), tint, tblock), None),
     # arrow(tblocks, tint)
     # Primitive('highestTileBlock', arrow(tblocks, tint), _highestTileBlock),
