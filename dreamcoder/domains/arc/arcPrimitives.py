@@ -615,6 +615,7 @@ def basePrimitives():
     Primitive("map_blocks", arrow(tblocks, arrow(tblock, tblock), tblocks), _map),
     Primitive("filter_blocks", arrow(tblocks, arrow(tblock, tbool), tblocks), _filter),
     Primitive("nth_of_sorted_object_list", arrow(tblocks, arrow(tblock, tint), tint, tblock), None),
+    Primitive("singleton_block" , arrow(tblocks, tblock), None),
     # arrow(tblocks, tint)
     # Primitive('highestTileBlock', arrow(tblocks, tint), _highestTileBlock),
 

@@ -683,10 +683,12 @@ ignore(primitive "orange" tcolor 7) ;;
 ignore(primitive "teal" tcolor 8) ;;
 ignore(primitive "maroon" tcolor 9) ;;
 
-(* tblocks -> tblock *)
+(* tblocks -> tgridout *)
 ignore(primitive "blocks_to_original_grid" (tblocks @> tboolean @> tgridout) (fun blocks with_original -> to_original_grid_overlay (merge_blocks blocks) with_original)) ;;
 ignore(primitive "blocks_to_min_grid" (tblocks @> tboolean @> tgridout) (fun blocks with_original -> to_min_grid (merge_blocks blocks) with_original)) ;;
+(* tblocks -> tblock *)
 ignore(primitive "nth_of_sorted_object_list" (tblocks @> (tblock @> tint) @> tint @> tblock) nth_of_sorted_object_list) ;;
+ignore(primitive "singleton_block" (tblocks @> tblock) (fun blocks -> if (List.length blocks > 1) then raise (Failure ("more than 1 elements")) else (List.nth_exn blocks 0))) ;;
 (* tblocks -> tblocks *)
 ignore(primitive "filter_blocks" (tblocks @> (tblock @> tboolean) @> tblocks) (fun block f -> filter_blocks f block)) ;;
 ignore(primitive "map_blocks" (tblocks @> (tblock @> tblock) @> tblocks) (fun block f -> map_blocks f block)) ;;
