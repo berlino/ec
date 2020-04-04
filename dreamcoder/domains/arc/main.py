@@ -378,10 +378,10 @@ def main(args):
 
 
     if single_train_task:
-        # trainTasks = retrieveARCJSONTasks(directory, ["c0f76784.json", "d037b0a7.json", "007bbfb7.json", "97999447.json", "c9e6f938.json", "ce4f8723.json", "0520fde7.json", "fcb5c309.json", "50cb2852.json", "72ca375d.json", "5521c0d9.json", "f25fbde4.json"])
+        trainTasks = retrieveARCJSONTasks(directory, ["88a10436.json", "c0f76784.json", "d037b0a7.json", "007bbfb7.json", "97999447.json", "c9e6f938.json", "ce4f8723.json", "0520fde7.json", "fcb5c309.json", "50cb2852.json", "72ca375d.json", "5521c0d9.json", "f25fbde4.json"][0:1])
 
         # Tile tasks
-        trainTasks = retrieveARCJSONTasks(directory, ["97999447.json", "d037b0a7.json", "4347f46a.json", "50cb2852.json"])
+        # trainTasks = retrieveARCJSONTasks(directory, ["97999447.json", "d037b0a7.json", "4347f46a.json", "50cb2852.json"])
     else:
         trainTasks = retrieveARCJSONTasks(directory, None)
 

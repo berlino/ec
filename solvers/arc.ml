@@ -1,11 +1,11 @@
 open Core
-(* open Client
+open Client
 open Timeout
 open Utils
 open Program
 open Task
 open Type
- *)
+
 (* Types and Helpers*)
 
 type block = {points : ((int*int)*int) list; original_grid : ((int*int)*int) list} ;;
@@ -613,7 +613,7 @@ let filter_template_block blocks f =
 let get_block_center block = 
   let width = get_width block in 
   let height = get_height block in 
-  let y,x = match (width % 2, height % 2) with 
+  let y,x = match ((width mod 2), (height mod 2)) with 
     | (1,1) -> ((get_min_y block) + (height / 2), (get_min_x block) + (width / 2))
     | (_,_) -> raise (Failure ("Can't get center of block")) in 
   {point = ((y,x),List.Assoc.find_exn block.points ~equal:(=) (y,x)) ; block = block} ;;
@@ -630,7 +630,7 @@ let map_tbs template_blocks_scene attribute_select_f map_f =
   List.map rest_blocks ~f:(fun block -> map_f block (attribute_select_f template_block));;
 
 
-(* register_special_task "arc" (fun extras ?timeout:(timeout = 0.001) name ty examples ->
+register_special_task "arc" (fun extras ?timeout:(timeout = 0.001) name ty examples ->
 (* Printf.eprintf "Making an arc task %s \n" name; *)
 { name = name    ;
     task_type = ty ;
@@ -705,7 +705,7 @@ ignore(primitive "box_block" (tblock @> tblock) box_block) ;;
 (* ignore(primitive "replace_with_correct_color" (tblock @> tblock) replace_with_correct_color) ;; *)
 ignore(primitive "filter_block_tiles" (tblock @> (ttile @> tboolean) @> tblock) filter_block_tiles) ;;
 ignore(primitive "map_block_tiles" (tblock @> (ttile @> ttile) @> tblock) map_block_tiles) ;;
-tblock -> tgridout
+(* tblock -> tgridout *)
 ignore(primitive "to_min_grid" (tblock @> tboolean @> tgridout) to_min_grid) ;;
 ignore(primitive "to_original_grid_overlay" (tblock @> tboolean @> tgridout) to_original_grid_overlay) ;;
 (* tblock -> tint *)
@@ -763,19 +763,11 @@ ignore(primitive "color_pair" (tcolor @> tcolor @> tcolors) color_pair) ;;
 ignore(primitive "land" tlogical (land)) ;;
 ignore(primitive "lor" tlogical (lor)) ;;
 ignore(primitive "lxor" tlogical (lxor)) ;;
- 
-
-let ttbs = make_ground "template_blocks_scene" ;;
 
 ignore(primitive "filter_template_block" (tblocks @> (tblock @> tboolean) @> ttbs) filter_template_block) ;;
-ignore(primitive "map_tbs" (ttbs @> (tblock @> ttile) @> (tblock @> ttile @> tblock) @> tblocks)) ;;
-
-ignore(primitive "get_block_center" (tblock @> ttile)) ;;
-ignore(primitive "move_center_to_tile" (tblock @> ttile @> tblock)) ;;
-
-
-
- *)
+ignore(primitive "map_tbs" (ttbs @> (tblock @> ttile) @> (tblock @> ttile @> tblock) @> tblocks) map_tbs) ;;
+ignore(primitive "get_block_center" (tblock @> ttile) get_block_center) ;;
+ignore(primitive "move_center_to_tile" (tblock @> ttile @> tblock) move_center_to_tile) ;;
 
 let python_split x =
   let split = String.split_on_chars ~on:[','] x in 
@@ -934,7 +926,7 @@ let p_88a10436 grid =
   let tbs = filter_template_block blocks (fun block -> (is_rectangle block false)) in 
   let final_blocks = map_tbs tbs get_block_center move_center_to_tile in
   to_original_grid_overlay (merge_blocks final_blocks) true ;;
-test_task "88a10436" (-1) p_88a10436;;
+(* test_task "88a10436" (-1) p_88a10436;; *)
 
 (* 
 let example_grid = {points = [((1,3),4); ((1,2),4); ((1,1),4); ((1,4),4); ((2,4),4); ((3,4),4); ((4,4),3); ((2,3),4); ((2,2),4); ((2,1),4); ((3,3),4); ((3,2),4); ((3,1),4); ((4,3),4); ((4,2),4); ((4,1),4)] ; original_grid = empty_grid 4 4 0} in

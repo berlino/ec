@@ -753,13 +753,13 @@ def basePrimitives():
 
     Primitive("land", tlogical, None),
     Primitive("lor", tlogical, None),
-    Primitive("lxor", tlogical, None)
+    Primitive("lxor", tlogical, None),
 
 
 #### 88a10436 ####
 
     Primitive("filter_template_block", arrow(tblocks, arrow(tblock, tbool), ttbs), None),
-    Primitive("map_tbs", arrow(ttbs, arrow(tblock, t0), arrow(tblock, t0, tblock), tblocks), None),
+    Primitive("map_tbs", arrow(ttbs, arrow(tblock, ttile), arrow(tblock, ttile, tblock), tblocks), None),
     Primitive("get_block_center", arrow(tblock, ttile), None),
     Primitive("move_center_to_tile", arrow(tblock, ttile, tblock), None)
 ]
