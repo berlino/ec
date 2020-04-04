@@ -330,15 +330,6 @@ let fill_color block new_color =
   let points = List.map block.points ~f:(fun ((y,x),_) -> (y,x),new_color) in
   block_of_points points block.original_grid
 
-let fill_snakewise block colors = 
-  let sorted_points = List.sort ~compare:(fun ((a_y,a_x),_) ((b_y,b_x),_) -> (100 * (a_y - b_y)) + (a_x - b_x)) block.points in 
-  let color_tile_snakewise i ((y,x),c) = 
-    let tile_color = (List.nth_exn colors (i mod (List.length colors))) in
-    let tile_color_actual = if (tile_color = (-1)) then List.Assoc.find_exn block.points (y,x) ~equal:(=) else tile_color in 
-    ((y,x),tile_color_actual) in
-  let new_points = List.mapi sorted_points ~f:color_tile_snakewise in
-  block_of_points new_points block.original_grid ;;
-
 
 let replace_color block old_color new_color = 
   let points = List.map block.points ~f:(fun ((y,x),c) -> (y,x), if (c = old_color) then new_color else c) in
@@ -395,47 +386,6 @@ let color_logical c_1 c_2 new_color binary_f =
   let binary_2 = if c_2 > 0 then 1 else 0 in
   let flag = (binary_f binary_1 binary_2) in
   if (flag = 1) then new_color else 0 ;;
-
-let color_pair c_1 c_2 = [c_1 ; c_2] ;;
-
-let rec extend_towards_until {point;block} (d_y,d_x) condition = 
-  let (y,x),c = point in
-  let condition_met = condition block in 
-  match condition_met with 
-  | true -> block
-  | false -> 
-  let new_point = ((y+d_y,x+d_x),c) in
-  let new_block_points = new_point :: block.points in
-  let new_block = block_of_points new_block_points block.original_grid in
-  extend_towards_until {point=new_point; block=new_block} (d_y,d_x) condition ;;
-
-
-
-let blocks_overlap block_a block_b = 
-  let in_block_b = List.map block_a.points ~f:(fun ((y,x),c) -> List.Assoc.mem block_b.points (y,x) ~equal:(=)) in
-  List.fold_left in_block_b ~init:false ~f:(fun state el -> state || el) ;;
- 
-let overlaps_other_block block blocks include_self = 
-  let overlap_list = List.map blocks ~f:(fun other_block -> 
-    match include_self with 
-      | false -> (not (other_block === block)) && (blocks_overlap other_block block)
-      | true -> (blocks_overlap other_block block)
-    ) in
-  List.fold_left overlap_list ~init:false ~f:(fun state el -> state || el) ;;
-
-let move_block_until block blocks direction condition = 
-  let rec move_until block direction condition = 
-    if (condition block) then block else 
-      let moved_block = move block 1 direction false in
-      move_until moved_block direction condition in
-  let moved_block = move_until block direction condition in
-  moved_block :: blocks ;;
-
-let duplicate block direction n = 
-  let blocks = List.fold_left ~init:[block] ~f:(fun state _ -> move_block_until block state direction (fun block -> not (overlaps_other_block block state true))) (0 -- (n-1)) in
-  merge_blocks blocks;;
-  
-
 
 
 
@@ -786,10 +736,13 @@ ignore(primitive "lor" tlogical (lor)) ;;
 ignore(primitive "lxor" tlogical (lxor)) ;;
  
 
+let ttbs = make_ground "template_blocks_scene" ;;
 
+ignore(primitive "filter_template_block" (tblocks @> (tblock @> tboolean) @> ttbs) filter_template_block) ;;
+ignore(primitive "map_tbs" (ttbs @> (tblock @> ttile) @> (tblock @> ttile @> tblock) @> tblocks)) ;;
 
-
-
+ignore(primitive "get_block_center" (tblock @> ttile)) ;;
+ignore(primitive "move_center_to_tile" (tblock @> ttile @> tblock)) ;;
 
 
 
@@ -947,6 +900,40 @@ let p_50cb2852 grid =
   to_original_grid_overlay merged_blocks true ;;
 (* test_task "50cb2852" (-1) p_50cb2852 ;; *)
 
+let filter_template_block blocks f = 
+  let filtered_blocks = List.filter blocks ~f:f in 
+  let template_block = match List.length filtered_blocks with 
+    | 1 -> List.nth_exn filtered_blocks 0
+    | _ -> raise (Failure ("function f results in != 1 blocks")) in
+  let rest_blocks = List.filter blocks ~f:(fun block -> (not (f block))) in 
+  (template_block, rest_blocks) ;;
+
+let get_block_center block = 
+  let width = get_width block in 
+  let height = get_height block in 
+  let y,x = match (width % 2, height % 2) with 
+    | (1,1) -> ((get_min_y block) + (height / 2), (get_min_x block) + (width / 2))
+    | (_,_) -> raise (Failure ("Can't get center of block")) in 
+  {point = ((y,x),List.Assoc.find_exn block.points ~equal:(=) (y,x)) ; block = block} ;;
+
+let move_center_to_tile block tile =
+  let ((block_y, block_x),_) = (get_block_center block).point in
+  let ((tile_y, tile_x),_) = tile.point in 
+  let d_y, d_x = (tile_y - block_y), (tile_x - block_x) in
+  let new_points = List.map block.points ~f:(fun ((y,x),c) -> (((y+d_y),(x+d_x)),c)) in
+  block_of_points new_points block.original_grid ;;
+
+let map_tbs template_blocks_scene attribute_select_f map_f = 
+  let template_block, rest_blocks = template_blocks_scene in 
+  List.map rest_blocks ~f:(fun block -> map_f block (attribute_select_f template_block));;
+
+let p_88a10436 grid = 
+  let blocks = find_blocks_by_black_b grid true false in
+  let tbs = filter_template_block blocks (fun block -> (is_rectangle block false)) in 
+  let final_blocks = map_tbs tbs get_block_center move_center_to_tile in
+  to_original_grid_overlay (merge_blocks final_blocks) true ;;
+(* test_task "88a10436" (-1) p_88a10436;; *)
+
 (* 
 let example_grid = {points = [((1,3),4); ((1,2),4); ((1,1),4); ((1,4),4); ((2,4),4); ((3,4),4); ((4,4),3); ((2,3),4); ((2,2),4); ((2,1),4); ((3,3),4); ((3,2),4); ((3,1),4); ((4,3),4); ((4,2),4); ((4,1),4)] ; original_grid = empty_grid 4 4 0} in
 let blocks = find_blocks_by_color example_grid 4 false false in 
@@ -956,4 +943,3 @@ let filtered_block = filter_tiles block (fun tile -> is_interior true block) in
 print_block filtered_block ;;
 
 
- *)
