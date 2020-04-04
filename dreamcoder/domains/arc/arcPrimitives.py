@@ -633,7 +633,7 @@ def basePrimitives():
     Primitive('duplicate', arrow(tblock, tdirection, tint, tblock), None),
     Primitive('grow', arrow(tblock, tint, tblock), _grow),
     Primitive('box_block', arrow(tblock, tblock), lambda x : x),
-    Primitive('replace_with_correct_color', arrow(tblock, tblock), None),
+    # Primitive('replace_with_correct_color', arrow(tblock, tblock), None),
     Primitive("filter_block_tiles", arrow(tblock, arrow(ttile, tbool), tblock), None),
     Primitive("map_block_tiles", arrow(tblock, arrow(ttile, ttile), tblock), None),
     # Primitive('concat', arrow(tblock, tblock, tdirection, tblock), _concat),

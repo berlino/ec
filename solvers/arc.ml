@@ -723,7 +723,7 @@ ignore(primitive "fill_snakewise" (tblock @> tcolors @> tblock) fill_snakewise) 
 ignore(primitive "replace_color" (tblock @> tcolor @> tcolor @> tblock) replace_color) ;;
 ignore(primitive "remove_black_b" (tblock @> tblock) remove_black_b) ;;
 ignore(primitive "box_block" (tblock @> tblock) box_block) ;;
-ignore(primitive "replace_with_correct_color" (tblock @> tblock) replace_with_correct_color) ;;
+(* ignore(primitive "replace_with_correct_color" (tblock @> tblock) replace_with_correct_color) ;; *)
 ignore(primitive "filter_block_tiles" (tblock @> (ttile @> tboolean) @> tblock) filter_block_tiles) ;;
 ignore(primitive "map_block_tiles" (tblock @> (ttile @> ttile) @> tblock) map_block_tiles) ;;
 (* tblock -> tgridout *)
@@ -758,7 +758,7 @@ ignore(primitive "split_grid" (tgridin @> tboolean @> tsplitblocks) split) ;;
 ignore(primitive "find_tiles_by_black_b" (tgridin @> ttiles) find_tiles_by_black_b) ;;
 
 (* ttiles -> tblocks *)
-ignore(primitive "tiles_to_blocks" (ttiles @> tblocks) (fun tiles -> (List.map tiles ~f:tile_to_block))) ;;
+ignore(primitive "tiles_to_blocks" (ttiles @> tblocks) tiles_to_blocks) ;;
 
 (* ttile -> tboolean *)
 ignore(primitive "is_interior" (ttile @> tboolean @> tboolean) is_interior) ;;
