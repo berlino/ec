@@ -554,6 +554,8 @@ if runFull:
     tsplitblock = baseType('tsplitblock')
     tlogical = baseType('tlogical')
     ttbs = baseType('template_blocks_scene')
+    tcolorpair = tpair(tcolor, tcolor)
+    tcmap = tlist(tcolorpair)
 
     ttiles = tlist(ttile)
     tblocks = tlist(tblock)
@@ -742,6 +744,19 @@ def basePrimitives():
 #### ttbs ####
 
     Primitive("map_tbs", arrow(ttbs, arrow(tblock, ttile), arrow(tblock, ttile, tblock), tblocks), None),
+
+##### tcolorpair #####
+
+    Primitive("make_colorpair", arrow(tcolor, tcolor, tcolorpair), None),
+
+##### tcmap #####
+
+    Primitive("make_cmap", arrow(tcolorpair, tcolorpair, tcolorpair, tcolorpair, tcolorpair, tcmap), None),
+
+##### 913fb3ed #####
+
+    Primitive("p_913fb3ed", arrow(tgridin, tcmap, tgridout), None)
+
 ]
 
 ##### t0 #####

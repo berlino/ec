@@ -1,10 +1,10 @@
 open Core
-(* open Client
+open Client
 open Timeout
 open Utils
 open Program
 open Task
-open Type *)
+open Type
 
 (* Types and Helpers*)
 
@@ -235,6 +235,12 @@ let to_min_grid {points;original_grid} with_original =
   let new_points = List.map ~f:(fun (y,x) -> ((y,x), deduce_val (y+minY,x+minX))) indices in
   block_of_points new_points original_grid;;
 
+let blocks_to_original_grid blocks with_original keep_overlaps = 
+  to_original_grid_overlay (merge_blocks blocks keep_overlaps) with_original ;;
+
+let blocks_to_min_grid blocks with_original keep_overlaps = 
+  to_min_grid (merge_blocks blocks keep_overlaps) with_original ;;
+
 let filter_blocks f l = List.filter l ~f:(fun block -> (f block))
 
 let map_blocks f l = List.map l ~f:(fun block -> (f block))
@@ -433,13 +439,14 @@ let tile_to_block tile = {points=[tile.point] ; original_grid = tile.block.origi
 let block_to_tile block = 
   {point = List.nth_exn block.points 0 ; block = block} ;;
 
-let is_interior tile is_corner = 
+(* include_corner_neighbors describes whether to require interior tiles to have all corner neighbors too *)
+let is_interior tile include_corner_neighbors = 
   let adjacent = [(1,0);(0,1);(0,-1);(-1,0)] in
   let corner_adjacent = [(1,1);(1,-1);(-1,-1);(-1,1)] in
-  let neighbors = if is_corner then (adjacent @ corner_adjacent) else adjacent in
+  let neighbors = if include_corner_neighbors then (adjacent @ corner_adjacent) else adjacent in
   let ((y_tile, x_tile), c_tile) = tile.point in
   let actual_neighbors = List.filter_map neighbors ~f:(fun (y,x) -> List.Assoc.find tile.block.points ~equal:(=) (y+y_tile,x+x_tile)) in
-  let expected_num_neighbors = if is_corner then 8 else 4 in 
+  let expected_num_neighbors = if include_corner_neighbors then 8 else 4 in 
 ((List.length actual_neighbors) = expected_num_neighbors) ;;
 
 let is_exterior tile is_corner = 
@@ -492,7 +499,7 @@ let map_block_tiles block f =
 
 let find_tiles_by_black_b grid = 
   let blocks = find_blocks_by_black_b grid false false in 
-  let tiles = filter_blocks (fun block -> has_min_tiles block 1) blocks in
+  let tiles = filter_blocks (fun block -> not (has_min_tiles block 2)) blocks in
   match tiles with 
   | [] -> raise (Failure ("No tiles"))
   | tiles -> List.map tiles ~f:block_to_tile
@@ -528,7 +535,83 @@ let map_tbs template_blocks_scene attribute_select_f map_f =
 
 
 
-(* register_special_task "arc" (fun extras ?timeout:(timeout = 0.001) name ty examples ->
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+let wrap_block block color include_corner_neighbors = 
+  let adjacent = [(1,0);(0,1);(0,-1);(-1,0)] in
+  let corner_adjacent = [(1,1);(1,-1);(-1,-1);(-1,1)] in
+  let neighbors = if include_corner_neighbors then (adjacent @ corner_adjacent) else adjacent in
+  let potential_new_points = List.map block.points ~f:(fun ((y,x),c) -> (List.map neighbors ~f:(fun (n_y,n_x) -> ((y+n_y,x+n_x),c)))) in 
+  let flattened = List.fold_left ~init:[] ~f:(fun state v -> state @ v) potential_new_points in
+  let only_new_points = List.filter flattened ~f:(fun ((y,x),c) -> (not (List.Assoc.mem block.points ~equal:(=) (y,x)))) in
+  let colored_new_points = List.map only_new_points ~f:(fun ((y,x),c) -> if (color > 0) then ((y,x),color) else ((y,x),c)) in
+  let new_points = colored_new_points @ block.points in  
+  block_of_points new_points block.original_grid ;; 
+
+let cmap = [(3,6);(8,4);(2,1)] ;;
+
+let get_tile_color {point = ((y,x),c);block = block} = c ;;
+
+let get_color_from_cmap color cmap = 
+  let color_in_cmap = List.Assoc.mem cmap ~equal:(=) color in 
+  if color_in_cmap then (List.Assoc.find_exn cmap ~equal:(=) color) else color ;;
+
+let p_913fb3ed grid cmap = 
+  let tiles = find_tiles_by_black_b grid in  
+  let blocks = List.map tiles ~f:(fun tile -> (wrap_block (tile_to_block tile) (get_color_from_cmap (get_tile_color tile) cmap) true)) in
+  blocks_to_original_grid blocks false false ;;
+
+
+
+
+register_special_task "arc" (fun extras ?timeout:(timeout = 0.001) name ty examples ->
 (* Printf.eprintf "Making an arc task %s \n" name; *)
 { name = name    ;
     task_type = ty ;
@@ -588,8 +671,8 @@ ignore(primitive "maroon" tcolor 9) ;;
 (********** tblocks **********)
 
 (* tblocks -> tgridout *)
-ignore(primitive "blocks_to_original_grid" (tblocks @> tboolean @> tboolean @> tgridout) (fun blocks with_original keep_overlaps -> to_original_grid_overlay (merge_blocks blocks keep_overlaps) with_original)) ;;
-ignore(primitive "blocks_to_min_grid" (tblocks @> tboolean @> tboolean @> tgridout) (fun blocks with_original keep_overlaps -> to_min_grid (merge_blocks blocks keep_overlaps) with_original)) ;;
+ignore(primitive "blocks_to_original_grid" (tblocks @> tboolean @> tboolean @> tgridout) blocks_to_original_grid) ;;
+ignore(primitive "blocks_to_min_grid" (tblocks @> tboolean @> tboolean @> tgridout) blocks_to_min_grid) ;;
 
 (* tblocks -> tblock *)
 ignore(primitive "nth_of_sorted_object_list" (tblocks @> (tblock @> tint) @> tint @> tblock) nth_of_sorted_object_list) ;;
@@ -716,9 +799,18 @@ ignore(primitive "negate" (tboolean @> tboolean) (fun flag -> not flag))
 (********** ttbs **********)
 
 ignore(primitive "map_tbs" (ttbs @> (tblock @> ttile) @> (tblock @> ttile @> tblock) @> tblocks) map_tbs) ;;
- *)
 
+(********** tcolorpair **********)
 
+ignore(primitive "make_colorpair" (tcolor @> tcolor @> tcolorpair) (fun c1 c2 -> (c1, c_2))) ;;
+
+(********** tcmap **********)
+
+ignore(primitive "make_cmap" (tcolorpair @> tcolorpair @> tcolorpair @> tcolorpair @> tcolorpair @> tcmap)) ;;
+
+(********** 913fb3ed **********)
+
+ignore(primitive "p_913fb3ed" (tgridin @> tcmap @> tgridout) solve_913fb3ed) ;;
 
 let python_split x =
   let split = String.split_on_chars ~on:[','] x in 
