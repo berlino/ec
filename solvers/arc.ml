@@ -767,7 +767,7 @@ ignore(primitive "lor" tlogical (lor)) ;;
 ignore(primitive "lxor" tlogical (lxor)) ;;
 
 (* tboolean -> tboolean *)
-ignore(primitive "not" (tboolean -> tboolean) (fun -> not boolean))
+ignore(primitive "lnot" (tboolean @> tboolean) (fun boolean -> not boolean)) ;;
 
 ignore(primitive "filter_template_block" (tblocks @> (tblock @> tboolean) @> ttbs) filter_template_block) ;;
 ignore(primitive "map_tbs" (ttbs @> (tblock @> ttile) @> (tblock @> ttile @> tblock) @> tblocks) map_tbs) ;;
@@ -940,8 +940,8 @@ let p_a5313dff grid =
   to_original_grid_overlay (merge_blocks filled_blocks) true ;;
 (* test_task "a5313dff" (-1) p_a5313dff ;; *)
 
-(* 
-let example_grid = {points = [((1,3),4); ((1,2),4); ((1,1),4); ((1,4),4); ((2,4),4); ((3,4),4); ((4,4),3); ((2,3),4); ((2,2),4); ((2,1),4); ((3,3),4); ((3,2),4); ((3,1),4); ((4,3),4); ((4,2),4); ((4,1),4)] ; original_grid = empty_grid 4 4 0} in
+
+(* let example_grid = {points = [((1,3),4); ((1,2),4); ((1,1),4); ((1,4),4); ((2,4),4); ((3,4),4); ((4,4),3); ((2,3),4); ((2,2),4); ((2,1),4); ((3,3),4); ((3,2),4); ((3,1),4); ((4,3),4); ((4,2),4); ((4,1),4)] ; original_grid = empty_grid 4 4 0} in
 let blocks = find_blocks_by_color example_grid 4 false false in 
 let block = List.nth_exn blocks 0 in
 print_block block;
@@ -949,3 +949,4 @@ let filtered_block = filter_tiles block (fun tile -> is_interior true block) in
 print_block filtered_block ;;
 
 
+ *)

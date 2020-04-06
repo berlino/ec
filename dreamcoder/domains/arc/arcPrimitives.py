@@ -757,6 +757,10 @@ def basePrimitives():
     Primitive("lxor", tlogical, None),
 
 
+#### tbool #####
+
+    Primitive("lnot", arrow(tbool, tbool), None),
+
 #### 88a10436 ####
 
     Primitive("filter_template_block", arrow(tblocks, arrow(tblock, tbool), ttbs), None),
