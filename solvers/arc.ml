@@ -797,7 +797,6 @@ ignore(primitive "lxor" tlogical (lxor)) ;;
 ignore(primitive "negate" (tboolean @> tboolean) (fun flag -> not flag))
 
 (********** ttbs **********)
-
 ignore(primitive "map_tbs" (ttbs @> (tblock @> ttile) @> (tblock @> ttile @> tblock) @> tblocks) map_tbs) ;;
 
 (********** tcolorpair **********)

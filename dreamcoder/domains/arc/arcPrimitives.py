@@ -742,7 +742,6 @@ def basePrimitives():
     Primitive("negate", arrow(tbool, tbool), None),
 
 #### ttbs ####
-
     Primitive("map_tbs", arrow(ttbs, arrow(tblock, ttile), arrow(tblock, ttile, tblock), tblocks), None),
 
 ##### tcolorpair #####
