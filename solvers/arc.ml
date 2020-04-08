@@ -700,6 +700,7 @@ ignore(primitive "replace_color" (tblock @> tcolor @> tcolor @> tblock) replace_
 ignore(primitive "remove_black_b" (tblock @> tblock) remove_black_b) ;;
 ignore(primitive "remove_color" (tblock @> tcolor @> tblock) remove_color) ;;
 ignore(primitive "box_block" (tblock @> tblock) box_block) ;;
+ignore(primitive "wrap_block" (tblock @> tcolor @> tboolean @> tblock) wrap_block) ;;
 ignore(primitive "filter_block_tiles" (tblock @> (ttile @> tboolean) @> tblock) filter_block_tiles) ;;
 ignore(primitive "map_block_tiles" (tblock @> (ttile @> ttile) @> tblock) map_block_tiles) ;;
 
@@ -754,6 +755,9 @@ ignore(primitive "find_tiles_by_black_b" (tgridin @> ttiles) find_tiles_by_black
 ignore(primitive "is_interior" (ttile @> tboolean @> tboolean) is_interior) ;;
 ignore(primitive "is_exterior" (ttile @> tboolean @> tboolean) is_exterior) ;;
 
+(* ttile -> tcolor *)
+ignore(primitive "get_tile_color" (ttile @> tcolor) get_tile_color) ;;
+
 (* ttile -> tblock *)
 ignore(primitive "tile_to_block" (ttile @> tblock) tile_to_block) ;;
 ignore(primitive "extend_towards_until" (ttile @> tdirection @> (ttile @> tboolean) @> tblock) extend_towards_until) ;;
@@ -794,22 +798,20 @@ ignore(primitive "lxor" tlogical (lxor)) ;;
 (********** tboolean **********)
 
 (* tboolean -> tboolean *)
-ignore(primitive "negate" (tboolean @> tboolean) (fun flag -> not flag))
+ignore(primitive "negate_boolean" (tboolean @> tboolean) (fun v -> (not v))) ;;
 
 (********** ttbs **********)
 ignore(primitive "map_tbs" (ttbs @> (tblock @> ttile) @> (tblock @> ttile @> tblock) @> tblocks) map_tbs) ;;
 
 (********** tcolorpair **********)
 
-ignore(primitive "make_colorpair" (tcolor @> tcolor @> tcolorpair) (fun c1 c2 -> (c1, c_2))) ;;
+ignore(primitive "make_colorpair" (tcolor @> tcolor @> tcolorpair) (fun c1 c2 -> (c1,c2))) ;;
 
 (********** tcmap **********)
 
-ignore(primitive "make_cmap" (tcolorpair @> tcolorpair @> tcolorpair @> tcolorpair @> tcolorpair @> tcmap)) ;;
+ignore(primitive "make_cmap" (tcolorpair @> tcolorpair @> tcolorpair @> tcmap) (fun cp1 cp2 cp3 -> [cp1 ; cp2; cp3])) ;;
+ignore(primitive "get_color_from_cmap" (tcmap @> tcolor @> tcolor) get_color_from_cmap) ;;
 
-(********** 913fb3ed **********)
-
-ignore(primitive "p_913fb3ed" (tgridin @> tcmap @> tgridout) solve_913fb3ed) ;;
 
 let python_split x =
   let split = String.split_on_chars ~on:[','] x in 
@@ -881,14 +883,14 @@ let p_72ca375d grid =
   let filtered_blocks = List.filter blocks ~f:(fun block -> is_symmetrical block false) in
   let merged_block = merge_blocks filtered_blocks true in
   to_min_grid merged_block false ;;
-test_task "72ca375d" (-1) p_72ca375d ;;
+(* test_task "72ca375d" (-1) p_72ca375d ;; *)
 
 let p_f25fbde4 grid = 
   let blocks = find_blocks_by_black_b grid true false in 
   let block = merge_blocks blocks true in
   let grow_block = grow block 1 in
   to_min_grid grow_block false ;;
-test_task "f25fbde4" (-1) p_f25fbde4;;
+(* test_task "f25fbde4" (-1) p_f25fbde4;; *)
 
 let p_fcb5c309 grid = 
   let blocks = find_same_color_blocks grid true true in
@@ -896,23 +898,23 @@ let p_fcb5c309 grid =
   let largest_block_no_b = remove_black_b largest_block in
   let colored_block = replace_color largest_block (nth_primary_color largest_block_no_b 0) (nth_primary_color largest_block_no_b 1) in
   to_min_grid colored_block false ;;
-test_task "fcb5c309" (-1) p_fcb5c309 ;;
+(* test_task "fcb5c309" (-1) p_fcb5c309 ;; *)
 
 let p_ce4f8723 grid = 
   let split_blocks = split grid true in
   overlap_split_blocks split_blocks (fun a b -> color_logical a b 3 (lor)) ;;
-test_task "ce4f8723" (-1) p_ce4f8723 ;;
+(* test_task "ce4f8723" (-1) p_ce4f8723 ;; *)
 
 let p_0520fde7 grid = 
   let split_blocks = split grid false in
   overlap_split_blocks split_blocks (fun a b -> color_logical a b 2 (land)) ;;
-test_task "0520fde7" (-1) p_0520fde7 ;;
+(* test_task "0520fde7" (-1) p_0520fde7 ;; *)
 
 let p_c9e6f938 grid = 
   let reflected_block = reflect grid false in
   let shifted_block = move reflected_block 3 (0,1) true in
   to_min_grid shifted_block false ;;
-test_task "c9e6f938" (-1) p_c9e6f938 ;;
+(* test_task "c9e6f938" (-1) p_c9e6f938 ;; *)
 
 
 let p_97999447 grid = 
@@ -920,40 +922,40 @@ let p_97999447 grid =
   let extended_tiles = List.map tiles ~f:(fun tile -> extend_towards_until tile (0, 1) (fun tile -> (touches_any_boundary (tile_to_block tile)))) in
   let colored_tiles = map_blocks (fun block -> fill_snakewise block (color_pair (-1) 5)) extended_tiles in
   to_original_grid_overlay (merge_blocks colored_tiles true) false ;;
-test_task "97999447" (-1) p_97999447 ;;
+(* test_task "97999447" (-1) p_97999447 ;; *)
 
 let p_5521c0d9 grid = 
   let blocks = find_same_color_blocks grid true false in
   let shifted_blocks = map_blocks (fun block -> move block ((get_height block)) (-1,0) false) blocks in
   let merged_blocks = merge_blocks shifted_blocks true in
   to_original_grid_overlay merged_blocks false ;;
-test_task "5521c0d9" (-1) p_5521c0d9;;
+(* test_task "5521c0d9" (-1) p_5521c0d9;; *)
 
 let p_007bbfb7 grid = 
   let row_block = duplicate grid (0,1) 2 in
   let duplicated = duplicate row_block (1,0) 2 in
   let grown = grow grid 2 in 
   overlap_split_blocks [duplicated ; grown] (fun c_1 c_2 -> color_logical c_1 c_2 c_1 (land)) ;;
-test_task "007bbfb7" (-1) p_007bbfb7 ;;
+(* test_task "007bbfb7" (-1) p_007bbfb7 ;; *)
 
 let p_d037b0a7 grid = 
   let tiles = find_tiles_by_black_b grid in
   let extended_tiles = map_blocks (fun tile -> extend_towards_until tile (1,0) (fun tile -> touches_boundary (tile_to_block tile) (1,0))) tiles  in
   to_original_grid_overlay (merge_blocks extended_tiles true) false ;;
-test_task "d037b0a7" (-1) p_d037b0a7 ;;
+(* test_task "d037b0a7" (-1) p_d037b0a7 ;; *)
 
 let p_5117e062 grid = 
   let blocks = find_blocks_by_black_b grid true false in
   let filtered_blocks = filter_blocks (fun block -> has_color block 8) blocks in
   let final_block = fill_color (merge_blocks filtered_blocks true) (nth_primary_color (merge_blocks filtered_blocks true) 0) in
   to_min_grid final_block false ;;
-test_task "5117e062" (-1) p_5117e062 ;;
+(* test_task "5117e062" (-1) p_5117e062 ;; *)
 
 let p_4347f46a grid = 
   let blocks = find_same_color_blocks grid false false in 
   let modified_blocks = List.map blocks ~f:(fun block -> filter_block_tiles block (fun tile -> is_exterior tile false)) in 
   to_original_grid_overlay (merge_blocks modified_blocks true) false ;;
-test_task "4347f46a" (-1) p_4347f46a ;;
+(* test_task "4347f46a" (-1) p_4347f46a ;; *)
 
 let p_50cb2852 grid = 
   let blocks = find_blocks_by_black_b grid true false  in
@@ -961,35 +963,35 @@ let p_50cb2852 grid =
   let filled_interior_blocks = map_blocks (fun block -> fill_color block 8) interior_blocks in
   let merged_blocks = merge_blocks filled_interior_blocks true in
   to_original_grid_overlay merged_blocks true ;;
-test_task "50cb2852" (-1) p_50cb2852 ;;
+(* test_task "50cb2852" (-1) p_50cb2852 ;; *)
 
 let p_88a10436 grid = 
   let blocks = find_blocks_by_black_b grid true false in
   let tbs = filter_template_block blocks (fun block -> (is_rectangle block false)) in 
   let final_blocks = map_tbs tbs get_block_center move_center_to_tile in
   to_original_grid_overlay (merge_blocks final_blocks true) true ;;
-test_task "88a10436" (-1) p_88a10436;;
+(* test_task "88a10436" (-1) p_88a10436;; *)
 
 let p_a5313dff grid = 
   let black_blocks = find_blocks_by_color grid 0 false false in 
   let filtered_blocks = filter_blocks (fun block -> not (touches_any_boundary block)) black_blocks in 
   let filled_blocks = map_blocks (fun block -> fill_color block 1) filtered_blocks in 
   to_original_grid_overlay (merge_blocks filled_blocks true) true ;;
-test_task "a5313dff" (-1) p_a5313dff ;;
+(* /test_task "a5313dff" (-1) p_a5313dff ;; *)
 
 let p_ea786f4a grid = 
   let grid = remove_color grid (nth_primary_color grid 0) in 
   let tile = get_block_center grid in
   let blocks = map_for_directions tile [(1,1);(-1,1);(1,-1);(-1,-1)] (fun tile direction -> extend_towards_until_edge tile direction) in
   to_original_grid_overlay (merge_blocks blocks true) true ;;
-test_task "ea786f4a" (-1) p_ea786f4a ;;
+(* test_task "ea786f4a" (-1) p_ea786f4a ;; *)
 
 let p_22eb0ac0 grid = 
   let tiles = find_tiles_by_black_b grid in 
   let extend_tile_right = (fun tile -> extend_towards_until_edge tile (0,1)) in 
   let extended_tiles = map_tiles tiles extend_tile_right in 
   to_original_grid_overlay (merge_blocks extended_tiles false) true ;;
-test_task "22eb0ac0" (-1) p_22eb0ac0 ;;
+(* test_task "22eb0ac0" (-1) p_22eb0ac0 ;; *)
 
 
 (* let example_grid = {points = [((1,3),4); ((1,2),4); ((1,1),4); ((1,4),4); ((2,4),4); ((3,4),4); ((4,4),3); ((2,3),4); ((2,2),4); ((2,1),4); ((3,3),4); ((3,2),4); ((3,1),4); ((4,3),4); ((4,2),4); ((4,1),4)] ; original_grid = empty_grid 4 4 0} in

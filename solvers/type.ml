@@ -299,6 +299,7 @@ let ttiles = tlist ttile ;;
 let tblocks = tlist tblock ;;
 let tcolors = tlist tcolor ;;
 let tsplitblocks = tlist tsplitblock ;;
+let tdirections = tlist tdirection ;;
 
 let unify_many_types ts =
   let k = empty_context in

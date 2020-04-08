@@ -561,6 +561,7 @@ if runFull:
     tblocks = tlist(tblock)
     tcolors = tlist(tcolor)
     tsplitblocks = tlist(tsplitblock)
+    tdirections = tlist(tdirection)
 
 def leafPrimitives():
     return [
@@ -627,7 +628,7 @@ def basePrimitives():
     # arrow(tblock, tblock)
     Primitive('reflect', arrow(tblock, tbool, tblock), _reflect),
     Primitive('move', arrow(tblock, tint, tdirection, tbool, tblock), lambda x : x),
-    Primitive("move_center_to_tile", arrow(tblock, ttile, tblock), None)
+    Primitive("move_center_to_tile", arrow(tblock, ttile, tblock), None),
     Primitive('duplicate', arrow(tblock, tdirection, tint, tblock), None),
     Primitive('grow', arrow(tblock, tint, tblock), _grow),
     Primitive('fill_color', arrow(tblock, tcolor, tblock), _fill),
@@ -636,6 +637,7 @@ def basePrimitives():
     Primitive('remove_black_b', arrow(tblock, tblock), None),
     Primitive('remove_color', arrow(tblock, tcolor, tblock), None),
     Primitive('box_block', arrow(tblock, tblock), lambda x : x),
+    Primitive('wrap_block', arrow(tblock, tcolor, tbool, tblock), None),
     Primitive("filter_block_tiles", arrow(tblock, arrow(ttile, tbool), tblock), None),
     Primitive("map_block_tiles", arrow(tblock, arrow(ttile, ttile), tblock), None),
     # Primitive('_replaceNthColors', arrow(tblock, tint, tint, tblock), _replaceNthColors),
@@ -705,6 +707,9 @@ def basePrimitives():
     Primitive('extend_towards_until', arrow(ttile, tdirection, arrow(ttile, tbool), tblock), None),
     Primitive('extend_towards_until_edge', arrow(ttile, tdirection, tblock), None),
 
+    # arrow(ttile, tcolor)
+    Primitive('get_tile_color', arrow(ttile, tcolor), None),
+
 ##### ttiles ######
 
     # arrow(ttiles, tblocks)
@@ -739,7 +744,7 @@ def basePrimitives():
 
 #### tbool #####
 
-    Primitive("negate", arrow(tbool, tbool), None),
+    Primitive("negate_boolean", arrow(tbool, tbool), None),
 
 #### ttbs ####
     Primitive("map_tbs", arrow(ttbs, arrow(tblock, ttile), arrow(tblock, ttile, tblock), tblocks), None),
@@ -750,12 +755,8 @@ def basePrimitives():
 
 ##### tcmap #####
 
-    Primitive("make_cmap", arrow(tcolorpair, tcolorpair, tcolorpair, tcolorpair, tcolorpair, tcmap), None),
-
-##### 913fb3ed #####
-
-    Primitive("p_913fb3ed", arrow(tgridin, tcmap, tgridout), None)
-
+    Primitive("make_cmap", arrow(tcolorpair, tcolorpair, tcolorpair, tcmap), None),
+    Primitive("get_color_from_cmap", arrow(tcmap, tcolor, tcolor), None),
 ]
 
 ##### t0 #####

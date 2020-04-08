@@ -100,4 +100,3 @@ S geomLib
 S logoLib
 FLG -ppx '/net/storage001.ib.cluster/om2/user/theosech/ec/solvers/_build/default/.ppx/jbuild/ppx_jane/ppx.exe --as-ppx'
 FLG -w -40
-PKG core
