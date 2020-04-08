@@ -554,8 +554,12 @@ if runFull:
     tsplitblock = baseType('tsplitblock')
     tlogical = baseType('tlogical')
     ttbs = baseType('template_blocks_scene')
+
     tcolorpair = tpair(tcolor, tcolor)
     tcmap = tlist(tcolorpair)
+
+    tintcolorcpair = tpair(tint, tcolor)
+    ticmap = tlist(tintcolorcpair)  
 
     ttiles = tlist(ttile)
     tblocks = tlist(tblock)
@@ -678,9 +682,9 @@ def basePrimitives():
 ##### tgridin #####
 
     # arrow(tgridin, tblocks)
-    Primitive('find_same_color_blocks', arrow(tgridin, tbool, tbool, tblocks), lambda grid: grid),
-    Primitive('find_blocks_by_black_b', arrow(tgridin, tbool, tbool, tblocks), lambda grid: grid),
-    Primitive('find_blocks_by_color', arrow(tgridin, tcolor, tbool, tbool, tblocks), lambda grid: grid),
+    # Primitive('find_same_color_blocks', arrow(tgridin, tbool, tbool, tblocks), lambda grid: grid),
+    # Primitive('find_blocks_by_black_b', arrow(tgridin, tbool, tbool, tblocks), lambda grid: grid),
+    # Primitive('find_blocks_by_color', arrow(tgridin, tcolor, tbool, tbool, tblocks), lambda grid: grid),
     # Primitive('findRectanglesBlackB', arrow(tgrid, tblocks), _findRectanglesBlackB),
     # Primitive('findRectanglesByB', arrow(tgrid, tcolor, tblocks), _findRectanglesByB),
     # Primitive('findBlocksByColor', arrow(tgrid, tcolor, tbool, tblocks), _findBlocksByColor),
@@ -755,8 +759,18 @@ def basePrimitives():
 
 ##### tcmap #####
 
+
     Primitive("make_cmap", arrow(tcolorpair, tcolorpair, tcolorpair, tcmap), None),
     Primitive("get_color_from_cmap", arrow(tcmap, tcolor, tcolor), None),
+
+##### ticmmap #####
+
+    Primitive("make_icmap", arrow(tintcolorcpair, tintcolorcpair, tintcolorcpair, tintcolorcpair, ticmap), None),
+
+##### 913fb3ed #####
+
+    Primitive("p_913fb3ed", arrow(tgridin, tcmap, tgridout), None)
+    Primitive("p_c0f76784", arrow(tgridin, ticmap, tgridout), None)
 ]
 
 ##### t0 #####

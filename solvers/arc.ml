@@ -610,14 +610,28 @@ let p_913fb3ed grid cmap =
 
 
 
+let cmap = [(1,6);(2,7);(3,8)] ;; 
+let get_color_from_int_cmap key cmap = 
+  let key_in_cmap = List.Assoc.mem cmap ~equal:(=) key in 
+  if key_in_cmap then (List.Assoc.find_exn cmap ~equal:(=) key) else 0 ;;
+
+let p_c0f76784 grid cmap = 
+  let blocks = find_blocks_by_black_b grid true true in
+  let moved = map_blocks (fun block -> 
+    let block = filter_block_tiles block (fun tile -> is_interior tile false) in 
+    let color = get_color_from_int_cmap (get_height block) cmap in 
+  fill_color block color) blocks in
+  blocks_to_original_grid moved true false ;;
+
+
 
 register_special_task "arc" (fun extras ?timeout:(timeout = 0.001) name ty examples ->
-(* Printf.eprintf "Making an arc task %s \n" name; *)
+Printf.eprintf "Making an arc task %s \n" name;
 { name = name    ;
     task_type = ty ;
     log_likelihood =
       (fun p -> 
-        (* Printf.eprintf "Program: %s \n" (string_of_program p) ; *)
+        Printf.eprintf "Program: %s \n" (string_of_program p) ;
         flush_everything () ;
         let p = analyze_lazy_evaluation p in
         let rec loop = function
@@ -809,8 +823,18 @@ ignore(primitive "make_colorpair" (tcolor @> tcolor @> tcolorpair) (fun c1 c2 ->
 
 (********** tcmap **********)
 
+
 ignore(primitive "make_cmap" (tcolorpair @> tcolorpair @> tcolorpair @> tcmap) (fun cp1 cp2 cp3 -> [cp1 ; cp2; cp3])) ;;
 ignore(primitive "get_color_from_cmap" (tcmap @> tcolor @> tcolor) get_color_from_cmap) ;;
+
+(* ticmap *)
+
+ignore(primitive "make_icmap" (tintcolorcpair @> tintcolorcpair @> tintcolorcpair @> ticmap) (fun cp1 cp2 cp3 -> [cp1 ; cp2; cp3])) ;;
+
+(********** 913fb3ed **********)
+
+ignore(primitive "p_913fb3ed" (tgridin @> tcmap @> tgridout) solve_913fb3ed) ;;
+ignore(primitive "p_c0f76784" (tgridin @> ticmap @> tgridout) solve_c0f76784) ;;
 
 
 let python_split x =
@@ -992,7 +1016,6 @@ let p_22eb0ac0 grid =
   let extended_tiles = map_tiles tiles extend_tile_right in 
   to_original_grid_overlay (merge_blocks extended_tiles false) true ;;
 (* test_task "22eb0ac0" (-1) p_22eb0ac0 ;; *)
-
 
 (* let example_grid = {points = [((1,3),4); ((1,2),4); ((1,1),4); ((1,4),4); ((2,4),4); ((3,4),4); ((4,4),3); ((2,3),4); ((2,2),4); ((2,1),4); ((3,3),4); ((3,2),4); ((3,1),4); ((4,3),4); ((4,2),4); ((4,1),4)] ; original_grid = empty_grid 4 4 0} in
 let blocks = find_blocks_by_color example_grid 4 false false in 
