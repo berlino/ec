@@ -1,11 +1,11 @@
 open Core
-(* open Client
+open Client
 open Timeout
 open Utils
 open Program
 open Task
 open Type
- *)
+
 (* Types and Helpers*)
 
 type block = {points : ((int*int)*int) list; original_grid : ((int*int)*int) list} ;;
@@ -689,12 +689,12 @@ let p_c0f76784 grid cmap =
 
 
 register_special_task "arc" (fun extras ?timeout:(timeout = 0.001) name ty examples ->
-Printf.eprintf "Making an arc task %s \n" name;
+(* Printf.eprintf "Making an arc task %s \n" name; *)
 { name = name    ;
     task_type = ty ;
     log_likelihood =
       (fun p -> 
-        Printf.eprintf "Program: %s \n" (string_of_program p) ;
+        (* Printf.eprintf "Program: %s \n" (string_of_program p) ; *)
         flush_everything () ;
         let p = analyze_lazy_evaluation p in
         let rec loop = function
@@ -911,8 +911,8 @@ ignore(primitive "make_icmap" (tintcolorcpair @> tintcolorcpair @> tintcolorcpai
 
 ignore(primitive "p_913fb3ed" (tgridin @> tcmap @> tgridout) p_913fb3ed) ;;
 ignore(primitive "p_c0f76784" (tgridin @> ticmap @> tgridout) p_c0f76784) ;;
-
  *)
+ 
 let python_split x =
   let split = String.split_on_chars ~on:[','] x in 
   let filt_split = List.filter split ~f:(fun x -> x <> "") in
