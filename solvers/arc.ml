@@ -821,6 +821,10 @@ ignore(primitive "map_tbs" (ttbs @> (tblock @> ttile) @> (tblock @> ttile @> tbl
 
 ignore(primitive "make_colorpair" (tcolor @> tcolor @> tcolorpair) (fun c1 c2 -> (c1,c2))) ;;
 
+(********** tintcolorpair **********)
+
+ignore(primitive "make_intcolorpair" (tint @> tcolor @> tintcolorcpair) (fun n c -> (n,c))) ;;
+
 (********** tcmap **********)
 
 
@@ -833,8 +837,8 @@ ignore(primitive "make_icmap" (tintcolorcpair @> tintcolorcpair @> tintcolorcpai
 
 (********** 913fb3ed **********)
 
-ignore(primitive "p_913fb3ed" (tgridin @> tcmap @> tgridout) solve_913fb3ed) ;;
-ignore(primitive "p_c0f76784" (tgridin @> ticmap @> tgridout) solve_c0f76784) ;;
+ignore(primitive "p_913fb3ed" (tgridin @> tcmap @> tgridout) p_913fb3ed) ;;
+ignore(primitive "p_c0f76784" (tgridin @> ticmap @> tgridout) p_c0f76784) ;;
 
 
 let python_split x =

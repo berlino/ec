@@ -558,7 +558,7 @@ if runFull:
     tcolorpair = tpair(tcolor, tcolor)
     tcmap = tlist(tcolorpair)
 
-    tintcolorcpair = tpair(tint, tcolor)
+    tintcolorpair = tpair(tint, tcolor)
     ticmap = tlist(tintcolorcpair)  
 
     ttiles = tlist(ttile)
@@ -692,13 +692,13 @@ def basePrimitives():
     # Primitive('findBlocksByEdge', arrow(tgrid, tbool, tblocks), _findBlocksByEdge),
     
     # #arrow(tgridin, tblock)
-    Primitive('grid_to_block', arrow(tgridin, tblock), lambda grid: grid),
+    # Primitive('grid_to_block', arrow(tgridin, tblock), lambda grid: grid),
     
     # arrow(tgridin, tsplitblocks)
-    Primitive('split_grid', arrow(tgridin, tbool, tsplitblocks), None),
+    # Primitive('split_grid', arrow(tgridin, tbool, tsplitblocks), None),
 
     # arrow(tgridin, ttiles)
-    Primitive('find_tiles_by_black_b', arrow(tgridin, ttiles), None),
+    # Primitive('find_tiles_by_black_b', arrow(tgridin, ttiles), None),
     
 ##### ttile #####
 
@@ -757,6 +757,10 @@ def basePrimitives():
 
     Primitive("make_colorpair", arrow(tcolor, tcolor, tcolorpair), None),
 
+##### tintcolorpair #####
+
+    Primitive("make_intcolorpair", arrow(tint, tcolor, tintcolorpair), None),
+
 ##### tcmap #####
 
 
@@ -765,11 +769,11 @@ def basePrimitives():
 
 ##### ticmmap #####
 
-    Primitive("make_icmap", arrow(tintcolorcpair, tintcolorcpair, tintcolorcpair, tintcolorcpair, ticmap), None),
+    Primitive("make_icmap", arrow(tintcolorpair, tintcolorpair, tintcolorpair, ticmap), None),
 
 ##### 913fb3ed #####
 
-    Primitive("p_913fb3ed", arrow(tgridin, tcmap, tgridout), None)
+    # Primitive("p_913fb3ed", arrow(tgridin, tcmap, tgridout), None),
     Primitive("p_c0f76784", arrow(tgridin, ticmap, tgridout), None)
 ]
 
