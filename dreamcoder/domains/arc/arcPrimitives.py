@@ -618,6 +618,7 @@ def basePrimitives():
     # arrow(tblocks, tblock)
     Primitive("nth_of_sorted_object_list", arrow(tblocks, arrow(tblock, tint), tint, tblock), None),
     Primitive("singleton_block" , arrow(tblocks, tblock), None),
+    Primitive("merge_blocks", arrow(tblocks, tbool, tblock), None),
 
     # arrow(tblocks, tblocks)
     Primitive("filter_blocks", arrow(tblocks, arrow(tblock, tbool), tblocks), _filter),
@@ -632,7 +633,7 @@ def basePrimitives():
     # arrow(tblock, tblock)
     Primitive('reflect', arrow(tblock, tbool, tblock), _reflect),
     Primitive('move', arrow(tblock, tint, tdirection, tbool, tblock), lambda x : x),
-    Primitive("move_center_to_tile", arrow(tblock, ttile, tblock), None),
+    Primitive("center_block_on_tile", arrow(tblock, ttile, tblock), None),
     Primitive('duplicate', arrow(tblock, tdirection, tint, tblock), None),
     Primitive('grow', arrow(tblock, tint, tblock), _grow),
     Primitive('fill_color', arrow(tblock, tcolor, tblock), _fill),
@@ -670,6 +671,7 @@ def basePrimitives():
     Primitive('touches_any_boundary', arrow(tblock, tbool), None),
     Primitive('touches_boundary', arrow(tblock, tdirection, tbool), None),
     Primitive('has_color', arrow(tblock, tcolor, tbool), None),
+    Primitive('is_tile', arrow(tblock, tbool), None),
     # Primitive('hasGeqNcolors', arrow(tblock, tint, tbool), _hasGeqNColors), # (5117e062)
 
     # arrow(tblock, ttile)
@@ -682,34 +684,36 @@ def basePrimitives():
 ##### tgridin #####
 
     # arrow(tgridin, tblocks)
-    # Primitive('find_same_color_blocks', arrow(tgridin, tbool, tbool, tblocks), lambda grid: grid),
-    # Primitive('find_blocks_by_black_b', arrow(tgridin, tbool, tbool, tblocks), lambda grid: grid),
-    # Primitive('find_blocks_by_color', arrow(tgridin, tcolor, tbool, tbool, tblocks), lambda grid: grid),
-    # Primitive('findRectanglesBlackB', arrow(tgrid, tblocks), _findRectanglesBlackB),
-    # Primitive('findRectanglesByB', arrow(tgrid, tcolor, tblocks), _findRectanglesByB),
-    # Primitive('findBlocksByColor', arrow(tgrid, tcolor, tbool, tblocks), _findBlocksByColor),
-    # Primitive('findBlocksByCorner', arrow(tgrid, tbool, tblocks), _findBlocksByCorner),
-    # Primitive('findBlocksByEdge', arrow(tgrid, tbool, tblocks), _findBlocksByEdge),
+    Primitive('find_same_color_blocks', arrow(tgridin, tbool, tbool, tblocks), lambda grid: grid),
+    Primitive('find_blocks_by_black_b', arrow(tgridin, tbool, tbool, tblocks), lambda grid: grid),
+    Primitive('find_blocks_by_color', arrow(tgridin, tcolor, tbool, tbool, tblocks), lambda grid: grid),
+    Primitive('find_blocks_by_inferred_b', arrow(tgridin, tbool, tbool, tblocks), lambda grid: grid),    
+    #arrow(tgridin, tblock)
+    Primitive('grid_to_block', arrow(tgridin, tblock), lambda grid: grid),
     
-    # #arrow(tgridin, tblock)
-    # Primitive('grid_to_block', arrow(tgridin, tblock), lambda grid: grid),
-    
-    # arrow(tgridin, tsplitblocks)
-    # Primitive('split_grid', arrow(tgridin, tbool, tsplitblocks), None),
+    arrow(tgridin, tsplitblocks)
+    Primitive('split_grid', arrow(tgridin, tbool, tsplitblocks), None),
 
-    # arrow(tgridin, ttiles)
-    # Primitive('find_tiles_by_black_b', arrow(tgridin, ttiles), None),
+    arrow(tgridin, ttiles)
+    Primitive('find_tiles_by_black_b', arrow(tgridin, ttiles), None),
     
 ##### ttile #####
 
     # arrow(ttile, tbool)
     Primitive('is_interior', arrow(ttile, tbool, tbool), lambda grid: grid),
     Primitive('is_exterior', arrow(ttile, tbool, tbool), lambda grid: grid),
+    Primitive('tile_touches_block', arrow(ttile, tblock, tdirection, tbool), None),
+    Primitive('tile_overlaps_block', arrow(ttile, tblock, tbool), None),
     
     # arrow(ttile, tblock)
     Primitive('tile_to_block', arrow(ttile, tblock), None),
     Primitive('extend_towards_until', arrow(ttile, tdirection, arrow(ttile, tbool), tblock), None),
     Primitive('extend_towards_until_edge', arrow(ttile, tdirection, tblock), None),
+    Primitive('extend_until_touches_block', arrow(ttile, tblock, tbool, tblock), None),
+    Primitive('move_towards_until', arrow(ttile, tdirection, arrow(ttile, tbool), tblock), None),
+    Primitive('move_towards_until_edge', arrow(ttile, tdirection, tblock), None),
+    Primitive('move_until_touches_block', arrow(ttile, tblock, tbool, tblock), None),
+    Primitive('move_until_overlaps_block', arrow(ttile, tblock, tbool, tblock), None),
 
     # arrow(ttile, tcolor)
     Primitive('get_tile_color', arrow(ttile, tcolor), None),
@@ -751,30 +755,25 @@ def basePrimitives():
     Primitive("negate_boolean", arrow(tbool, tbool), None),
 
 #### ttbs ####
-    Primitive("map_tbs", arrow(ttbs, arrow(tblock, ttile), arrow(tblock, ttile, tblock), tblocks), None),
+    Primitive("map_tbs", arrow(ttbs, arrow(tblock, tblock), tbool, tblocks), None),
 
-##### tcolorpair #####
+# ##### tcolorpair #####
 
-    Primitive("make_colorpair", arrow(tcolor, tcolor, tcolorpair), None),
+#     Primitive("make_colorpair", arrow(tcolor, tcolor, tcolorpair), None),
 
-##### tintcolorpair #####
+# ##### tintcolorpair #####
 
-    Primitive("make_intcolorpair", arrow(tint, tcolor, tintcolorpair), None),
+#     Primitive("make_intcolorpair", arrow(tint, tcolor, tintcolorpair), None),
 
-##### tcmap #####
+# ##### tcmap #####
 
 
-    Primitive("make_cmap", arrow(tcolorpair, tcolorpair, tcolorpair, tcmap), None),
-    Primitive("get_color_from_cmap", arrow(tcmap, tcolor, tcolor), None),
+#     Primitive("make_cmap", arrow(tcolorpair, tcolorpair, tcolorpair, tcmap), None),
+#     Primitive("get_color_from_cmap", arrow(tcmap, tcolor, tcolor), None),
 
-##### ticmmap #####
+# ##### ticmmap #####
 
-    Primitive("make_icmap", arrow(tintcolorpair, tintcolorpair, tintcolorpair, ticmap), None),
-
-##### 913fb3ed #####
-
-    # Primitive("p_913fb3ed", arrow(tgridin, tcmap, tgridout), None),
-    Primitive("p_c0f76784", arrow(tgridin, ticmap, tgridout), None)
+#     Primitive("make_icmap", arrow(tintcolorpair, tintcolorpair, tintcolorpair, ticmap), None),
 ]
 
 ##### t0 #####
