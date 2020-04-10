@@ -754,7 +754,7 @@ ignore(primitive "blocks_to_min_grid" (tblocks @> tboolean @> tboolean @> tgrido
 (* tblocks -> tblock *)
 ignore(primitive "nth_of_sorted_object_list" (tblocks @> (tblock @> tint) @> tint @> tblock) nth_of_sorted_object_list) ;;
 ignore(primitive "singleton_block" (tblocks @> tblock) singleton_block) ;;
-ignore(primitive "merge_blocks" (tblocks @> tbool @> tblock) merge_blocks) ;;
+ignore(primitive "merge_blocks" (tblocks @> tboolean @> tblock) merge_blocks) ;;
 
 (* tblocks -> tblocks *)
 ignore(primitive "filter_blocks" (tblocks @> (tblock @> tboolean) @> tblocks) (fun blocks f -> filter_blocks f blocks)) ;;
@@ -912,7 +912,7 @@ ignore(primitive "make_icmap" (tintcolorcpair @> tintcolorcpair @> tintcolorcpai
 ignore(primitive "p_913fb3ed" (tgridin @> tcmap @> tgridout) p_913fb3ed) ;;
 ignore(primitive "p_c0f76784" (tgridin @> ticmap @> tgridout) p_c0f76784) ;;
  *)
- 
+
 let python_split x =
   let split = String.split_on_chars ~on:[','] x in 
   let filt_split = List.filter split ~f:(fun x -> x <> "") in
