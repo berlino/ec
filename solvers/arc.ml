@@ -768,7 +768,7 @@ ignore(primitive "filter_template_block" (tblocks @> (tblock @> tboolean) @> ttb
 (* tblock -> tblock *)
 ignore(primitive "reflect" (tblock @> tboolean @> tblock) reflect) ;;
 ignore(primitive "move" (tblock @> tint @> tdirection @> tboolean @> tblock) move) ;;
-ignore(primitive "center_block_on_tile" (tblock @> ttile @> tblock) move_center_to_tile) ;;
+ignore(primitive "center_block_on_tile" (tblock @> ttile @> tblock) center_block_on_tile) ;;
 ignore(primitive "duplicate" (tblock @> tdirection @> tint @> tblock) duplicate) ;;
 ignore(primitive "grow" (tblock @> tint @> tblock) grow) ;;
 ignore(primitive "fill_color" (tblock @> tcolor @> tblock) fill_color) ;;
@@ -802,7 +802,7 @@ ignore(primitive "has_min_tiles" (tblock @> tint @> tboolean) has_min_tiles) ;;
 ignore(primitive "touches_any_boundary" (tblock @> tboolean) touches_any_boundary) ;;
 ignore(primitive "touches_boundary" (tblock @> tdirection @> tboolean) touches_boundary) ;;
 ignore(primitive "has_color" (tblock @> tcolor @> tboolean) has_color) ;;
-ignore(primitive "is_tile" (tblock @> tbool) is_tile) ;;
+ignore(primitive "is_tile" (tblock @> tboolean) is_tile) ;;
 
 (* tblock -> ttile *)
 ignore(primitive "block_to_tile" (tblock @> ttile) block_to_tile) ;;
@@ -1100,28 +1100,28 @@ let p_88a10436 grid =
   let tbs = filter_template_block blocks (fun block -> (is_rectangle block false)) in 
   let final_blocks = map_tbs tbs (fun planet_block satelite_block -> center_block_on_tile satelite_block (block_to_tile planet_block)) false in
   to_original_grid_overlay (merge_blocks final_blocks true) true ;;
-test_task "88a10436" (-1) p_88a10436;;
+(* test_task "88a10436" (-1) p_88a10436;; *)
 
 let p_a48eeaf7 grid = 
   let blocks = find_blocks_by_inferred_b grid true false in 
   let planet_block, satelite_blocks = filter_template_block blocks (fun block -> has_min_tiles block 2) in 
   let modified_tbs = map_tbs (planet_block, satelite_blocks) (fun planet_block satelite_block -> move_until_touches_block (block_to_tile satelite_block) planet_block true) true in 
   blocks_to_original_grid modified_tbs false false ;;
-test_task "a48eeaf7" (-1) p_a48eeaf7 ;;
+(* test_task "a48eeaf7" (-1) p_a48eeaf7 ;; *)
 
 let p_2c608aff grid = 
   let blocks = find_blocks_by_inferred_b grid true false in 
   let planet_block, satelite_blocks = filter_template_block blocks (fun block -> has_min_tiles block 2) in 
   let modified_tbs = map_tbs (planet_block, satelite_blocks) (fun planet_block satelite_block -> extend_until_touches_block (block_to_tile satelite_block) planet_block false) true in 
   blocks_to_original_grid modified_tbs true false ;;
-test_task "2c608aff" (-1) p_2c608aff ;;  
+(* test_task "2c608aff" (-1) p_2c608aff ;;   *)
 
 let p_1f642eb9 grid = 
   let blocks = find_blocks_by_black_b grid true false in 
   let planet_block, satelite_blocks = filter_template_block blocks (fun block -> has_min_tiles block 2) in 
   let modified_tbs = map_tbs (planet_block, satelite_blocks) (fun planet_block satelite_block -> move_until_overlaps_block (block_to_tile satelite_block) planet_block false) false in 
   blocks_to_original_grid modified_tbs true false ;;
-test_task "1f642eb9" (-1) p_1f642eb9 ;;
+(* test_task "1f642eb9" (-1) p_1f642eb9 ;; *)
 
 (* let example_grid = {points = [((1,3),4); ((1,2),4); ((1,1),4); ((1,4),4); ((2,4),4); ((3,4),4); ((4,4),3); ((2,3),4); ((2,2),4); ((2,1),4); ((3,3),4); ((3,2),4); ((3,1),4); ((4,3),4); ((4,2),4); ((4,1),4)] ; original_grid = empty_grid 4 4 0} in
 let blocks = find_blocks_by_color example_grid 4 false false in 
