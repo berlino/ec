@@ -555,11 +555,11 @@ if runFull:
     tlogical = baseType('tlogical')
     ttbs = baseType('template_blocks_scene')
 
-    tcolorpair = tpair(tcolor, tcolor)
-    tcmap = tlist(tcolorpair)
+    # tcolorpair = tpair(tcolor, tcolor)
+    # tcmap = tlist(tcolorpair)
 
-    tintcolorpair = tpair(tint, tcolor)
-    ticmap = tlist(tintcolorcpair)  
+    # tintcolorpair = tpair(tint, tcolor)
+    # ticmap = tlist(tintcolorcpair)  
 
     ttiles = tlist(ttile)
     tblocks = tlist(tblock)
@@ -691,10 +691,10 @@ def basePrimitives():
     #arrow(tgridin, tblock)
     Primitive('grid_to_block', arrow(tgridin, tblock), lambda grid: grid),
     
-    arrow(tgridin, tsplitblocks)
+    # arrow(tgridin, tsplitblocks)
     Primitive('split_grid', arrow(tgridin, tbool, tsplitblocks), None),
 
-    arrow(tgridin, ttiles)
+    # arrow(tgridin, ttiles)
     Primitive('find_tiles_by_black_b', arrow(tgridin, ttiles), None),
     
 ##### ttile #####
