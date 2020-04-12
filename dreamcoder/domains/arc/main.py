@@ -76,14 +76,15 @@ def retrieveARCJSONTasks(directory, filenames=None):
     trainingData, testingData = [], []
 
     for filename in os.listdir(directory):
-        train, test = retrieveARCJSONTask(filename, directory)
-        if filenames is not None:
-            if filename in filenames:
+        if ("json" in filename):
+            train, test = retrieveARCJSONTask(filename, directory)
+            if filenames is not None:
+                if filename in filenames:
+                    trainingData.append(train)
+                    testingData.append(test)
+            else:
                 trainingData.append(train)
                 testingData.append(test)
-        else:
-            trainingData.append(train)
-            testingData.append(test)
     return trainingData, testingData
 
 
@@ -325,6 +326,7 @@ def train_necessary(t):
 def list_options(parser):
     parser.add_argument("--random-seed", type=int, default=17)
     parser.add_argument("--train-few", default=False, action="store_true")
+    parser.add_argument("--firstTimeEnumerationTimeout", type=int, default=3600)
 
     # parser.add_argument("-i", type=int, default=10)
 
@@ -353,7 +355,6 @@ def main(args):
     trains/tests the model on manipulating sequences of numbers.
     """
     random.seed(args.pop("random_seed"))
-
     single_train_task = args.pop("train_few")
 
     samples = {
