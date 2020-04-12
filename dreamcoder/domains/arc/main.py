@@ -73,16 +73,18 @@ from dreamcoder.domains.list.makeListTasks import (
 def retrieveARCJSONTasks(directory, filenames=None):
 
     # directory = '/Users/theo/Development/program_induction/ec/ARC/data/training'
-    trainingData = []
+    trainingData, testingData = [], []
 
     for filename in os.listdir(directory):
         train, test = retrieveARCJSONTask(filename, directory)
         if filenames is not None:
             if filename in filenames:
                 trainingData.append(train)
+                testingData.append(test)
         else:
             trainingData.append(train)
-    return trainingData
+            testingData.append(test)
+    return trainingData, testingData
 
 
 def retrieveARCJSONTask(filename, directory):
@@ -379,11 +381,11 @@ def main(args):
 
     if single_train_task:
         # trainTasks = retrieveARCJSONTasks(directory, ["913fb3ed.json", "72ca375d.json","f25fbde4.json","fcb5c309.json","ce4f8723.json","0520fde7.json","c9e6f938.json","97999447.json","5521c0d9.json","007bbfb7.json","d037b0a7.json","5117e062.json","4347f46a.json","50cb2852.json","88a10436.json","a5313dff"])
-        trainTasks = retrieveARCJSONTasks(directory, ['1f642eb9.json'])
+        trainTasks, testTasks = retrieveARCJSONTasks(directory, ['1f642eb9.json'])
         # Tile tasks
         # trainTasks = retrieveARCJSONTasks(directory, ["97999447.json", "d037b0a7.json", "4347f46a.json", "50cb2852.json"])
     else:
-        trainTasks = retrieveARCJSONTasks(directory, None)
+        trainTasks, testTasks = retrieveARCJSONTasks(directory, None)
 
     baseGrammar = Grammar.uniform(basePrimitives() + leafPrimitives())
     print("base Grammar {}".format(baseGrammar))
@@ -406,4 +408,4 @@ def main(args):
     # baseGrammar = Grammar.uniform(basePrimitives())
     # print(baseGrammar.buildCandidates(request, Context.EMPTY, [], returnTable=True))
 
-    explorationCompression(baseGrammar, trainTasks, **args)
+    explorationCompression(baseGrammar, trainTasks, testingTasks=testTasks, **args)
