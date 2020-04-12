@@ -364,10 +364,7 @@ def ecIterator(grammar, tasks,
     
     for j in range(resume or 0, iterations):
 
-        if j == 0:
-            enumerationTimeout = 28800
-        else:
-            enumerationTimeout = 1800
+        enumerationTimeout = 5
 
         if storeTaskMetrics and rewriteTaskMetrics:
             eprint("Resetting task metrics for next iteration.")
@@ -408,7 +405,7 @@ def ecIterator(grammar, tasks,
             topDownFrontiers, times = wake_generative(grammar, wakingTaskBatch,
                                                       solver=solver,
                                                       maximumFrontier=maximumFrontier,
-                                                      enumerationTimeout=enumerationTimeout,
+                                                      enumerationTimeout=enumerationTimeout if j > 0 else 600,
                                                       CPUs=CPUs,
                                                       evaluationTimeout=evaluationTimeout)
             result.trainSearchTime = {t: tm for t, tm in times.items() if tm is not None}
