@@ -367,8 +367,6 @@ def ecIterator(grammar, tasks,
     
     for j in range(resume or 0, iterations):
 
-        enumerationTimeout = 5
-
         if storeTaskMetrics and rewriteTaskMetrics:
             eprint("Resetting task metrics for next iteration.")
             result.recognitionTaskMetrics = {}
