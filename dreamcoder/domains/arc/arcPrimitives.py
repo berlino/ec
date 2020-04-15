@@ -616,8 +616,8 @@ def basePrimitives():
     Primitive('blocks_to_min_grid', arrow(tblocks, tbool, tbool, tgridout),  None),
 
     # arrow(tblocks, tblock)
-    Primitive("nth_of_sorted_object_list", arrow(tblocks, arrow(tblock, tint), tint, tblock), None),
-    Primitive("singleton_block" , arrow(tblocks, tblock), None),
+    # Primitive("nth_of_sorted_object_list", arrow(tblocks, arrow(tblock, tint), tint, tblock), None),
+    # Primitive("singleton_block" , arrow(tblocks, tblock), None),
     Primitive("merge_blocks", arrow(tblocks, tbool, tblock), None),
 
     # arrow(tblocks, tblocks)

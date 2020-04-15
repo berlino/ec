@@ -12,6 +12,7 @@ var EC_OUTPUT = '';
 var END_INDEX = 0;
 var ITERATION_NAMES = ['1st_top_down', '1st_bottom_up', '2nd_top_down', '2nd_bottom_up', '3rd_top_down', '3rd_bottom_up', '4th_top_down', '4th_bottom_up', '5th_top_down', '5th_bottom_up'];
 var ITERATION_INDEX = 0;
+var NEW_PRIMITIVES_LIST = new Array();
 
 // Cosmetic.
 var EDITION_GRID_HEIGHT = 500;
@@ -90,6 +91,14 @@ function nextIteration() {
             ITERATION_INDEX = -1
         }
         hitList = contents.match(regex)
+        let compressionRegex = new RegExp('WARNING: Do not have an English description of:\n [^\n]+', 'g')
+        let start = EC_OUTPUT.indexOf('Induced a grammar in', END_INDEX)
+        let end = EC_OUTPUT.indexOf('Induced a grammar in', start+1)
+        compressionList = EC_OUTPUT.slice(start, end).match(compressionRegex)
+        NEW_PRIMITIVES_LIST = compressionList.map((element) => element.slice(48))
+        document.getElementById('new_primitives').innerHTML = NEW_PRIMITIVES_LIST.join("</p><p>")
+        console.log(NEW_PRIMITIVES_LIST)
+
         TASK_NAME_LIST = hitList.map((element) => element.slice(4, element.search('json') + 4))
         TASK_NAME_LIST = [...new Set(TASK_NAME_LIST)]
         TASK_PROGRAM_LIST = hitList.map((element) => element.slice(element.search('json') + 8).replace(/log/g, '<br> log'))
