@@ -689,10 +689,10 @@ def basePrimitives():
     Primitive('find_blocks_by_color', arrow(tgridin, tcolor, tbool, tbool, tblocks), lambda grid: grid),
     Primitive('find_blocks_by_inferred_b', arrow(tgridin, tbool, tbool, tblocks), lambda grid: grid),    
     #arrow(tgridin, tblock)
-    Primitive('grid_to_block', arrow(tgridin, tblock), lambda grid: grid),
+    # Primitive('grid_to_block', arrow(tgridin, tblock), lambda grid: grid),
     
     # arrow(tgridin, tsplitblocks)
-    Primitive('split_grid', arrow(tgridin, tbool, tsplitblocks), None),
+    # Primitive('split_grid', arrow(tgridin, tbool, tsplitblocks), None),
 
     # arrow(tgridin, ttiles)
     Primitive('find_tiles_by_black_b', arrow(tgridin, ttiles), None),
