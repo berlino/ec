@@ -5,9 +5,13 @@ var CURRENT_OUTPUT_GRID = new Grid(3, 3);
 var TEST_PAIRS = new Array();
 var CURRENT_TEST_PAIR_INDEX = 0;
 var COPY_PASTE_DATA = new Array();
-var TASK_FROM_LIST_COUNT = 0
+var TASK_FROM_LIST_COUNT = 0;
 var TASK_NAME_LIST = new Array();
 var TASK_PROGRAM_LIST = new Array();
+var EC_OUTPUT = '';
+var END_INDEX = 0;
+var ITERATION_NAMES = ['1st_top_down', '1st_bottom_up', '2nd_top_down', '2nd_bottom_up', '3rd_top_down', '3rd_bottom_up', '4th_top_down', '4th_bottom_up', '5th_top_down', '5th_bottom_up'];
+var ITERATION_INDEX = 0;
 
 // Cosmetic.
 var EDITION_GRID_HEIGHT = 500;
@@ -35,51 +39,75 @@ function loadEcOutputFile(e) {
         errorMsg('No file selected');
         return;
     }
+    var contents = '';
     var reader = new FileReader();
     reader.onload = function (e) {
-        var contents = e.target.result;
+        EC_OUTPUT = e.target.result;
         try {
             let regex = new RegExp('HIT[^\n]+', 'g')
-            // if (contents.includes('Generative model enumeration results:')) {
-            //     contents = contents.slice(contents.lastIndexOf('Generative model enumeration results:'))
-            // }
+            if (EC_OUTPUT.includes('enumeration results')) {
+                END_INDEX = EC_OUTPUT.indexOf('Average description length of a program solving a task');
+                console.log(END_INDEX);
+                contents = EC_OUTPUT.slice(EC_OUTPUT.indexOf('enumeration results'), END_INDEX);
+                console.log(contents);
+            }
             hitList = contents.match(regex)
             TASK_NAME_LIST = hitList.map((element) => element.slice(4, element.search('json') + 4))
             TASK_NAME_LIST = [...new Set(TASK_NAME_LIST)]
             TASK_PROGRAM_LIST = hitList.map((element) => element.slice(element.search('json') + 8).replace(/log/g, '<br> log'))
-            
-            // tempName = new Array();
-            // tempProgramList = new Array();
-            // console.log(TASK_NAME_LIST.length)
-
-            // var i = 0;
-            // while (i < TASK_PROGRAM_LIST.length) {
-            //     console.log(i, TASK_PROGRAM_LIST.length)
-            //     console.log(TASK_PROGRAM_LIST[i].includes('solve'))
-            //     if (TASK_PROGRAM_LIST[i].includes('solve')) {
-            //         console.log('solved')
-            //     } else {
-            //         tempName.append(TASK_NAME_LIST[i])
-            //         tempProgramList.append(TASK_PROGRAM_LIST[i])
-            //     }
-            //     i += 1
-            // }
-
-            // TASK_PROGRAM_LIST = tempProgramList
-            // TASK_NAME_LIST = tempName
-
             console.log('load EC output')
             console.log(TASK_FROM_LIST_COUNT)
             console.log(TASK_NAME_LIST)
             console.log(TASK_PROGRAM_LIST)
+            document.getElementById('iteration_name').innerHTML = ITERATION_NAMES[ITERATION_INDEX];
             taskFromList();
         } catch (e) {
             errorMsg('Bad file format');
+            console.log("Error", e.stack);
+            console.log("Error", e.name);
+            console.log("Error", e.message);
             return;
         }
         loadJSONTask(train, test);
     };
     reader.readAsText(file);
+}
+
+function nextIteration() {
+    try {
+        let regex = new RegExp('HIT[^\n]+', 'g')
+        TASK_FROM_LIST_COUNT = 0
+        if (EC_OUTPUT.includes('enumeration results', END_INDEX)) {
+            var oldEndIndex = END_INDEX;
+            END_INDEX = EC_OUTPUT.indexOf('Average description length of a program solving a task', oldEndIndex+1);
+            console.log(END_INDEX);
+            console.log(oldEndIndex);
+            contents = EC_OUTPUT.slice(EC_OUTPUT.indexOf('enumeration results', oldEndIndex), END_INDEX)
+            console.log(contents)
+        } else {
+            END_INDEX = EC_OUTPUT.indexOf('Average description length of a program solving a task');
+            contents = EC_OUTPUT.slice(EC_OUTPUT.indexOf('enumeration results'), END_INDEX)
+            ITERATION_INDEX = -1
+        }
+        hitList = contents.match(regex)
+        TASK_NAME_LIST = hitList.map((element) => element.slice(4, element.search('json') + 4))
+        TASK_NAME_LIST = [...new Set(TASK_NAME_LIST)]
+        TASK_PROGRAM_LIST = hitList.map((element) => element.slice(element.search('json') + 8).replace(/log/g, '<br> log'))
+        console.log('load EC output')
+        console.log(TASK_FROM_LIST_COUNT)
+        console.log(TASK_NAME_LIST)
+        console.log(TASK_PROGRAM_LIST)
+        taskFromList();
+        ITERATION_INDEX += 1;
+        document.getElementById('iteration_name').innerHTML = ITERATION_NAMES[ITERATION_INDEX];
+    } catch (e) {
+        errorMsg('Bad file format');
+        console.log("Error", e.stack);
+            console.log("Error", e.name);
+            console.log("Error", e.message);
+        return;
+    }
+    loadJSONTask(train, test);
 }
 
 function refreshEditionGrid(jqGrid, dataGrid) {
@@ -224,80 +252,30 @@ function loadTaskFromFile(e) {
     clearButtonLabels();
 }
 
+function nextTaskFromList() {
+    TASK_FROM_LIST_COUNT = (TASK_FROM_LIST_COUNT + 1) % TASK_NAME_LIST.length
+    taskFromList();
+}
+
+function previousTaskFromList() {
+    TASK_FROM_LIST_COUNT = (TASK_FROM_LIST_COUNT - 1);
+    if (TASK_FROM_LIST_COUNT < 0) {
+        TASK_FROM_LIST_COUNT = TASK_NAME_LIST.length-1
+    }
+    taskFromList();
+}
+
 function taskFromList() {
     console.log(TASK_FROM_LIST_COUNT)
     console.log(TASK_NAME_LIST)
     console.log(TASK_PROGRAM_LIST)
-    //     var taskList = 
-    // ['6d0aefbc.json',
-    // '97999447.json',
-    // 'ce4f8723.json',
-    // 'c9e6f938.json',
-    // '72ca375d.json',
-    // '0520fde7.json',
-    // '5521c0d9.json',
-    // '007bbfb7.json',
-    // 'c59eb873.json',
-    // 'fcb5c309.json',
-    // 'f25fbde4.json',
-    // '67e8384a.json',
-    // '50cb2852.json',
-    // '6150a2bd.json',
-    // '68b16354.json',
-    // '8f2ea7aa.json',
-    // '6fa7a44f.json',
-    // '3af2c5a8.json',
-    // '62c24649.json',
-    // '4347f46a.json',
-    // '3c9b0459.json',
-    // '4c4377d9.json',
-    // '67a3c6ac.json',
-    // 'a416b8f3.json',
-    // '1cf80156.json',
-    // 'bb43febb.json',
-    // '9172f3a0.json',
-    // '8be77c9e.json',
-    // ]
-
-    // var programList = 
-    // [
-    // '(lambda (solvec9e6f938 $0)) <br> <br> log prior = -6.591674 <br> log likelihood = 0.000000',
-    // '(lambda (solve97999447 $0)) <br> <br> log prior = -6.591674 <br> log likelihood = 0.000000',
-    // '(lambda (_solvece4f8723 $0)) <br> <br> log prior = -6.591674 <br> log likelihood = 0.000000',
-    // '(lambda (solvec9e6f938 $0)) <br> <br> log prior = -6.591674 <br> log likelihood = 0.000000',
-    // '(lambda (_solve72ca375d $0)) <br> <br> log prior = -6.591674 <br> log likelihood = 0.000000',
-    // '(lambda (solve0520fde7 $0)) <br> <br> log prior = -6.591674 <br> log likelihood = 0.000000',
-    // '(lambda (_solve5521c0d9 $0)) <br> <br> log prior = -6.591674 <br> log likelihood = 0.000000',
-    // '(lambda (solve007bbfb7 $0)) <br> <br> log prior = -6.591674 <br> log likelihood = 0.000000',
-    // '(lambda (solvef25fbde4 $0)) <br> <br> log prior = -6.591674 <br> log likelihood = 0.000000',
-    // '(lambda (solvefcb5c309 $0)) <br> <br> log prior = -6.591674 <br> log likelihood = 0.000000',
-    // '(lambda (solvef25fbde4 $0)) <br> <br> log prior = -6.591674 <br> log likelihood = 0.000000', 
-    // '(lambda (concatNAndReflect (solvec9e6f938 $0) true down)) <br> <br> log prior = -12.660099 <br> log likelihood = 0.000000',
-    // '(lambda (solve50cb2852 $0 teal)) <br> <br> log prior = -9.230731 <br> log likelihood = 0.000000',
-    // '(lambda (reflect (reflect $0 false) true)) <br> <br> log prior = -12.660099 <br> log likelihood = 0.000000',
-    // '(lambda (reflect $0 true)) <br> <br> log prior = -7.977968 <br> log likelihood = 0.000000',
-    // '(lambda (solve007bbfb7 (blocksToMinGrid (findBlocksByCorner $0)))) <br> <br> log prior = -12.190096 <br> log likelihood = 0.000000',
-    // '(lambda (concatNAndReflect $0 true down)) <br> <br> log prior = -9.364262 <br> log likelihood = 0.000000',
-    // '(lambda (concatNAndReflect (solvec9e6f938 $0) true down)) <br> <br> log prior = -12.660099 <br> log likelihood = 0.000000',
-    // '(lambda (concatNAndReflect (solvec9e6f938 $0) true down)) <br> <br> log prior = -12.660099 <br> log likelihood = 0.000000',
-    // '(lambda (solve50cb2852 $0 black)) <br> <br> log prior = -9.230731 <br> log likelihood = 0.000000',
-    // '(lambda (reflect (reflect $0 false) true)) <br> <br> log prior = -12.660099 <br> log likelihood = 0.000000',
-    // '(lambda (concatNAndReflect $0 true up)) <br> <br> log prior = -9.364262 <br> log likelihood = 0.000000',
-    // '(lambda (reflect $0 false)) <br> <br> log prior = -7.977968 <br> log likelihood = 0.000000',
-    // '(lambda (duplicateN $0 left 1)) <br> <br> log prior = -10.922407 <br> log likelihood = 0.000000',
-    // '(lambda (blocksToMinGrid (findBlocksByCorner $0))) <br> <br> log prior = -8.894259 <br> log likelihood = 0.000000',
-    // '(lambda (solve50cb2852 $0 red)) <br> <br> log prior = -9.230731 <br> log likelihood = 0.000000',
-    // '(lambda (grow $0 3)) <br> <br> log prior = -9.536113 <br> log likelihood = 0.000000',
-    // '(lambda (concatNAndReflect $0 true down)) <br> <br> log prior = -9.364262 <br> log likelihood = 0.000000',
-    // ]
 
     clearButtonLabels();
-    document.getElementById('task_from_list').innerHTML = (TASK_FROM_LIST_COUNT + 1).toString() + ' out of ' + TASK_NAME_LIST.length.toString() + ' tasks solved: ' + TASK_NAME_LIST[TASK_FROM_LIST_COUNT];
+    document.getElementById('task_from_list').innerHTML = (TASK_FROM_LIST_COUNT+1).toString() + ' out of ' + TASK_NAME_LIST.length.toString() + ' tasks solved: ' + TASK_NAME_LIST[TASK_FROM_LIST_COUNT];
     document.getElementById('program_found').innerHTML = TASK_PROGRAM_LIST[TASK_FROM_LIST_COUNT]
     var subset = "training";
     $.getJSON("https://api.github.com/repos/fchollet/ARC/contents/data/" + subset, function (tasks) {
         var task = tasks.find(task => task.name == TASK_NAME_LIST[TASK_FROM_LIST_COUNT])
-        TASK_FROM_LIST_COUNT = (TASK_FROM_LIST_COUNT + 1) % TASK_NAME_LIST.length
         $.getJSON(task["download_url"], function (json) {
             try {
                 train = json['train'];

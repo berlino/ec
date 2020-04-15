@@ -61,8 +61,11 @@
                             <label for="load_task_file_input">Load EC Console Output: </label>
                             <input type="file" id="load_task_file_input" class="load_ec_output"/>
                         </div> 
-                        <button onclick="taskFromList()" id="task_from_list_btn">Next Solved Task</button>
+                        <button onclick="previousTaskFromList()" id="task_from_list_btn"> <- </button>
+                        <button onclick="nextTaskFromList()" id="task_from_list_btn"> -> </button>
                         <label for="task_from_list" id="task_from_list"></label>
+                        <button onclick="nextIteration()" id="task_from_list_btn">Next Iteration</button>
+                        <label for="iteration_name" id="iteration_name"></label>
                     </div>
                     <div id="edition_view">
                         <div id="editor_grid_control_btns">
