@@ -28,6 +28,14 @@ body {
     min-height: 850px;
 }
 
+#primitives_found {
+  float: bottom;
+  width: 300px;
+  margin: 10px;
+  height: 300px;
+  overflow: scroll;
+}
+
 #evaluation-input-view {
     float: left;
     width: 400px;

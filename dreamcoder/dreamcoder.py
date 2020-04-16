@@ -92,7 +92,8 @@ class ECResult():
                      "storeTaskMetrics": 'STM',
                      "topkNotMAP": "tknm",
                      "rewriteTaskMetrics": "RW",
-                     'taskBatchSize': 'batch'}
+                     'taskBatchSize': 'batch',
+                     "firstTimeEnumerationTimeout": 't_zero'}
 
     @staticmethod
     def abbreviate(parameter): return ECResult.abbreviations.get(parameter, parameter)
@@ -173,7 +174,9 @@ def ecIterator(grammar, tasks,
                storeTaskMetrics=False,
                rewriteTaskMetrics=True,
                auxiliaryLoss=False,
-               custom_wake_generative=None):
+               custom_wake_generative=None,
+               firstTimeEnumerationTimeout=3600):
+
     if enumerationTimeout is None:
         eprint(
             "Please specify an enumeration timeout:",
@@ -363,6 +366,7 @@ def ecIterator(grammar, tasks,
     
     
     for j in range(resume or 0, iterations):
+
         if storeTaskMetrics and rewriteTaskMetrics:
             eprint("Resetting task metrics for next iteration.")
             result.recognitionTaskMetrics = {}
@@ -402,7 +406,7 @@ def ecIterator(grammar, tasks,
             topDownFrontiers, times = wake_generative(grammar, wakingTaskBatch,
                                                       solver=solver,
                                                       maximumFrontier=maximumFrontier,
-                                                      enumerationTimeout=enumerationTimeout,
+                                                      enumerationTimeout=enumerationTimeout if j > 0 else firstTimeEnumerationTimeout,
                                                       CPUs=CPUs,
                                                       evaluationTimeout=evaluationTimeout)
             result.trainSearchTime = {t: tm for t, tm in times.items() if tm is not None}
