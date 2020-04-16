@@ -752,8 +752,8 @@ ignore(primitive "blocks_to_original_grid" (tblocks @> tboolean @> tboolean @> t
 ignore(primitive "blocks_to_min_grid" (tblocks @> tboolean @> tboolean @> tgridout) blocks_to_min_grid) ;;
 
 (* tblocks -> tblock *)
-ignore(primitive "nth_of_sorted_object_list" (tblocks @> (tblock @> tint) @> tint @> tblock) nth_of_sorted_object_list) ;;
-ignore(primitive "singleton_block" (tblocks @> tblock) singleton_block) ;;
+(* ignore(primitive "nth_of_sorted_object_list" (tblocks @> (tblock @> tint) @> tint @> tblock) nth_of_sorted_object_list) ;;
+ignore(primitive "singleton_block" (tblocks @> tblock) singleton_block) ;; *)
 ignore(primitive "merge_blocks" (tblocks @> tboolean @> tblock) merge_blocks) ;;
 
 (* tblocks -> tblocks *)
@@ -820,10 +820,10 @@ ignore(primitive "find_blocks_by_color" (tgridin @> tcolor @> tboolean @> tboole
 ignore(primitive "find_blocks_by_inferred_b" (tgridin @> tboolean @> tboolean @> tblocks) find_blocks_by_inferred_b) ;;
 
 (* tgridin -> tblock *)
-ignore(primitive "grid_to_block" (tgridin @> tblock) (fun x -> x)) ;;
+(* ignore(primitive "grid_to_block" (tgridin @> tblock) (fun x -> x)) ;; *)
 
 (* tgridin -> tsplitblocks *)
-ignore(primitive "split_grid" (tgridin @> tboolean @> tsplitblocks) split) ;;
+(* ignore(primitive "split_grid" (tgridin @> tboolean @> tsplitblocks) split) ;; *)
 
 (* tgridin -> ttiles *)
 ignore(primitive "find_tiles_by_black_b" (tgridin @> ttiles) find_tiles_by_black_b) ;;
@@ -861,10 +861,10 @@ ignore(primitive "map_tiles" (ttiles @> (ttile @> ttile) @> ttiles) map_tiles) ;
 (********** tsplitblocks **********)
 
 (* tsplitblocks -> tgridout *)
-ignore(primitive "overlap_split_blocks" (tsplitblocks @> (tcolor @> tcolor @> tcolor) @> tgridout) overlap_split_blocks) ;;
+(* ignore(primitive "overlap_split_blocks" (tsplitblocks @> (tcolor @> tcolor @> tcolor) @> tgridout) overlap_split_blocks) ;; *)
 
 (* tsplitblocks -> tblocks *)
-ignore(primitive "splitblocks_to_blocks" (tsplitblocks @> tblocks) (fun blocks -> blocks)) ;;
+(* ignore(primitive "splitblocks_to_blocks" (tsplitblocks @> tblocks) (fun blocks -> blocks)) ;; *)
 
 (********** tcolor **********)
 
@@ -872,7 +872,7 @@ ignore(primitive "splitblocks_to_blocks" (tsplitblocks @> tblocks) (fun blocks -
 ignore(primitive "color_logical" (tcolor @> tcolor @> tcolor @> tlogical @> tcolor) color_logical) ;;
 
 (* tcolor -> tcolors *)
-ignore(primitive "color_pair" (tcolor @> tcolor @> tcolors) color_pair) ;;
+(* ignore(primitive "color_pair" (tcolor @> tcolor @> tcolors) color_pair) ;; *)
 
 (********** tlogical **********)
 

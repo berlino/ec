@@ -544,12 +544,11 @@ class RecursionDepthExceeded(Exception):
     pass
 
 if runFull:
-    tdirection = baseType('tdirection')
-    tdisplacement = baseType('tdisplacement')
+    tblock = baseType('tblock')
     tcolor = baseType('tcolor')
     tgridin = baseType('tgridin')
     tgridout = baseType('tgridout')
-    tblock = baseType('tblock')
+    tdirection = baseType('tdirection')
     ttile = baseType('ttile')
     tsplitblock = baseType('tsplitblock')
     tlogical = baseType('tlogical')
@@ -730,10 +729,10 @@ def basePrimitives():
 ##### tsplitblocks #####
 
     # arrow(tsplitblocks -> tgridout)
-    Primitive('overlap_split_blocks', arrow(tsplitblocks, arrow(tcolor, tcolor, tcolor), tgridout), None),
+    # Primitive('overlap_split_blocks', arrow(tsplitblocks, arrow(tcolor, tcolor, tcolor), tgridout), None),
     
     # arrow(tsplitblocks -> tblocks)
-    Primitive('splitblocks_to_blocks', arrow(tsplitblocks, tblocks), None),
+    # Primitive('splitblocks_to_blocks', arrow(tsplitblocks, tblocks), None),
 
 ##### tcolor #####
 
@@ -741,7 +740,7 @@ def basePrimitives():
     Primitive('color_logical', arrow(tcolor, tcolor, tcolor, tlogical, tcolor), None),
     
     # arrow(tcolor, tcolors)
-    Primitive('color_pair', arrow(tcolor, tcolor, tcolors), None),
+    # Primitive('color_pair', arrow(tcolor, tcolor, tcolors), None),
 
 ##### tlogical #####
 

@@ -155,12 +155,17 @@ let parallel_work ~nc ?chunk:(chunk=0) ~final actions =
         ~write:[] ~except:[] ~timeout:`Never () in
     List.iter ~f:(fun descr ->
         let chan = Unix.in_channel_of_descr descr in
-        let pid = List.Assoc.find_exn ~equal:(=) !in_streams descr
-        and (newly_completed, answer) = Marshal.from_channel chan in
-        ignore (Unix.waitpid pid);
-        In_channel.close chan;
-        finished_actions := !finished_actions + newly_completed;
-        outputs := answer :: !outputs)
+        try
+          let pid = List.Assoc.find_exn ~equal:(=) !in_streams descr
+          and (newly_completed, answer) = Marshal.from_channel chan in
+          ignore (Unix.waitpid pid);
+          In_channel.close chan;
+          finished_actions := !finished_actions + newly_completed;
+          outputs := answer :: !outputs
+        with
+          | End_of_file -> Printf.eprintf "End_of_file exception"
+          | _ -> Printf.eprintf "Other exception"
+        )
       recvs.read;
     in_streams := List.filter ~f:(fun (stream,_) -> not (List.mem ~equal:(=) recvs.read stream)) !in_streams;
   done;
