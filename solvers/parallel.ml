@@ -161,10 +161,10 @@ let parallel_work ~nc ?chunk:(chunk=0) ~final actions =
           ignore (Unix.waitpid pid);
           In_channel.close chan;
           finished_actions := !finished_actions + newly_completed;
-          outputs := answer :: !outputs
+          outputs := answer :: !outputs;
         with
-          | End_of_file -> Printf.eprintf "End_of_file exception"
-          | _ -> Printf.eprintf "Other exception"
+          | End_of_file -> Printf.eprintf "End_of_file exception"; In_channel.close chan;
+          | _ -> Printf.eprintf "Other exception"; In_channel.close chan;
         )
       recvs.read;
     in_streams := List.filter ~f:(fun (stream,_) -> not (List.mem ~equal:(=) recvs.read stream)) !in_streams;
