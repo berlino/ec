@@ -304,6 +304,9 @@ class RectangleBlock(Block):
     #     return temp.tolist()
 
 class Grid(RectangleBlock):
+
+    gridArray = None
+
     def __init__(self, gridArray=None, points=None, originalGrid=None):
         self.points = {}
         if points is not None:
@@ -313,15 +316,20 @@ class Grid(RectangleBlock):
                 for x in range(len(gridArray[0])):
                     self.points[(y, x)] = gridArray[y][x]
         self.gridArray = gridArray
-        super().__init__(self.points, originalGrid)
+        RectangleBlock.__init__(self, self.points, originalGrid)
 
-    def __repr__(self):
-        temp = {}
+    def __str__(self):
+        temp = np.full((self.getNumRows(),self.getNumCols()),None)
         for yPos,xPos in self.points:
-            temp["{},{}".format(yPos, xPos)] = self.points[(yPos,xPos)]
-        return {'grid':temp}
+            temp[yPos, xPos] = str(self.points[(yPos,xPos)])
+        rows = [' '.join(row) for row in temp.tolist()]
+        return '\n'.join(rows)
 
-
+    # def __repr__(self):
+    #     temp = {}
+    #     for yPos,xPos in self.points:
+    #         temp["{},{}".format(yPos, xPos)] = self.points[(yPos,xPos)]
+    #     return {'grid':temp}
 
     def fromPoints(self, points):
         return Grid(points=points, originalGrid=self.originalGrid)
@@ -725,7 +733,7 @@ def basePrimitives():
 
     # arrow(ttiles, ttiles)
     Primitive("filter_tiles", arrow(ttiles, arrow(ttile, tbool), ttiles), _filter),
-    Primitive("map_tiles", arrow(ttiles, arrow(ttile, ttile), ttiles), _map),
+    # Primitive("map_tiles", arrow(ttiles, arrow(ttile, ttile), ttiles), _map),
 
 ##### tsplitblocks #####
 

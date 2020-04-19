@@ -1,12 +1,12 @@
 open Core
-open Client
+(* open Client
 open Timeout
 open Utils
 open Program
 open Task
 open Type
 
-(* Types and Helpers*)
+ *)(* Types and Helpers*)
 
 type block = {points : ((int*int)*int) list; original_grid : ((int*int)*int) list} ;;
 type tile = {point : ((int*int)*int); block : block} ;;
@@ -248,7 +248,8 @@ let nth_of_sorted_object_list objects f n =
   let with_ints = List.map objects ~f:(fun x -> (f x, x)) in
   let sorted_with_ints = List.sort with_ints ~compare:(fun (a_v, a_x) (b_v, b_x) -> b_v - a_v) in
   let sorted = List.map sorted_with_ints ~f:(fun (v, x) -> x) in
-  List.nth_exn sorted n ;;
+  if (n < (List.length sorted)) then 
+  (List.nth_exn sorted n) else raise (Failure ("inded out of range"))
 
 let reflect {points;original_grid} is_horizontal = 
   let reflect_point ((y,x),c) = if is_horizontal then ((get_min_y {points;original_grid} - y + get_max_y {points;original_grid} ,x),c)
@@ -456,7 +457,9 @@ let find_blocks_by_inferred_b block is_corner box_blocks =
 let tile_to_block tile = {points=[tile.point] ; original_grid = tile.block.original_grid}
 
 let block_to_tile block = 
-  {point = List.nth_exn block.points 0 ; block = block} ;;
+  match (List.length block.points) with 
+    | 0 ->  raise (Failure ("block has no points"))
+    | _ -> {point = List.nth_exn block.points 0 ; block = block} ;;
 
 let get_block_center block = 
   let width = get_width block in 
@@ -593,7 +596,7 @@ let find_tiles_by_black_b grid =
   let tiles = filter_blocks (fun block -> not (has_min_tiles block 2)) blocks in
   match tiles with 
   | [] -> raise (Failure ("No tiles"))
-  | tiles -> List.map tiles ~f:block_to_tile
+  | _ -> List.map tiles ~f:block_to_tile
 
 (****** Template Block Scene ******)
 
@@ -688,7 +691,7 @@ let p_c0f76784 grid cmap =
  *)
 
 
-register_special_task "arc" (fun extras ?timeout:(timeout = 0.001) name ty examples ->
+(* register_special_task "arc" (fun extras ?timeout:(timeout = 0.001) name ty examples ->
 Printf.eprintf "Making an arc task %s \n" name;
 { name = name    ;
     task_type = ty ;
@@ -887,7 +890,7 @@ ignore(primitive "lxor" tlogical (lxor)) ;;
 ignore(primitive "negate_boolean" (tboolean @> tboolean) (fun v -> (not v))) ;;
 
 (********** ttbs **********)
-ignore(primitive "map_tbs" (ttbs @> (tblock @> tblock) @> tboolean @> tblocks) map_tbs) ;;
+ignore(primitive "map_tbs" (ttbs @> (tblock @> tblock) @> tboolean @> tblocks) map_tbs) ;; *)
 
 (* (********** tcolorpair **********)
 
@@ -1122,6 +1125,17 @@ let p_1f642eb9 grid =
   let modified_tbs = map_tbs (planet_block, satelite_blocks) (fun planet_block satelite_block -> move_until_overlaps_block (block_to_tile satelite_block) planet_block false) false in 
   blocks_to_original_grid modified_tbs true false ;;
 (* test_task "1f642eb9" (-1) p_1f642eb9 ;; *)
+
+let p_debug grid = 
+  let tiles = find_tiles_by_black_b grid in 
+  let mapped_tiles = map_tiles tiles (fun tile -> tile) in 
+  let mapped_tiles = map_tiles mapped_tiles (fun tile -> tile) in 
+  let mapped_tiles = map_tiles mapped_tiles (fun tile -> tile) in 
+  let mapped_tiles = map_tiles mapped_tiles (fun tile -> tile) in 
+  let to_blocks = tiles_to_blocks mapped_tiles in 
+  blocks_to_original_grid to_blocks true true ;;
+
+test_task "44d8ac46" 0 p_debug ;;
 
 (* let example_grid = {points = [((1,3),4); ((1,2),4); ((1,1),4); ((1,4),4); ((2,4),4); ((3,4),4); ((4,4),3); ((2,3),4); ((2,2),4); ((2,1),4); ((3,3),4); ((3,2),4); ((3,1),4); ((4,3),4); ((4,2),4); ((4,1),4)] ; original_grid = empty_grid 4 4 0} in
 let blocks = find_blocks_by_color example_grid 4 false false in 
