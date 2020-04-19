@@ -5,8 +5,9 @@ open Utils
 open Program
 open Task
 open Type
+*)
 
- *)(* Types and Helpers*)
+(* Types and Helpers *)
 
 type block = {points : ((int*int)*int) list; original_grid : ((int*int)*int) list} ;;
 type tile = {point : ((int*int)*int); block : block} ;;
@@ -179,7 +180,7 @@ let merge a b =
   let rec add_until_empty list1 list2 = 
     match list1 with
     | [] -> list2
-    | ((y,x),c) :: rest -> add_until_empty rest (if ((contains ((y,x),c) list2) && ((List.Assoc.find_exn list2 ~equal:(=) (y,x)) > c)) then list2 else (((y,x),c) :: list2)) in
+    | ((y,x),c) :: rest -> add_until_empty rest (if ((List.Assoc.mem list2 (y,x) ~equal:(=)) && ((List.Assoc.find_exn list2 ~equal:(=) (y,x)) > c)) then list2 else (((y,x),c) :: list2)) in
   let points = add_until_empty a.points b.points in
   let original_grid = a.original_grid in
   {points ; original_grid}
@@ -410,6 +411,7 @@ let nth_primary_color block n =
       List.fold_left ~init:0 ~f:(fun count ((y,x),c) -> if (c = color) then (count + 1) else count) block.points in
   let color_counts = List.map ~f:(fun color -> (color, get_color_count block color)) (0 -- 9) in 
   let sorted_colors_with_ints = List.sort color_counts ~compare:(fun (a_color, a_count) (b_color, b_count) -> b_count - a_count) in
+  if (n >= (List.length sorted_colors_with_ints)) then raise (Failure ("n out of range")) else
   let nth_color, count = List.nth_exn sorted_colors_with_ints n in 
   nth_color ;;
 
@@ -458,7 +460,7 @@ let tile_to_block tile = {points=[tile.point] ; original_grid = tile.block.origi
 
 let block_to_tile block = 
   match (List.length block.points) with 
-    | 0 ->  raise (Failure ("block has no points"))
+    | 0 -> raise (Failure ("block has no points"))
     | _ -> {point = List.nth_exn block.points 0 ; block = block} ;;
 
 let get_block_center block = 
@@ -467,7 +469,9 @@ let get_block_center block =
   let y,x = match ((width mod 2), (height mod 2)) with 
     | (1,1) -> ((get_min_y block) + (height / 2), (get_min_x block) + (width / 2))
     | (_,_) -> raise (Failure ("Can't get center of block")) in 
-  {point = ((y,x),List.Assoc.find_exn block.points ~equal:(=) (y,x)) ; block = block} ;;
+  if (List.Assoc.mem block.points ~equal:(=) (y,x)) then
+  {point = ((y,x),List.Assoc.find_exn block.points ~equal:(=) (y,x)) ; block = block} else
+  raise (Failure ("Point calculated as center not part of block")) ;;
 
 let center_block_on_tile block tile =
   let ((block_y, block_x),_) = (get_block_center block).point in
@@ -579,7 +583,8 @@ let filter_block_tiles block f =
     let block = tile.block in
     {points=List.fold_left tiles ~init:([]) ~f:(fun points tile -> tile.point :: points); original_grid = block.original_grid} in
   let tiles = filter_tiles (block_to_tiles block) f in 
-  tiles_to_block tiles ;;
+  if (List.length tiles > 0) then
+  tiles_to_block tiles else (raise (Failure "All tiles were filtered")) ;;
 
 let map_block_tiles block f = 
   let block_to_tiles block = 
@@ -589,7 +594,8 @@ let map_block_tiles block f =
     let block = tile.block in
     {points=List.fold_left tiles ~init:([]) ~f:(fun points tile -> tile.point :: points); original_grid = block.original_grid} in
   let tiles = map_tiles (block_to_tiles block) f in 
-  tiles_to_block tiles ;;
+  if (List.length tiles > 0) then
+  tiles_to_block tiles else (raise (Failure "Block has no tiles")) ;;
 
 let find_tiles_by_black_b grid = 
   let blocks = find_blocks_by_black_b grid false false in 
@@ -612,19 +618,6 @@ let map_tbs template_blocks_scene map_f with_template_block =
   let template_block, rest_blocks = template_blocks_scene in 
   let temp = if with_template_block then [template_block] else [] in 
   temp @ List.map rest_blocks ~f:(fun block -> map_f template_block block);;
-
-let get_block_center block = 
-  let width = get_width block in 
-  let height = get_height block in 
-  let y,x = match ((width mod 2), (height mod 2)) with 
-    | (1,1) -> ((get_min_y block) + (height / 2), (get_min_x block) + (width / 2))
-    | (_,_) -> raise (Failure ("Can't get center of block")) in 
-  {point = ((y,x),List.Assoc.find_exn block.points ~equal:(=) (y,x)) ; block = block} ;;
-
-
-
-
-
 
 
 
@@ -1123,7 +1116,8 @@ let p_1f642eb9 grid =
   blocks_to_original_grid modified_tbs true false ;;
 test_task "1f642eb9" (-1) p_1f642eb9 ;;
 
-(* let p_debug grid = 
+
+let p_debug grid = 
   let tiles = find_tiles_by_black_b grid in 
   let mapped_tiles = map_tiles tiles (fun tile -> tile) in 
   let mapped_tiles = map_tiles mapped_tiles (fun tile -> tile) in 
@@ -1131,7 +1125,7 @@ test_task "1f642eb9" (-1) p_1f642eb9 ;;
   let mapped_tiles = map_tiles mapped_tiles (fun tile -> tile) in 
   let to_blocks = tiles_to_blocks mapped_tiles in 
   blocks_to_original_grid to_blocks true true ;;
-test_task "44d8ac46" 0 p_debug ;; *)
+(* test_task "44d8ac46" 0 p_debug ;; *)
 
 (* let example_grid = {points = [((1,3),4); ((1,2),4); ((1,1),4); ((1,4),4); ((2,4),4); ((3,4),4); ((4,4),3); ((2,3),4); ((2,2),4); ((2,1),4); ((3,3),4); ((3,2),4); ((3,1),4); ((4,3),4); ((4,2),4); ((4,1),4)] ; original_grid = empty_grid 4 4 0} in
 let blocks = find_blocks_by_color example_grid 4 false false in 
