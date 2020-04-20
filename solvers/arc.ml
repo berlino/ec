@@ -1,11 +1,11 @@
 open Core
-open Client
+(* open Client
 open Timeout
 open Utils
 open Program
 open Task
 open Type
-
+ *)
 (* Types and Helpers *)
 
 type block = {points : ((int*int)*int) list; original_grid : ((int*int)*int) list} ;;
@@ -616,7 +616,7 @@ let filter_template_block blocks f =
 let map_tbs template_blocks_scene map_f with_template_block = 
   let template_block, rest_blocks = template_blocks_scene in 
   let temp = if with_template_block then [template_block] else [] in 
-  temp @ List.map rest_blocks ~f:(fun block -> map_f template_block block);;
+  temp @ (List.map rest_blocks ~f:(fun block -> map_f template_block block)) ;;
 
 
 
@@ -752,8 +752,8 @@ ignore(primitive "blocks_to_original_grid" (tblocks @> tboolean @> tboolean @> t
 ignore(primitive "blocks_to_min_grid" (tblocks @> tboolean @> tboolean @> tgridout) blocks_to_min_grid) ;;
 
 (* tblocks -> tblock *)
-ignore(primitive "nth_of_sorted_object_list" (tblocks @> (tblock @> tint) @> tint @> tblock) nth_of_sorted_object_list) ;;
-ignore(primitive "singleton_block" (tblocks @> tblock) singleton_block) ;;
+(* ignore(primitive "nth_of_sorted_object_list" (tblocks @> (tblock @> tint) @> tint @> tblock) nth_of_sorted_object_list) ;; *)
+(* ignore(primitive "singleton_block" (tblocks @> tblock) singleton_block) ;; *)
 ignore(primitive "merge_blocks" (tblocks @> tboolean @> tblock) merge_blocks) ;;
 
 (* tblocks -> tblocks *)
@@ -820,10 +820,10 @@ ignore(primitive "find_blocks_by_color" (tgridin @> tcolor @> tboolean @> tboole
 ignore(primitive "find_blocks_by_inferred_b" (tgridin @> tboolean @> tboolean @> tblocks) find_blocks_by_inferred_b) ;;
 
 (* tgridin -> tblock *)
-ignore(primitive "grid_to_block" (tgridin @> tblock) (fun x -> x)) ;;
+(* ignore(primitive "grid_to_block" (tgridin @> tblock) (fun x -> x)) ;; *)
 
 (* tgridin -> tsplitblocks *)
-ignore(primitive "split_grid" (tgridin @> tboolean @> tsplitblocks) split) ;;
+(* ignore(primitive "split_grid" (tgridin @> tboolean @> tsplitblocks) split) ;; *)
 
 (* tgridin -> ttiles *)
 ignore(primitive "find_tiles_by_black_b" (tgridin @> ttiles) find_tiles_by_black_b) ;;
@@ -877,9 +877,9 @@ ignore(primitive "filter_tiles" (ttiles @> (ttile @> tboolean) @> ttiles) filter
 (********** tlogical **********)
 
 (* tlogical *)
-ignore(primitive "land" tlogical (land)) ;;
+(* ignore(primitive "land" tlogical (land)) ;;
 ignore(primitive "lor" tlogical (lor)) ;;
-ignore(primitive "lxor" tlogical (lxor)) ;;
+ignore(primitive "lxor" tlogical (lxor)) ;; *)
 
 (********** tboolean **********)
 
