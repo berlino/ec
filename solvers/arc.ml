@@ -283,13 +283,15 @@ let duplicate block direction n =
   List.fold_left overlap_list ~init:false ~f:(fun state el -> state || el) in
 
   let move_block_until block blocks direction condition = 
-    let rec move_until block direction condition = 
-      if (condition block) then block else 
-        let moved_block = move block 1 direction false in
-        move_until moved_block direction condition in
-        
-  let moved_block = move_until block direction condition in
-  moved_block :: blocks in
+    let rec move_until block direction condition call_count = 
+      if (call_count > 44) then raise (Failure ("Move towards until never terminated")) else
+        if (condition block) then block 
+        else 
+          let moved_block = move block 1 direction false in
+          move_until moved_block direction condition (call_count+1) in
+    let moved_block = move_until block direction condition 0 in
+    moved_block :: blocks in
+
   let blocks = List.fold_left ~init:[block] ~f:(fun state _ -> move_block_until block state direction (fun block -> not (overlaps_other_block block state true))) (0 -- (n-1)) in
   merge_blocks blocks false ;;
 
@@ -516,15 +518,18 @@ let direction_to_block source_tile target_block include_diagonal =
 let get_tile_color {point = ((y,x),c);block = block} = c ;; 
 
 let rec extend_towards_until {point;block} (d_y,d_x) tile_condition = 
-  let (y,x),c = point in
-  let condition_met = tile_condition {point;block} in 
-  match condition_met with 
-  | true -> block
-  | false -> 
-  let new_point = ((y+d_y,x+d_x),c) in
-  let new_block_points = new_point :: block.points in
-  let new_block = block_of_points new_block_points block.original_grid in
-  extend_towards_until {point=new_point; block=new_block} (d_y,d_x) tile_condition ;;
+  let rec extend_towards_until_helper {point;block} (d_y,d_x) tile_condition call_count =
+    let (y,x),c = point in
+    if (call_count > 44) then raise (Failure ("Extend towards until never terminated")) else
+    let condition_met = tile_condition {point;block} in 
+    match condition_met with 
+    | true -> block
+    | false -> 
+    let new_point = ((y+d_y,x+d_x),c) in
+    let new_block_points = new_point :: block.points in
+    let new_block = block_of_points new_block_points block.original_grid in
+    extend_towards_until_helper {point=new_point; block=new_block} (d_y,d_x) tile_condition (call_count+1) in
+  extend_towards_until_helper {point;block} (d_y,d_x) tile_condition 0 ;;
 
 let extend_towards_until_edge {point;block} (d_y,d_x) = 
   extend_towards_until {point;block} (d_y,d_x) (fun tile -> touches_boundary (tile_to_block tile) (d_y,d_x)) ;;
@@ -534,15 +539,18 @@ let extend_until_touches_block tile block include_diagonal =
   if (direction = (0,0)) then (tile_to_block tile) else 
   extend_towards_until tile direction (fun tile -> tile_touches_block tile block direction) ;;
 
-let rec move_towards_until {point;block} (d_y,d_x) tile_condition = 
-  let (y,x),c = point in
-  let condition_met = tile_condition {point;block} in 
-  match condition_met with 
-  | true -> block
-  | false -> 
-  let new_point = ((y+d_y,x+d_x),c) in
-  let new_block = block_of_points [new_point] block.original_grid in
-  move_towards_until {point=new_point; block=new_block} (d_y,d_x) tile_condition ;;
+let move_towards_until {point;block} (d_y,d_x) tile_condition = 
+  let rec move_towards_until_helper {point;block} (d_y,d_x) tile_condition call_count =
+    let (y,x),c = point in
+    if (call_count > 44) then raise (Failure ("Move towards until never terminated")) else
+    let condition_met = tile_condition {point;block} in 
+    match condition_met with 
+    | true -> block
+    | false -> 
+    let new_point = ((y+d_y,x+d_x),c) in
+    let new_block = block_of_points [new_point] block.original_grid in
+    move_towards_until_helper {point=new_point; block=new_block} (d_y,d_x) tile_condition (call_count+1) in
+  move_towards_until_helper {point;block} (d_y,d_x) tile_condition 0 ;;
 
 let move_towards_until_edge {point;block} (d_y,d_x) = 
   move_towards_until {point;block} (d_y,d_x) (fun tile -> touches_boundary (tile_to_block tile) (d_y,d_x)) ;;
@@ -682,7 +690,7 @@ let p_c0f76784 grid cmap =
  *)
 
 
-register_special_task "arc" (fun extras ?timeout:(timeout = 0.001) name ty examples ->
+(* register_special_task "arc" (fun extras ?timeout:(timeout = 0.001) name ty examples ->
 Printf.eprintf "Making an arc task %s \n" name;
 { name = name    ;
     task_type = ty ;
@@ -881,7 +889,7 @@ ignore(primitive "lxor" tlogical (lxor)) ;;
 ignore(primitive "negate_boolean" (tboolean @> tboolean) (fun v -> (not v))) ;;
 
 (********** ttbs **********)
-ignore(primitive "map_tbs" (ttbs @> (tblock @> tblock) @> tboolean @> tblocks) map_tbs) ;;
+ignore(primitive "map_tbs" (ttbs @> (tblock @> tblock) @> tboolean @> tblocks) map_tbs) ;; *)
 
 (* (********** tcolorpair **********)
 
@@ -1112,13 +1120,11 @@ let p_1f642eb9 grid =
 
 let p_debug grid = 
   let tiles = find_tiles_by_black_b grid in 
-  let mapped_tiles = map_tiles tiles (fun tile -> tile) in 
-  let mapped_tiles = map_tiles mapped_tiles (fun tile -> tile) in 
-  let mapped_tiles = map_tiles mapped_tiles (fun tile -> tile) in 
-  let mapped_tiles = map_tiles mapped_tiles (fun tile -> tile) in 
-  let to_blocks = tiles_to_blocks mapped_tiles in 
-  blocks_to_original_grid to_blocks true true ;;
-(* test_task "44d8ac46" 0 p_debug ;; *)
+  let filter_func = (fun tile -> tile_overlaps_block tile (move_towards_until tile (1,0) (fun tile -> false))) in 
+  let filtered_tiles = filter_tiles tiles filter_func in 
+  let blocks = tiles_to_blocks filtered_tiles in 
+  blocks_to_min_grid blocks true false ;;
+(* qtest_task "54d9e175" (-1) p_debug ;; *)
 
 (* let example_grid = {points = [((1,3),4); ((1,2),4); ((1,1),4); ((1,4),4); ((2,4),4); ((3,4),4); ((4,4),3); ((2,3),4); ((2,2),4); ((2,1),4); ((3,3),4); ((3,2),4); ((3,1),4); ((4,3),4); ((4,2),4); ((4,1),4)] ; original_grid = empty_grid 4 4 0} in
 let blocks = find_blocks_by_color example_grid 4 false false in 
