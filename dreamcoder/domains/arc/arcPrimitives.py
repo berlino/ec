@@ -559,11 +559,11 @@ if runFull:
     tgridout = baseType('tgridout')
     tdirection = baseType('tdirection')
     ttile = baseType('ttile')
-    tsplitblock = baseType('tsplitblock')
-    tlogical = baseType('tlogical')
+    # tsplitblock = baseType('tsplitblock')
+    # tlogical = baseType('tlogical')
     ttbs = baseType('template_blocks_scene')
 
-    tcolorpair = tpair(tcolor, tcolor)
+    # tcolorpair = tpair(tcolor, tcolor)
     # tcmap = tlist(tcolorpair)
 
     # tintcolorpair = tpair(tint, tcolor)
@@ -572,7 +572,7 @@ if runFull:
     ttiles = tlist(ttile)
     tblocks = tlist(tblock)
     tcolors = tlist(tcolor)
-    tsplitblocks = tlist(tsplitblock)
+    # tsplitblocks = tlist(tsplitblock)
     tdirections = tlist(tdirection)
 
 def leafPrimitives():
@@ -624,8 +624,8 @@ def basePrimitives():
     Primitive('blocks_to_min_grid', arrow(tblocks, tbool, tbool, tgridout),  None),
 
     # arrow(tblocks, tblock)
-    Primitive("nth_of_sorted_object_list", arrow(tblocks, arrow(tblock, tint), tint, tblock), None),
-    Primitive("singleton_block" , arrow(tblocks, tblock), None),
+    # Primitive("nth_of_sorted_object_list", arrow(tblocks, arrow(tblock, tint), tint, tblock), None),
+    # Primitive("singleton_block" , arrow(tblocks, tblock), None),
     Primitive("merge_blocks", arrow(tblocks, tbool, tblock), None),
 
     # arrow(tblocks, tblocks)
@@ -697,10 +697,10 @@ def basePrimitives():
     Primitive('find_blocks_by_color', arrow(tgridin, tcolor, tbool, tbool, tblocks), lambda grid: grid),
     Primitive('find_blocks_by_inferred_b', arrow(tgridin, tbool, tbool, tblocks), lambda grid: grid),    
     #arrow(tgridin, tblock)
-    Primitive('grid_to_block', arrow(tgridin, tblock), lambda grid: grid),
+    # Primitive('grid_to_block', arrow(tgridin, tblock), lambda grid: grid),
     
     # arrow(tgridin, tsplitblocks)
-    Primitive('split_grid', arrow(tgridin, tbool, tsplitblocks), None),
+    # Primitive('split_grid', arrow(tgridin, tbool, tsplitblocks), None),
 
     # arrow(tgridin, ttiles)
     Primitive('find_tiles_by_black_b', arrow(tgridin, ttiles), None),
@@ -738,24 +738,24 @@ def basePrimitives():
 ##### tsplitblocks #####
 
     # arrow(tsplitblocks -> tgridout)
-    Primitive('overlap_split_blocks', arrow(tsplitblocks, arrow(tcolor, tcolor, tcolor), tgridout), None),
+    # Primitive('overlap_split_blocks', arrow(tsplitblocks, arrow(tcolor, tcolor, tcolor), tgridout), None),
     
     # arrow(tsplitblocks -> tblocks)
-    Primitive('splitblocks_to_blocks', arrow(tsplitblocks, tblocks), None),
+    # Primitive('splitblocks_to_blocks', arrow(tsplitblocks, tblocks), None),
 
 ##### tcolor #####
 
     # arrow(tcolor, tcolor)
-    Primitive('color_logical', arrow(tcolor, tcolor, tcolor, tlogical, tcolor), None),
+    # Primitive('color_logical', arrow(tcolor, tcolor, tcolor, tlogical, tcolor), None),
     
     # arrow(tcolor, tcolors)
-    Primitive('color_pair', arrow(tcolor, tcolor, tcolors), None),
+    # Primitive('color_pair', arrow(tcolor, tcolor, tcolors), None),
 
 ##### tlogical #####
 
-    Primitive("land", tlogical, None),
-    Primitive("lor", tlogical, None),
-    Primitive("lxor", tlogical, None),
+    # Primitive("land", tlogical, None),
+    # Primitive("lor", tlogical, None),
+    # Primitive("lxor", tlogical, None),
 
 
 #### tbool #####

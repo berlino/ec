@@ -5,15 +5,18 @@ import math
 import os
 import datetime
 
+import dill
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 
-from dreamcoder.dreamcoder import explorationCompression
+from dreamcoder.dreamcoder import explorationCompression, sleep_recognition
 from dreamcoder.utilities import eprint, flatten, testTrainSplit
 from dreamcoder.grammar import Grammar
 from dreamcoder.task import Task
 from dreamcoder.type import Context, arrow, tbool, tlist, tint, t0, UnificationFailure
+from dreamcoder.recognition import RecognitionModel
 
 # from dreamcoder.domains.list.listPrimitives import basePrimitives, primitives, McCarthyPrimitives, bootstrapTarget_extra, no_length
 # from dreamcoder.domains.arc.arcPrimitives2 import _solve6, basePrimitives, pprint, tcolor
@@ -38,13 +41,6 @@ from dreamcoder.domains.arc.arcPrimitives import (
     _solve72ca375d,
     _solve5521c0d9,
     _solvece4f8723,
-)
-
-from dreamcoder.recognition import RecurrentFeatureExtractor
-from dreamcoder.domains.list.makeListTasks import (
-    make_list_bootstrap_tasks,
-    sortBootstrap,
-    EASYLISTTASKS,
 )
 
 
@@ -125,106 +121,54 @@ class Flatten(nn.Module):
     def forward(self, x):
         return x.view(x.size(0), -1)
 
+def gridToArray(grid):
+    temp = np.full((grid.getNumRows(),grid.getNumCols()),None)
+    for yPos,xPos in grid.points:
+        temp[yPos, xPos] = str(grid.points[(yPos,xPos)])
+    return temp
+
 class ArcCNN(nn.Module):
     special = 'arc'
     
-    def __init__(self, tasks, testingTasks=[], cuda=False, H=64):
+    def __init__(self, tasks=[], testingTasks=[], cuda=False, H=64):
         super(ArcCNN, self).__init__()
         self.CUDA = cuda
         self.recomputeTasks = True
-
         self.outputDimensionality = H
-        def conv_block(in_channels, out_channels):
-            return nn.Sequential(
-                nn.Conv2d(in_channels, out_channels, 3, padding=1),
-                # nn.BatchNorm2d(out_channels),
-                nn.ReLU(),
-                nn.MaxPool2d(2)
-            )
-
-        self.inputImageDimension = 256
-        self.resizedDimension = 64
-        assert self.inputImageDimension % self.resizedDimension == 0
-
-        # channels for hidden
-        hid_dim = 64
-        z_dim = 64
-
-        self.encoder = nn.Sequential(
-            conv_block(6, hid_dim),
-            conv_block(hid_dim, hid_dim),
-            conv_block(hid_dim, hid_dim),
-            conv_block(hid_dim, z_dim),
-            Flatten()
-        )
-
-        self.outputDimensionality = 1024
 
         if cuda:
             self.CUDA=True
             self.cuda()  # I think this should work?
 
+        self.linear = nn.Linear(300,H)
+
     def forward(self, v, v2=None):
-        """v: tower to build. v2: image of tower we have built so far"""
-        # insert batch if it is not already there
-        # if len(v.shape) == 3:
-        #     v = np.expand_dims(v, 0)
-        #     inserted_batch = True
-        #     if v2 is not None:
-        #         assert len(v2.shape) == 3
-        #         v2 = np.expand_dims(v2, 0)
-        # elif len(v.shape) == 4:
-        #     inserted_batch = False
-        #     pass
-        # else:
-        #     assert False, "v has the shape %s"%(str(v.shape))
-        
-        # if v2 is None: v2 = np.zeros(v.shape)
-        
-        # v = np.concatenate((v,v2), axis=3)
-        # v = np.transpose(v,(0,3,1,2))
-        # assert v.shape == (v.shape[0], 6,self.inputImageDimension,self.inputImageDimension)
-        # v = variable(v, cuda=self.CUDA).float()
-        # window = int(self.inputImageDimension/self.resizedDimension)
-        # v = F.avg_pool2d(v, (window,window))
-        # #showArrayAsImage(np.transpose(v.data.numpy()[0,:3,:,:],[1,2,0]))
-        # v = self.encoder(v)
-        # if inserted_batch:
-        #     return v.view(-1)
-        # else:
-        return F.relu(x)
+
+        return F.relu(self.linear(v))
 
     def featuresOfTask(self, t, t2=None):  # Take a task and returns [features]
 
         v = None
+
+
         for example in t.examples:
             inputGrid, outputGrid = example
             inputGrid = inputGrid[0]
-            exampleVector = np.concatenate((np.array(inputGrid.gridArray).flatten(), np.array(outputGrid.gridArray).flatten()))
+            exampleVector = np.concatenate((np.array(gridToArray(inputGrid)).flatten(), np.array(gridToArray(outputGrid)).flatten()))
             if v is None:
                 v = exampleVector
             else:
                 v = np.concatenate((v, exampleVector))
-        print(v)
-        return v
-    
+
+        v = v.astype(np.float32)
+        pad_amount = 300 - v.shape[0]
+        v = nn.functional.pad(torch.from_numpy(v), (0,pad_amount), 'constant', 0)
+
+        return self(v)
+
     def featuresOfTasks(self, ts, t2=None):  # Take a task and returns [features]
         """Takes the goal first; optionally also takes the current state second"""
-        if t2 is None:
-            pass
-        elif isinstance(t2, Task):
-            assert False
-            #t2 = np.array([t2.getImage(drawHand=True)]*len(ts))
-        elif isinstance(t2, list):
-            t2 = np.array([t.getImage(drawHand=True) if t else np.zeros((self.inputImageDimension,
-                                                                         self.inputImageDimension,
-                                                                         3))
-                           for t in t2])
-        else:
-            assert False
-            
-        return self(np.array([t.getImage() for t in ts]),
-                    t2)
+        return [self.featuresOfTask(t) for t in ts]
 
     def taskOfProgram(self, p, t,
                       lenient=False):
@@ -266,8 +210,8 @@ def main(args):
     )
     print(directory)
 
-    for key in samples.keys():
-        check(key, lambda x: samples[key](x), directory)
+    # for key in samples.keys():
+    #     check(key, lambda x: samples[key](x), directory)
 
 
     if single_train_task:
@@ -289,14 +233,27 @@ def main(args):
         {"outputPrefix": "%s/list" % outputDirectory, "evaluationTimeout": 300,}
     )
 
-    # #
-    # request = arrow(tgrid, tgrid)
-    #
-    # for ll,_,p in baseGrammar.enumeration(Context.EMPTY, [], request, 13):
-    #     ll_ = baseGrammar.logLikelihood(request,p)
-    #     print(ll, p, ll_)
+    def resume_from_path(resume):
+        try:
+            resume = int(resume)
+            path = checkpointPath(resume)
+        except ValueError:
+            path = resume
+        with open(path, "rb") as handle:
+            result = dill.load(handle)
+        resume = len(result.grammars) - 1
+        eprint("Loaded checkpoint from", path)
+        grammar = result.grammars[-1] if result.grammars else grammar
+        return result, grammar
 
-    # baseGrammar = Grammar.uniform(basePrimitives())
-    # print(baseGrammar.buildCandidates(request, Context.EMPTY, [], returnTable=True))
+    # arcCNN = ArcCNN()
+    # train, test = retrieveARCJSONTask('d23f8c26.json', directory)
+    # features = arcCNN.featuresOfTask(train)
+    # print(arcCNN.forward(features))
 
+    # resumePath = '/Users/theo/Development/program_induction/results/checkpoints/2020-04-13T18:58:48.642078/'
+    # pickledFile = 'list_aic=1.0_arity=3_BO=True_CO=True_ES=1_ET=1200_t_zero=3600_HR=0.0_it=2_MF=10_noConsolidation=False_pc=30.0_RT=1800_RR=False_RW=False_solver=ocaml_STM=True_L=1.0_TRR=default_K=2_topkNotMAP=False_graph=True.pickle'
+    # result, grammar = resume_from_path(resumePath + pickledFile)
+    # recognitionModel = RecognitionModel(ArcCNN(), baseGrammar)
+    # sleep_recognition(result, grammar, [], trainTasks, testTasks, result.allFrontiers.values(), featureExtractor=ArcCNN, activation='tanh', CPUs=1, timeout=180, helmholtzFrontiers=[], helmholtzRatio=0, solver='ocaml', enumerationTimeout=10)
     explorationCompression(baseGrammar, trainTasks, testingTasks=testTasks, **args)

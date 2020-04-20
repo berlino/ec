@@ -1,4 +1,10 @@
 open Core
+open Client
+open Timeout
+open Utils
+open Program
+open Task
+open Type
 
 (* Types and Helpers *)
 
@@ -858,23 +864,23 @@ ignore(primitive "tiles_to_blocks" (ttiles @> tblocks) tiles_to_blocks) ;;
 
 (* tiles -> tiles *)
 ignore(primitive "filter_tiles" (ttiles @> (ttile @> tboolean) @> ttiles) filter_tiles) ;;
-ignore(primitive "map_tiles" (ttiles @> (ttile @> ttile) @> ttiles) map_tiles) ;;
+(* ignore(primitive "map_tiles" (ttiles @> (ttile @> ttile) @> ttiles) map_tiles) ;; *)
 
 (********** tsplitblocks **********)
 
 (* tsplitblocks -> tgridout *)
-ignore(primitive "overlap_split_blocks" (tsplitblocks @> (tcolor @> tcolor @> tcolor) @> tgridout) overlap_split_blocks) ;;
+(* ignore(primitive "overlap_split_blocks" (tsplitblocks @> (tcolor @> tcolor @> tcolor) @> tgridout) overlap_split_blocks) ;; *)
 
 (* tsplitblocks -> tblocks *)
-ignore(primitive "splitblocks_to_blocks" (tsplitblocks @> tblocks) (fun blocks -> blocks)) ;;
+(* ignore(primitive "splitblocks_to_blocks" (tsplitblocks @> tblocks) (fun blocks -> blocks)) ;; *)
 
 (********** tcolor **********)
 
 (* tcolor -> tcolor *)
-ignore(primitive "color_logical" (tcolor @> tcolor @> tcolor @> tlogical @> tcolor) color_logical) ;;
+(* ignore(primitive "color_logical" (tcolor @> tcolor @> tcolor @> tlogical @> tcolor) color_logical) ;; *)
 
 (* tcolor -> tcolors *)
-ignore(primitive "color_pair" (tcolor @> tcolor @> tcolors) color_pair) ;;
+(* ignore(primitive "color_pair" (tcolor @> tcolor @> tcolors) color_pair) ;; *)
 
 (********** tlogical **********)
 
@@ -891,29 +897,29 @@ ignore(primitive "negate_boolean" (tboolean @> tboolean) (fun v -> (not v))) ;;
 (********** ttbs **********)
 ignore(primitive "map_tbs" (ttbs @> (tblock @> tblock) @> tboolean @> tblocks) map_tbs) ;; *)
 
-(* (********** tcolorpair **********)
+(********** tcolorpair **********)
 
-ignore(primitive "make_colorpair" (tcolor @> tcolor @> tcolorpair) (fun c1 c2 -> (c1,c2))) ;;
+(* ignore(primitive "make_colorpair" (tcolor @> tcolor @> tcolorpair) (fun c1 c2 -> (c1,c2))) ;; *)
 
 (********** tintcolorpair **********)
 
-ignore(primitive "make_intcolorpair" (tint @> tcolor @> tintcolorcpair) (fun n c -> (n,c))) ;;
+(* ignore(primitive "make_intcolorpair" (tint @> tcolor @> tintcolorcpair) (fun n c -> (n,c))) ;; *)
 
 (********** tcmap **********)
 
 
-ignore(primitive "make_cmap" (tcolorpair @> tcolorpair @> tcolorpair @> tcmap) (fun cp1 cp2 cp3 -> [cp1 ; cp2; cp3])) ;;
-ignore(primitive "get_color_from_cmap" (tcmap @> tcolor @> tcolor) get_color_from_cmap) ;;
+(* ignore(primitive "make_cmap" (tcolorpair @> tcolorpair @> tcolorpair @> tcmap) (fun cp1 cp2 cp3 -> [cp1 ; cp2; cp3])) ;; *)
+(* ignore(primitive "get_color_from_cmap" (tcmap @> tcolor @> tcolor) get_color_from_cmap) ;; *)
 
 (* ticmap *)
 
-ignore(primitive "make_icmap" (tintcolorcpair @> tintcolorcpair @> tintcolorcpair @> ticmap) (fun cp1 cp2 cp3 -> [cp1 ; cp2; cp3])) ;;
+(* ignore(primitive "make_icmap" (tintcolorcpair @> tintcolorcpair @> tintcolorcpair @> ticmap) (fun cp1 cp2 cp3 -> [cp1 ; cp2; cp3])) ;; *)
 
 (********** 913fb3ed **********)
 
-ignore(primitive "p_913fb3ed" (tgridin @> tcmap @> tgridout) p_913fb3ed) ;;
-ignore(primitive "p_c0f76784" (tgridin @> ticmap @> tgridout) p_c0f76784) ;;
- *)
+(* ignore(primitive "p_913fb3ed" (tgridin @> tcmap @> tgridout) p_913fb3ed) ;;
+ignore(primitive "p_c0f76784" (tgridin @> ticmap @> tgridout) p_c0f76784) ;; *)
+
 
 let python_split x =
   let split = String.split_on_chars ~on:[','] x in 
@@ -1117,14 +1123,13 @@ let p_1f642eb9 grid =
   blocks_to_original_grid modified_tbs true false ;;
 (* test_task "1f642eb9" (-1) p_1f642eb9 ;; *)
 
-
 let p_debug grid = 
   let tiles = find_tiles_by_black_b grid in 
   let filter_func = (fun tile -> tile_overlaps_block tile (move_towards_until tile (1,0) (fun tile -> false))) in 
   let filtered_tiles = filter_tiles tiles filter_func in 
   let blocks = tiles_to_blocks filtered_tiles in 
   blocks_to_min_grid blocks true false ;;
-(* qtest_task "54d9e175" (-1) p_debug ;; *)
+(* test_task "54d9e175" (-1) p_debug ;; *)
 
 (* let example_grid = {points = [((1,3),4); ((1,2),4); ((1,1),4); ((1,4),4); ((2,4),4); ((3,4),4); ((4,4),3); ((2,3),4); ((2,2),4); ((2,1),4); ((3,3),4); ((3,2),4); ((3,1),4); ((4,3),4); ((4,2),4); ((4,1),4)] ; original_grid = empty_grid 4 4 0} in
 let blocks = find_blocks_by_color example_grid 4 false false in 
