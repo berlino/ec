@@ -305,8 +305,6 @@ class RectangleBlock(Block):
 
 class Grid(RectangleBlock):
 
-    gridArray = None
-
     def __init__(self, gridArray=None, points=None, originalGrid=None):
         self.points = {}
         if points is not None:
@@ -315,8 +313,7 @@ class Grid(RectangleBlock):
             for y in range(len(gridArray)):
                 for x in range(len(gridArray[0])):
                     self.points[(y, x)] = gridArray[y][x]
-        self.gridArray = gridArray
-        RectangleBlock.__init__(self, self.points, originalGrid)
+        super().__init__(self.points, originalGrid)
 
     def __str__(self):
         temp = np.full((self.getNumRows(),self.getNumCols()),None)
@@ -325,11 +322,11 @@ class Grid(RectangleBlock):
         rows = [' '.join(row) for row in temp.tolist()]
         return '\n'.join(rows)
 
-    # def __repr__(self):
-    #     temp = {}
-    #     for yPos,xPos in self.points:
-    #         temp["{},{}".format(yPos, xPos)] = self.points[(yPos,xPos)]
-    #     return {'grid':temp}
+    def __repr__(self):
+        temp = {}
+        for yPos,xPos in self.points:
+            temp["{},{}".format(yPos, xPos)] = self.points[(yPos,xPos)]
+        return {'grid':temp}
 
     def fromPoints(self, points):
         return Grid(points=points, originalGrid=self.originalGrid)
@@ -642,8 +639,8 @@ def basePrimitives():
     Primitive('reflect', arrow(tblock, tbool, tblock), _reflect),
     Primitive('move', arrow(tblock, tint, tdirection, tbool, tblock), lambda x : x),
     Primitive("center_block_on_tile", arrow(tblock, ttile, tblock), None),
-    Primitive('duplicate', arrow(tblock, tdirection, tint, tblock), None),
-    Primitive('grow', arrow(tblock, tint, tblock), _grow),
+    # Primitive('duplicate', arrow(tblock, tdirection, tint, tblock), None),
+    # Primitive('grow', arrow(tblock, tint, tblock), _grow),
     Primitive('fill_color', arrow(tblock, tcolor, tblock), _fill),
     Primitive('fill_snakewise', arrow(tblock, tcolors, tblock), None),
     Primitive('replace_color', arrow(tblock, tcolor, tcolor, tblock), _replaceColors),
