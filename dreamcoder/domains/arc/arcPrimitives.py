@@ -5,11 +5,22 @@ if runFull:
     from dreamcoder.program import Primitive, Program, baseType
     from dreamcoder.grammar import Grammar
     from dreamcoder.type import tlist, tint, tbool, arrow, t0, t1, t2, tpair
+else:
+    class Task:
+        def __init__(self,examples):
+            self.examples = [((example[0],),example[1]) for example in examples]
+            self.program = "(lambda (overlap_split_blocks (split_grid $0 (has_color (tile_to_block (block_to_tile (grid_to_block $0))) red)) (lambda (lambda $0))))"
     #
+
+import itertools
 from functools import reduce
 import json
+import math
 import numpy as np
 import os
+import copy
+import random
+from scipy.special import perm, comb
 
 class Block:
 
@@ -433,8 +444,34 @@ class Grid(RectangleBlock):
         return Grid(points={key:c if color != backgroundColor else backgroundColor for key,color in self.points.items()})
 
     def maskAndCenter(self, mask):
-        return self.fromPoints(points={(key[0] - mask.topLeftTile[0], key[1] - mask.topLeftTile[1]):color for key,color in self.points.items() if key in mask.points})
+        return self.fromPoints(points={(key[0] - mask.topLeftTile[0 ], key[1] - mask.topLeftTile[1]):color for key,color in self.points.items() if key in mask.points})
 
+
+colorToInt = {
+"black":0,
+"blue":1,  
+"red":2,
+"green":3,
+"yellow":4,
+"grey":5,
+"pink":6,
+"orange":7,
+"teal":8,
+"maroon":9
+}
+
+intToColor = {
+0:"black",
+1:"blue",
+2:"red",
+3:"green",
+4:"yellow",
+5:"grey",
+6:"pink",
+7:"orange",
+8:"teal",
+9:"maroon",
+}
 
 _black = 0
 _blue = 1
@@ -747,9 +784,6 @@ def basePrimitives():
 
     # arrow(tcolor, tcolor)
     Primitive('color_logical', arrow(tcolor, tcolor, tcolor, tlogical, tcolor), None),
-    
-    # arrow(tcolor, tcolors)
-    Primitive('color_pair', arrow(tcolor, tcolor, tcolors), None),
 
 ##### tlogical #####
 
@@ -842,50 +876,158 @@ def getTask(filename, directory):
 
     return train, test
 
+def replaceColors(inputGrid, colorMap):
+    return inputGrid.fromPoints({key:colorMap.get(oldColor,oldColor) for (key,oldColor) in inputGrid.points.items()})
+
+def getColorsToReplace(examples, doNotReplace=[0]):
+    allColors = set()
+    for example in examples:
+        inputGrid = example[0][0]
+        allColors = allColors.union(set(inputGrid.points.values()))
+    return allColors - set(doNotReplace)
+
+class LessPermutationsThanRequiredExamples(Exception):
+    pass
+
+def randomCombination(iterable,n):
+    i = 0
+    pool = tuple(iterable)
+    rng = range(len(pool))
+    indices = random.sample(rng, n)
+    while i < n:
+        yield pool[indices[i]]
+        i += 1
+
+
+def getColorMaps(examples, n, doNotReplace=[0]):
+    colorsToReplace = getColorsToReplace(examples, doNotReplace)
+    colorPallete = set(list(intToColor.keys())) - set(doNotReplace)
+    k = len(colorsToReplace)
+    maxExamples = int(perm(len(colorPallete), k))
+    if perm(len(colorPallete), k) < n:
+        print('WARNING: Can only generate {} examples for task:'.format(maxExamples))
+        n = maxExamples
+        # raise LessPermutationsThanRequiredExamples
+    iterable = itertools.permutations(colorPallete, k)
+    newColors = list(randomCombination(iterable, n))
+    return [{oldColor:newColor[i] for i,oldColor in enumerate(colorsToReplace)} for newColor in newColors], n
+
+def colorPermuteExample(example, colorMap):
+    example = copy.deepcopy(example)
+    inputGrid, outputGrid = example[0][0], example[1]
+    return ((replaceColors(inputGrid, colorMap),), replaceColors(outputGrid, colorMap))
+
+def generateFromFrontier(frontier, n):
+    programs, task = [str(frontierEntry.program) for frontierEntry in copy.deepcopy(frontier.entries)], copy.deepcopy(frontier.task)
+    examples = task.examples
+    doNotReplace = set([0])
+    for color in colorToInt.keys():
+        if color in ' '.join(programs):
+            doNotReplace.add(colorToInt[color])
+    print('Do not replace {} from task {}'.format(', '.join([intToColor[c] for c in list(doNotReplace)]), task))
+    colorMaps, temp = getColorMaps(examples, n, doNotReplace)
+    if temp < n:
+        print(task)
+    n = min(temp, n)
+    generatedTasks = []
+    for t in range(n):
+        newTask = copy.deepcopy(task)
+        newTask.name = '{}_{}'.format(t, task.name)
+        for example in examples:
+            newExample = colorPermuteExample(example, colorMaps[t])
+            newTask.examples.append(newExample)
+        generatedTasks.append(newTask)
+    return generatedTasks
+
+def expandFrontier(frontiers, n):
+    expandedFrontiers = []
+    for frontier in frontiers:
+        try:
+            expandedTasks = generateFromFrontier(frontier, n)
+        except LessPermutationsThanRequiredExamples:
+            print('LessPermutationsThanRequiredExamples')
+
+        for task in expandedTasks:
+            newFrontier = copy.deepcopy(frontier)
+            newFrontier.task = task
+            expandedFrontiers.append(newFrontier)
+    expandedFrontiers += frontiers
+    print('Expanded Frontier has length: {}'.format(len(expandedFrontiers)))
+    return expandedFrontiers
+
+manuallySolvedTasks = {
+    "72ca375d.json":"(lambda (blocks_to_min_grid (filter_blocks (find_same_color_blocks $0 true false) (lambda (is_tile $0))) false false))",
+    "f25fbde4.json":"(lambda (to_min_grid (grow (merge_blocks (find_blocks_by_black_b $0 true false) true) 1) false))",
+    # "fcb5c309":"()", repeating code
+    "ce4f8723.json":"(lambda (overlap_split_blocks (split_grid $0 true) (lambda (lambda (color_logical $1 $0 green lor)))))",
+    "0520fde7.json": "(lambda (overlap_split_blocks (split_grid $0 true) (lambda (lambda (color_logical $1 $0 red land)))))",
+    "c9e6f938.json": "(lambda (to_min_grid (move (reflect (grid_to_block $0) false) 3 east true) false))",
+    "97999447.json": "(lambda (blocks_to_original_grid (map_blocks (map_tiles (find_tiles_by_black_b $0) (lambda (extend_towards_until $0 east (lambda (touches_any_boundary (tile_to_block $0)))))) (lambda (fill_snakewise $0 (color_pair invisible grey)))) false true))",
+    "5521c0d9.json": "(lambda (blocks_to_original_grid (map_blocks (find_same_color_blocks $0 true false) (lambda (move $0 (get_height $0) north false))) false true))",
+    # "007bbfb7": (lambda ()),
+    "d037b0a7.json": "(lambda (blocks_to_original_grid (map_tiles (find_tiles_by_black_b $0) (lambda (extend_towards_until $0 south (lambda (touches_boundary (tile_to_block $0) south))))) false true))",
+    # "5117e062": (
+    "4347f46a.json": "(lambda (blocks_to_original_grid (map_blocks (find_same_color_blocks $0 false false) (lambda (filter_block_tiles $0 (lambda (is_exterior $0 false))))) false true))",
+    "50cb2852.json": "(lambda (blocks_to_original_grid (map_blocks (find_blocks_by_black_b $0 true false) (lambda (fill_color (filter_block_tiles $0 (lambda (is_interior $0 true))) teal))) true true))",
+    "a5313dff.json": "(lambda (blocks_to_original_grid (map_blocks (filter_blocks (find_blocks_by_color $0 black false false) (lambda (negate_boolean (touches_any_boundary $0)))) (lambda (fill_color $0 blue))) true true))",
+    # "ea786f4a": (
+    "22eb0ac0.json": "(lambda (blocks_to_original_grid (map_tiles (find_tiles_by_black_b $0) (lambda (extend_towards_until_edge $0 east))) true false))",
+    "88a10436.json": "(lambda (blocks_to_original_grid (map_tbs (filter_template_block (find_blocks_by_black_b $0 true false) (lambda (is_rectangle $0 false))) (lambda (lambda (center_block_on_tile $0 (block_to_tile $1)))) false) true true))",
+    "a48eeaf7.json": "(lambda (blocks_to_original_grid (map_tbs (filter_template_block (find_blocks_by_inferred_b $0 true false) (lambda (has_min_tiles $0 2))) (lambda (lambda (move_until_touches_block (block_to_tile $0) $1 true))) true) false false))",
+    "2c608aff.json": "(lambda (blocks_to_original_grid (map_tbs (filter_template_block (find_blocks_by_inferred_b $0 true false) (lambda (has_min_tiles $0 2))) (lambda (lambda (extend_until_touches_block (block_to_tile $0) $1 false))) true) true false))",
+    "1f642eb9.json": "(lambda (blocks_to_original_grid (map_tbs (filter_template_block (find_blocks_by_inferred_b $0 true false) (lambda (has_min_tiles $0 2))) (lambda (lambda (move_until_overlaps_block (block_to_tile $0) $1 false))) false) true false))",
+}
+
 if __name__ == "__main__":
 
     directory = '/'.join(os.path.abspath(__file__).split('/')[:-4]) + '/arc-data/data/training'
-    train,test = getTask('a416b8f3.json', directory)
+    train,test = getTask('f8a8fe49.json', directory)
 
-    for i in range(len(train)):
-        print('\nExample {}'.format(i))
-        grid, outputGrid = train[i]
-        got = _blockToMinGrid(_move(grid)(_numCols(grid))('right')(True))(False)
-        # for block in got:
-            # block.pprint()
-        #     isHorizontal = False
-        #     reflectedBlock = block.reflect(isHorizontal)
-        #     refA, refB = reflectedBlock.split(isHorizontal)
-        #     refA.pprint()
-        #     a,b = block.split(isHorizontal)
-        #     a.pprint()
-        #
-        #     refB.pprint()
-        #     b.pprin t()
-        #     print(block.isSymmetrical(isHorizontal))
-        #     print('\n')
+    generatedTasks = generateFromFrontier(train, 73)
+    for task in generatedTasks:
+        for example in task.examples:
+            inputGrid, outputGrid = example
+            # print(inputGrid)
+            # print('-------------------------')
+            # print(outputGrid)
+            # print('\n')
+    # example = train[0]
+    # print(example[0])
+    # print('---------------')
+    # print(example[1])
+    # for newExample in colorPermuteExample(example):
+    #     print(newExample[0])
+    #     print('---------------')
+    #     print(newExample[1])
+    # for i in range(len(train)):
+    #     print('\nExample {}'.format(i))
+    #     grid, outputGrid = train[i]
+    #     got = _blockToMinGrid(_move(grid)(_numCols(grid))('right')(True))(False)
+    #     # for block in got:
+    #         # block.pprint()
+    #     #     isHorizontal = False
+    #     #     reflectedBlock = block.reflect(isHorizontal)
+    #     #     refA, refB = reflectedBlock.split(isHorizontal)
+    #     #     refA.pprint()
+    #     #     a,b = block.split(isHorizontal)
+    #     #     a.pprint()
+    #     #
+    #     #     refB.pprint()
+    #     #     b.pprin t()
+    #     #     print(block.isSymmetrical(isHorizontal))
+    #     #     print('\n')
 
-        # print('Input: ')
-        # inputGrid.pprint()
-        print('Got: ')
-        got.pprint()
-        print('Expected')
-        outputGrid.pprint()
-        if (got == outputGrid):
-            print('HIT')
+    #     # print('Input: ')
+    #     # inputGrid.pprint()
+    #     print('Got: ')
+    #     got.pprint()
+    #     print('Expected')
+    #     outputGrid.pprint()
+    #     if (got == outputGrid):
+    #         print('HIT')
         # break
         # inputGrid.pprint()
         # count = 0
 
         # res = _filter(lambda block: _hasMinTiles(4)(block))(inputGrid.findBlocksByCorner(0))
-        # _blocksToGrid(res).pprint()
-
-    # Primitive('reflect', arrow(tgrid, tbool, tgrid), _reflect),
-    # Primitive('grow', arrow(tgrid, tint, tgrid), _grow),
-    # Primitive('concat', arrow(tgrid, tgrid, tdirection, tgrid), _concat),
-    # Primitive('concatN', arrow(tgrid, tgrid, tdirection, tint, tgrid), _concatN),
-    # Primitive('duplicate', arrow(tgrid, tdirection, tgrid), _duplicate),
-    # Primitive('duplicateN', arrow(tgrid, tdirection, tint, tgrid), _duplicateN),
-    # Primitive('zipGrids', arrow(tgrid, tgrid, arrow(tcolor, tcolor, tcolor), tgrid), _zipGrids),
-    # Primitive('zipGrids2', arrow(tgrids, arrow(tcolor, tcolor, tcolor), tgrid), _zipGrids2),
-    # Primitive('concatNAndReflect', arrow(tgrid, tbool, tdirection, tgrid), _concatNAndReflect),
+        # _blocksToGrid(res).pprint()pt

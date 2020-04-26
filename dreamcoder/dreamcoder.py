@@ -566,7 +566,7 @@ def sleep_recognition(result, grammar, taskBatch, tasks, testingTasks, allFronti
                       previousRecognitionModel=None, recognitionSteps=None,
                       timeout=None, enumerationTimeout=None, evaluationTimeout=None,
                       helmholtzRatio=None, helmholtzFrontiers=None, maximumFrontier=None,
-                      auxiliaryLoss=None, cuda=None, CPUs=None, solver=None):
+                      auxiliaryLoss=None, cuda=None, CPUs=None, solver=None, skipEnumeration=False):
     eprint("Using an ensemble size of %d. Note that we will only store and test on the best recognition model." % ensembleSize)
 
     featureExtractorObjects = [featureExtractor(tasks, testingTasks=testingTasks, cuda=cuda) for i in range(ensembleSize)]
@@ -594,74 +594,78 @@ def sleep_recognition(result, grammar, taskBatch, tasks, testingTasks, allFronti
                                      recognizers,
                                      seedRandom=True)
     eprint(f"Currently using this much memory: {getThisMemoryUsage()}")
-    # Enumerate frontiers for each of the recognizers.
-    eprint("Trained an ensemble of %d recognition models, now enumerating." % len(trainedRecognizers))
-    ensembleFrontiers, ensembleTimes, ensembleRecognitionTimes = [], [], []
-    mostTasks = 0
-    bestRecognizer = None
-    totalTasksHitBottomUp = set()
-    for recIndex, recognizer in enumerate(trainedRecognizers):
-        eprint("Enumerating from recognizer %d of %d" % (recIndex, len(trainedRecognizers)))
-        bottomupFrontiers, allRecognitionTimes = \
-                        recognizer.enumerateFrontiers(taskBatch, 
-                                                      CPUs=CPUs,
-                                                      maximumFrontier=maximumFrontier,
-                                                      enumerationTimeout=enumerationTimeout,
-                                                      evaluationTimeout=evaluationTimeout,
-                                                      solver=solver)
-        ensembleFrontiers.append(bottomupFrontiers)
-        ensembleTimes.append([t for t in allRecognitionTimes.values() if t is not None])
-        ensembleRecognitionTimes.append(allRecognitionTimes)
 
-        recognizerTasksHitBottomUp = {f.task for f in bottomupFrontiers if not f.empty}
-        totalTasksHitBottomUp.update(recognizerTasksHitBottomUp)
-        eprint("Recognizer %d solved %d/%d tasks; total tasks solved is now %d." % (recIndex, len(recognizerTasksHitBottomUp), len(tasks), len(totalTasksHitBottomUp)))
-        if len(recognizerTasksHitBottomUp) >= mostTasks:
-            # TODO (cathywong): could consider keeping the one that put the highest likelihood on the solved tasks.
-            bestRecognizer = recIndex
+    if skipEnumeration:
+        return trainedRecognizers[0]
+    else:
+        # Enumerate frontiers for each of the recognizers.
+        eprint("Trained an ensemble of %d recognition models, now enumerating." % len(trainedRecognizers))
+        ensembleFrontiers, ensembleTimes, ensembleRecognitionTimes = [], [], []
+        mostTasks = 0
+        bestRecognizer = None
+        totalTasksHitBottomUp = set()
+        for recIndex, recognizer in enumerate(trainedRecognizers):
+            eprint("Enumerating from recognizer %d of %d" % (recIndex, len(trainedRecognizers)))
+            bottomupFrontiers, allRecognitionTimes = \
+                            recognizer.enumerateFrontiers(taskBatch, 
+                                                          CPUs=CPUs,
+                                                          maximumFrontier=maximumFrontier,
+                                                          enumerationTimeout=enumerationTimeout,
+                                                          evaluationTimeout=evaluationTimeout,
+                                                          solver=solver)
+            ensembleFrontiers.append(bottomupFrontiers)
+            ensembleTimes.append([t for t in allRecognitionTimes.values() if t is not None])
+            ensembleRecognitionTimes.append(allRecognitionTimes)
 
-    # Store the recognizer that discovers the most frontiers in the result.
-    eprint("Best recognizer: %d." % bestRecognizer)
-    result.recognitionModel = trainedRecognizers[bestRecognizer]
-    result.trainSearchTime = {tk: tm for tk, tm in ensembleRecognitionTimes[bestRecognizer].items()
-                              if tm is not None}
-    updateTaskSummaryMetrics(result.recognitionTaskMetrics, ensembleRecognitionTimes[bestRecognizer], 'recognitionBestTimes')
-    updateTaskSummaryMetrics(result.recognitionTaskMetrics, result.recognitionModel.taskHiddenStates(tasks), 'hiddenState')
-    updateTaskSummaryMetrics(result.recognitionTaskMetrics, result.recognitionModel.taskGrammarLogProductions(tasks), 'taskLogProductions')
-    updateTaskSummaryMetrics(result.recognitionTaskMetrics, result.recognitionModel.taskGrammarEntropies(tasks), 'taskGrammarEntropies')
-    if contextual:
-        updateTaskSummaryMetrics(result.recognitionTaskMetrics,
-                                 result.recognitionModel.taskGrammarStartProductions(tasks),
-                                 'startProductions')
+            recognizerTasksHitBottomUp = {f.task for f in bottomupFrontiers if not f.empty}
+            totalTasksHitBottomUp.update(recognizerTasksHitBottomUp)
+            eprint("Recognizer %d solved %d/%d tasks; total tasks solved is now %d." % (recIndex, len(recognizerTasksHitBottomUp), len(tasks), len(totalTasksHitBottomUp)))
+            if len(recognizerTasksHitBottomUp) >= mostTasks:
+                # TODO (cathywong): could consider keeping the one that put the highest likelihood on the solved tasks.
+                bestRecognizer = recIndex
 
-    result.hitsAtEachWake.append(len(totalTasksHitBottomUp))
-    eprint(f"Currently using this much memory: {getThisMemoryUsage()}")
+        # Store the recognizer that discovers the most frontiers in the result.
+        eprint("Best recognizer: %d." % bestRecognizer)
+        result.recognitionModel = trainedRecognizers[bestRecognizer]
+        result.trainSearchTime = {tk: tm for tk, tm in ensembleRecognitionTimes[bestRecognizer].items()
+                                  if tm is not None}
+        updateTaskSummaryMetrics(result.recognitionTaskMetrics, ensembleRecognitionTimes[bestRecognizer], 'recognitionBestTimes')
+        updateTaskSummaryMetrics(result.recognitionTaskMetrics, result.recognitionModel.taskHiddenStates(tasks), 'hiddenState')
+        updateTaskSummaryMetrics(result.recognitionTaskMetrics, result.recognitionModel.taskGrammarLogProductions(tasks), 'taskLogProductions')
+        updateTaskSummaryMetrics(result.recognitionTaskMetrics, result.recognitionModel.taskGrammarEntropies(tasks), 'taskGrammarEntropies')
+        if contextual:
+            updateTaskSummaryMetrics(result.recognitionTaskMetrics,
+                                     result.recognitionModel.taskGrammarStartProductions(tasks),
+                                     'startProductions')
 
-    """ Rescore and combine the frontiers across the ensemble of recognition models."""
-    eprint("Recognition model enumeration results for the best recognizer.")
-    eprint(Frontier.describe(ensembleFrontiers[bestRecognizer]))
-    summaryStatistics("Recognition model", ensembleTimes[bestRecognizer])
+        result.hitsAtEachWake.append(len(totalTasksHitBottomUp))
+        eprint(f"Currently using this much memory: {getThisMemoryUsage()}")
 
-    eprint("Cumulative results for the full ensemble of %d recognizers: " % len(trainedRecognizers))
-    # Rescore all of the ensemble frontiers according to the generative model
-    # and then combine w/ original frontiers
-    for bottomupFrontiers in ensembleFrontiers:
-        for b in bottomupFrontiers:
-            if b.task not in result.allFrontiers: continue # backwards compatibility with old checkpoints
-            result.allFrontiers[b.task] = result.allFrontiers[b.task].\
-                                          combine(grammar.rescoreFrontier(b)).\
-                                          topK(maximumFrontier)
+        """ Rescore and combine the frontiers across the ensemble of recognition models."""
+        eprint("Recognition model enumeration results for the best recognizer.")
+        eprint(Frontier.describe(ensembleFrontiers[bestRecognizer]))
+        summaryStatistics("Recognition model", ensembleTimes[bestRecognizer])
 
-    eprint("Frontiers discovered bottom up: " + str(len(totalTasksHitBottomUp)))
-    eprint("Total frontiers: " + str(len([f for f in result.allFrontiers.values() if not f.empty])))
+        eprint("Cumulative results for the full ensemble of %d recognizers: " % len(trainedRecognizers))
+        # Rescore all of the ensemble frontiers according to the generative model
+        # and then combine w/ original frontiers
+        for bottomupFrontiers in ensembleFrontiers:
+            for b in bottomupFrontiers:
+                if b.task not in result.allFrontiers: continue # backwards compatibility with old checkpoints
+                result.allFrontiers[b.task] = result.allFrontiers[b.task].\
+                                              combine(grammar.rescoreFrontier(b)).\
+                                              topK(maximumFrontier)
 
-    result.searchTimes.append(ensembleTimes[bestRecognizer])
-    if len(ensembleTimes[bestRecognizer]) > 0:
-        eprint("Average search time: ", int(mean(ensembleTimes[bestRecognizer]) + 0.5),
-               "sec.\tmedian:", int(median(ensembleTimes[bestRecognizer]) + 0.5),
-               "\tmax:", int(max(ensembleTimes[bestRecognizer]) + 0.5),
-               "\tstandard deviation", int(standardDeviation(ensembleTimes[bestRecognizer]) + 0.5))
-    return totalTasksHitBottomUp
+        eprint("Frontiers discovered bottom up: " + str(len(totalTasksHitBottomUp)))
+        eprint("Total frontiers: " + str(len([f for f in result.allFrontiers.values() if not f.empty])))
+
+        result.searchTimes.append(ensembleTimes[bestRecognizer])
+        if len(ensembleTimes[bestRecognizer]) > 0:
+            eprint("Average search time: ", int(mean(ensembleTimes[bestRecognizer]) + 0.5),
+                   "sec.\tmedian:", int(median(ensembleTimes[bestRecognizer]) + 0.5),
+                   "\tmax:", int(max(ensembleTimes[bestRecognizer]) + 0.5),
+                   "\tstandard deviation", int(standardDeviation(ensembleTimes[bestRecognizer]) + 0.5))
+        return totalTasksHitBottomUp
 
 def consolidate(result, grammar, _=None, topK=None, arity=None, pseudoCounts=None, aic=None,
                 structurePenalty=None, compressor=None, CPUs=None, iteration=None):
