@@ -633,7 +633,7 @@ let filter_template_block blocks f =
 let map_tbs template_blocks_scene map_f with_template_block = 
   let template_block, rest_blocks = template_blocks_scene in 
   let temp = if with_template_block then [template_block] else [] in 
-  temp @ List.map rest_blocks ~f:(fun block -> map_f template_block block);;
+  temp @ (List.map rest_blocks ~f:(fun block -> map_f template_block block)) ;;
 
 
 
@@ -704,6 +704,230 @@ let p_c0f76784 grid cmap =
   blocks_to_original_grid moved true false ;;
  *)
 
+
+register_special_task "arc" (fun extras ?timeout:(timeout = 0.001) name ty examples ->
+Printf.eprintf "Making an arc task %s \n" name;
+{ name = name    ;
+    task_type = ty ;
+    log_likelihood =
+      (fun p -> 
+        Printf.eprintf "Program: %s \n" (string_of_program p) ;
+        flush_everything () ;
+        let p = analyze_lazy_evaluation p in
+        let rec loop = function
+          | [] -> true
+          | (xs,y) :: e ->
+            try
+              match run_for_interval
+                      timeout
+                      (fun () -> (magical (run_lazy_analyzed_with_arguments p xs)) === (magical y))
+              with
+                | Some(true) -> loop e
+                | _ -> false
+            with (* We have to be a bit careful with exceptions if the
+                  * synthesized program generated an exception, then we just
+                  * terminate w/ false but if the enumeration timeout was
+                  * triggered during program evaluation, we need to pass the
+                  * exception on
+                  *)
+              | UnknownPrimitive(n) -> raise (Failure ("Unknown primitive: "^n))
+              | EnumerationTimeout  -> raise EnumerationTimeout
+              | _                   -> false
+        in
+        if loop examples
+          then 0.0
+          else log 0.0)
+}) ;;
+
+(* primitives *)
+
+ignore(primitive "north" tdirection (-1,0)) ;;
+ignore(primitive "south" tdirection (1,0)) ;;
+ignore(primitive "west" tdirection (0,-1)) ;;
+ignore(primitive "east" tdirection (0,1)) ;;
+ignore(primitive "north_east" tdirection (-1,1)) ;;
+ignore(primitive "north_west" tdirection (-1,-1)) ;;
+ignore(primitive "south_east" tdirection (1,1)) ;;
+ignore(primitive "south_west" tdirection (1,-1)) ;;
+
+ignore(primitive "invisible" tcolor (-1)) ;;
+ignore(primitive "black" tcolor 0) ;;
+ignore(primitive "blue" tcolor 1) ;;
+ignore(primitive "red" tcolor 2) ;;
+ignore(primitive "green" tcolor 3) ;;
+ignore(primitive "yellow" tcolor 4) ;;
+ignore(primitive "grey" tcolor 5) ;;
+ignore(primitive "pink" tcolor 6) ;;
+ignore(primitive "orange" tcolor 7) ;;
+ignore(primitive "teal" tcolor 8) ;;
+ignore(primitive "maroon" tcolor 9) ;;
+
+(********** tblocks **********)
+
+(* tblocks -> tgridout *)
+ignore(primitive "blocks_to_original_grid" (tblocks @> tboolean @> tboolean @> tgridout) blocks_to_original_grid) ;;
+ignore(primitive "blocks_to_min_grid" (tblocks @> tboolean @> tboolean @> tgridout) blocks_to_min_grid) ;;
+
+(* tblocks -> tblock *)
+ignore(primitive "nth_of_sorted_object_list" (tblocks @> (tblock @> tint) @> tint @> tblock) nth_of_sorted_object_list) ;;
+ignore(primitive "singleton_block" (tblocks @> tblock) singleton_block) ;;
+ignore(primitive "merge_blocks" (tblocks @> tboolean @> tblock) merge_blocks) ;;
+
+(* tblocks -> tblocks *)
+ignore(primitive "filter_blocks" (tblocks @> (tblock @> tboolean) @> tblocks) (fun blocks f -> filter_blocks f blocks)) ;;
+ignore(primitive "map_blocks" (tblocks @> (tblock @> tblock) @> tblocks) (fun blocks f -> map_blocks f blocks)) ;;
+
+(* tblocks -> ttbs *)
+ignore(primitive "filter_template_block" (tblocks @> (tblock @> tboolean) @> ttbs) filter_template_block) ;;
+
+(********** tblock **********)
+
+(* tblock -> tblock *)
+ignore(primitive "reflect" (tblock @> tboolean @> tblock) reflect) ;;
+ignore(primitive "move" (tblock @> tint @> tdirection @> tboolean @> tblock) move) ;;
+ignore(primitive "center_block_on_tile" (tblock @> ttile @> tblock) center_block_on_tile) ;;
+ignore(primitive "duplicate" (tblock @> tdirection @> tint @> tblock) duplicate) ;;
+ignore(primitive "grow" (tblock @> tint @> tblock) grow) ;;
+ignore(primitive "fill_color" (tblock @> tcolor @> tblock) fill_color) ;;
+ignore(primitive "fill_snakewise" (tblock @> tcolors @> tblock) fill_snakewise) ;;
+ignore(primitive "replace_color" (tblock @> tcolor @> tcolor @> tblock) replace_color) ;;
+ignore(primitive "remove_black_b" (tblock @> tblock) remove_black_b) ;;
+ignore(primitive "remove_color" (tblock @> tcolor @> tblock) remove_color) ;;
+ignore(primitive "box_block" (tblock @> tblock) box_block) ;;
+ignore(primitive "wrap_block" (tblock @> tcolor @> tboolean @> tblock) wrap_block) ;;
+ignore(primitive "filter_block_tiles" (tblock @> (ttile @> tboolean) @> tblock) filter_block_tiles) ;;
+ignore(primitive "map_block_tiles" (tblock @> (ttile @> ttile) @> tblock) map_block_tiles) ;;
+
+(* tblock -> tgridout *)
+ignore(primitive "to_min_grid" (tblock @> tboolean @> tgridout) to_min_grid) ;;
+ignore(primitive "to_original_grid_overlay" (tblock @> tboolean @> tgridout) to_original_grid_overlay) ;;
+
+(* tblock -> tint *)
+ignore(primitive "get_height" (tblock @> tint) get_height) ;;
+ignore(primitive "get_width" (tblock @> tint) get_width) ;;
+ignore(primitive "get_original_grid_height" (tblock @> tint) get_original_grid_height) ;;
+ignore(primitive "get_original_grid_width" (tblock @> tint) get_original_grid_width) ;;
+ignore(primitive "get_num_tiles" (tblock @> tint) (fun {points;original_grid} -> List.length points)) ;;
+
+(* tblock -> tcolor *)
+ignore(primitive "nth_primary_color" (tblock @> tint @> tcolor) nth_primary_color) ;;
+
+(* tblock -> tboolean *)
+ignore(primitive "is_symmetrical" (tblock @> tboolean @> tboolean) is_symmetrical) ;;
+ignore(primitive "is_rectangle" (tblock @> tboolean @> tboolean) is_rectangle) ;;
+ignore(primitive "has_min_tiles" (tblock @> tint @> tboolean) has_min_tiles) ;;
+ignore(primitive "touches_any_boundary" (tblock @> tboolean) touches_any_boundary) ;;
+ignore(primitive "touches_boundary" (tblock @> tdirection @> tboolean) touches_boundary) ;;
+ignore(primitive "has_color" (tblock @> tcolor @> tboolean) has_color) ;;
+ignore(primitive "is_tile" (tblock @> tboolean) is_tile) ;;
+
+(* tblock -> ttile *)
+ignore(primitive "block_to_tile" (tblock @> ttile) block_to_tile) ;;
+ignore(primitive "get_block_center" (tblock @> ttile) get_block_center) ;;
+
+(* tblock -> tblocks *)
+ignore(primitive "map_for_directions" (tblock @> tdirections @> (t0 @> tdirection @> tblock) @> tblocks) map_for_directions) ;;
+
+(********** tgridin **********)
+
+(* tgridin -> tblocks *)
+ignore(primitive "find_same_color_blocks" (tgridin @> tboolean @> tboolean @> tblocks) find_same_color_blocks) ;;
+ignore(primitive "find_blocks_by_black_b" (tgridin @> tboolean @> tboolean @> tblocks) find_blocks_by_black_b) ;;
+ignore(primitive "find_blocks_by_color" (tgridin @> tcolor @> tboolean @> tboolean @> tblocks) find_blocks_by_color) ;;
+ignore(primitive "find_blocks_by_inferred_b" (tgridin @> tboolean @> tboolean @> tblocks) find_blocks_by_inferred_b) ;;
+
+(* tgridin -> tblock *)
+ignore(primitive "grid_to_block" (tgridin @> tblock) (fun x -> x)) ;;
+
+(* tgridin -> tsplitblocks *)
+ignore(primitive "split_grid" (tgridin @> tboolean @> tsplitblocks) split) ;;
+
+(* tgridin -> ttiles *)
+ignore(primitive "find_tiles_by_black_b" (tgridin @> ttiles) find_tiles_by_black_b) ;;
+
+(********** ttile **********)
+
+(* ttile -> tboolean *)
+ignore(primitive "is_interior" (ttile @> tboolean @> tboolean) is_interior) ;;
+ignore(primitive "is_exterior" (ttile @> tboolean @> tboolean) is_exterior) ;;
+ignore(primitive "tile_touches_block" (ttile @> tblock @> tdirection @> tboolean) tile_touches_block) ;;
+ignore(primitive "tile_overlaps_block" (ttile @> tblock @> tboolean) tile_overlaps_block) ;;
+
+(* ttile -> tcolor *)
+ignore(primitive "get_tile_color" (ttile @> tcolor) get_tile_color) ;;
+
+(* ttile -> tblock *)
+ignore(primitive "tile_to_block" (ttile @> tblock) tile_to_block) ;;
+ignore(primitive "extend_towards_until" (ttile @> tdirection @> (ttile @> tboolean) @> tblock) extend_towards_until) ;;
+ignore(primitive "extend_towards_until_edge" (ttile @> tdirection @> tblock) extend_towards_until_edge) ;;
+ignore(primitive "extend_until_touches_block" (ttile @> tblock @> tboolean @> tblock) extend_until_touches_block) ;;
+ignore(primitive "move_towards_until" (ttile @> tdirection @> (ttile @> tboolean) @> tblock) move_towards_until) ;;
+ignore(primitive "move_towards_until_edge" (ttile @> tdirection @> tblock) move_towards_until_edge) ;;
+ignore(primitive "move_until_touches_block" (ttile @> tblock @> tboolean @> tblock) move_until_touches_block) ;;
+ignore(primitive "move_until_overlaps_block" (ttile @> tblock @> tboolean @> tblock) move_until_overlaps_block) ;;
+
+(********** ttiles **********)
+
+(* ttiles -> tblocks *)
+ignore(primitive "tiles_to_blocks" (ttiles @> tblocks) tiles_to_blocks) ;;
+
+(* tiles -> tiles *)
+ignore(primitive "filter_tiles" (ttiles @> (ttile @> tboolean) @> ttiles) filter_tiles) ;;
+ignore(primitive "map_tiles" (ttiles @> (ttile @> tblock) @> tblocks) map_tiles) ;;
+
+(********** tsplitblocks **********)
+
+(* tsplitblocks -> tgridout *)
+ignore(primitive "overlap_split_blocks" (tsplitblocks @> (tcolor @> tcolor @> tcolor) @> tgridout) overlap_split_blocks) ;;
+
+(* tsplitblocks -> tblocks *)
+ignore(primitive "splitblocks_to_blocks" (tsplitblocks @> tblocks) (fun blocks -> blocks)) ;;
+
+(********** tcolor **********)
+
+(* tcolor -> tcolor *)
+ignore(primitive "color_logical" (tcolor @> tcolor @> tcolor @> tlogical @> tcolor) color_logical) ;;
+
+(* tcolor -> tcolors *)
+(* ignore(primitive "color_pair" (tcolor @> tcolor @> tcolors) color_pair) ;; *)
+
+(********** tlogical **********)
+
+(* tlogical *)
+ignore(primitive "land" tlogical (land)) ;;
+ignore(primitive "lor" tlogical (lor)) ;;
+ignore(primitive "lxor" tlogical (lxor)) ;;
+
+(********** tboolean **********)
+
+(* tboolean -> tboolean *)
+ignore(primitive "negate_boolean" (tboolean @> tboolean) (fun v -> (not v))) ;;
+
+(********** ttbs **********)
+ignore(primitive "map_tbs" (ttbs @> (tblock @> tblock @> tblock) @> tboolean @> tblocks) map_tbs) ;;
+
+(********** tcolorpair **********)
+
+(* ignore(primitive "make_colorpair" (tcolor @> tcolor @> tcolorpair) (fun c1 c2 -> (c1,c2))) ;; *)
+
+(********** tintcolorpair **********)
+
+(* ignore(primitive "make_intcolorpair" (tint @> tcolor @> tintcolorcpair) (fun n c -> (n,c))) ;; *)
+
+(********** tcmap **********)
+
+
+(* ignore(primitive "make_cmap" (tcolorpair @> tcolorpair @> tcolorpair @> tcmap) (fun cp1 cp2 cp3 -> [cp1 ; cp2; cp3])) ;; *)
+(* ignore(primitive "get_color_from_cmap" (tcmap @> tcolor @> tcolor) get_color_from_cmap) ;; *)
+
+(* ticmap *)
+
+(* ignore(primitive "make_icmap" (tintcolorcpair @> tintcolorcpair @> tintcolorcpair @> ticmap) (fun cp1 cp2 cp3 -> [cp1 ; cp2; cp3])) ;; *)
+
+(********** 913fb3ed **********)
+
+(* ignore(primitive "p_913fb3ed" (tgridin @> tcmap @> tgridout) p_913fb3ed) ;;
+ignore(primitive "p_c0f76784" (tgridin @> ticmap @> tgridout) p_c0f76784) ;; *)
 
 
 let python_split x =

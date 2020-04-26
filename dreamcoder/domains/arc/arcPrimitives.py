@@ -316,8 +316,6 @@ class RectangleBlock(Block):
 
 class Grid(RectangleBlock):
 
-    gridArray = None
-
     def __init__(self, gridArray=None, points=None, originalGrid=None):
         self.points = {}
         if points is not None:
@@ -326,8 +324,7 @@ class Grid(RectangleBlock):
             for y in range(len(gridArray)):
                 for x in range(len(gridArray[0])):
                     self.points[(y, x)] = gridArray[y][x]
-        self.gridArray = gridArray
-        RectangleBlock.__init__(self, self.points, originalGrid)
+        super().__init__(self.points, originalGrid)
 
     def __str__(self):
         temp = np.full((self.getNumRows(),self.getNumCols()),None)
@@ -336,11 +333,11 @@ class Grid(RectangleBlock):
         rows = [' '.join(row) for row in temp.tolist()]
         return '\n'.join(rows)
 
-    # def __repr__(self):
-    #     temp = {}
-    #     for yPos,xPos in self.points:
-    #         temp["{},{}".format(yPos, xPos)] = self.points[(yPos,xPos)]
-    #     return {'grid':temp}
+    def __repr__(self):
+        temp = {}
+        for yPos,xPos in self.points:
+            temp["{},{}".format(yPos, xPos)] = self.points[(yPos,xPos)]
+        return {'grid':temp}
 
     def fromPoints(self, points):
         return Grid(points=points, originalGrid=self.originalGrid)
@@ -980,13 +977,13 @@ manuallySolvedTasks = {
 
 if __name__ == "__main__":
 
-    directory = '/'.join(os.path.abspath(__file__).split('/')[:-4]) + '/arc-data/data/training'
-    train,test = getTask('f8a8fe49.json', directory)
+    # directory = '/'.join(os.path.abspath(__file__).split('/')[:-4]) + '/arc-data/data/training'
+    # train,test = getTask('f8a8fe49.json', directory)
 
-    generatedTasks = generateFromFrontier(train, 73)
-    for task in generatedTasks:
-        for example in task.examples:
-            inputGrid, outputGrid = example
+    # generatedTasks = generateFromFrontier(train, 73)
+    # for task in generatedTasks:
+    #     for example in task.examples:
+    #         inputGrid, outputGrid = example
             # print(inputGrid)
             # print('-------------------------')
             # print(outputGrid)
@@ -1030,4 +1027,5 @@ if __name__ == "__main__":
         # count = 0
 
         # res = _filter(lambda block: _hasMinTiles(4)(block))(inputGrid.findBlocksByCorner(0))
-        # _blocksToGrid(res).pprint()pt
+
+        # _blocksToGrid(res).pprint()
