@@ -231,7 +231,7 @@ def scoreProgram(p, recognizer=None, grammar=None, taskName=None, task=None):
     if recognizer is not None:
         grammar = recognizer.grammarOfTask(task).untorch()
     ll = grammar.logLikelihood(arrow(tgridin, tgridout), p)
-        return ll
+    return ll
 
 def main(args):
     """
@@ -288,9 +288,9 @@ def main(args):
     # # v = arcNN.featuresOfTask(nnTrainTask[0])
     # # print(v)
 
-    # resumePath = '/Users/theo/Development/program_induction/results/checkpoints/2020-04-13T18:58:48.642078/'
-    # pickledFile = 'list_aic=1.0_arity=3_BO=True_CO=True_ES=1_ET=1200_t_zero=3600_HR=0.0_it=2_MF=10_noConsolidation=False_pc=30.0_RT=1800_RR=False_RW=False_solver=ocaml_STM=True_L=1.0_TRR=default_K=2_topkNotMAP=False_graph=True.pickle'
-    # expandedFrontiers, resumeGrammar = getTrainFrontier(resumePath + pickledFile, 0)
+    resumePath = '/Users/theo/Development/program_induction/results/checkpoints/2020-04-13T18:58:48.642078/'
+    pickledFile = 'list_aic=1.0_arity=3_BO=True_CO=True_ES=1_ET=1200_t_zero=3600_HR=0.0_it=2_MF=10_noConsolidation=False_pc=30.0_RT=1800_RR=False_RW=False_solver=ocaml_STM=True_L=1.0_TRR=default_K=2_topkNotMAP=False_graph=True.pickle'
+    expandedFrontiers, resumeGrammar = getTrainFrontier(resumePath + pickledFile, 0)
     # # recognitionModel = RecognitionModel(ArcCNN(), baseGrammar)
     # # for frontier in expandedFrontiers:
     # #     task = frontier.task
@@ -331,10 +331,10 @@ def main(args):
     # for frontier in expandedFrontiers:
     #     llBefore = scoreProgram(frontier.entries[0].program, grammar=baseGrammar)
     #     llAfter = scoreProgram(frontier.entries[0].program, grammar=otherGrammar)
-    #     llResume = scoreProgram(frontier.entries[0].program, grammar=resumeGrammar)
+    #     # llResume = scoreProgram(frontier.entries[0].program, grammar=resumeGrammar)
     #     # llAfter = scoreProgram(frontier.entries[0].program, trainedRecognizer, task=frontier.task)
     #     # print("{}".format(Grammar.uniform(basePrimitives() + leafPrimitives())))
-    #     print("{}: {}, {}, {}".format(frontier.task.name, llBefore, llAfter, llResume))
+    #     print("{}: {}, {}".format(frontier.task.name, llBefore, llAfter))
     #     print("Program: {}".format(frontier.entries[0].program))
 
     # print('\n ------------------------------ Test ------------------------------------ \n')        
@@ -344,9 +344,12 @@ def main(args):
     #         p = Program.parse(manuallySolvedTasks[task])
     #         llBefore = scoreProgram(p, grammar=baseGrammar)
     #         llAfter = scoreProgram(p, grammar=otherGrammar)
-    #         llResume = scoreProgram(p, grammar=resumeGrammar)
+    #         # try:
+    #         #     llResume = scoreProgram(p, grammar=resumeGrammar)
+    #         # except:
+    #         #     llResume = -1
     #         # llAfter = scoreProgram(p, trainedRecognizer, task=frontier.task)
-    #         print("{}: {}, {}, {}".format(frontier.task.name, llBefore, llAfter, llResume))
+    #         print("{}: {}, {}".format(frontier.task.name, llBefore, llAfter))
     #         print("Program: {}".format(p))
 
     explorationCompression(otherGrammar, trainTasks, testingTasks=testTasks, **args)

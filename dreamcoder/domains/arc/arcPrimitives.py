@@ -597,7 +597,7 @@ if runFull:
     tlogical = baseType('tlogical')
     ttbs = baseType('template_blocks_scene')
 
-    # tcolorpair = tpair(tcolor, tcolor)
+    tcolorpair = tpair(tcolor, tcolor)
     # tcmap = tlist(tcolorpair)
 
     # tintcolorpair = tpair(tint, tcolor)
@@ -679,7 +679,7 @@ def basePrimitives():
     Primitive('duplicate', arrow(tblock, tdirection, tint, tblock), None),
     Primitive('grow', arrow(tblock, tint, tblock), _grow),
     Primitive('fill_color', arrow(tblock, tcolor, tblock), _fill),
-    Primitive('fill_snakewise', arrow(tblock, tcolors, tblock), None),
+    Primitive('fill_snakewise', arrow(tblock, tcolorpair, tblock), None),
     Primitive('replace_color', arrow(tblock, tcolor, tcolor, tblock), _replaceColors),
     Primitive('remove_black_b', arrow(tblock, tblock), None),
     Primitive('remove_color', arrow(tblock, tcolor, tblock), None),
@@ -798,7 +798,7 @@ def basePrimitives():
 
 # ##### tcolorpair #####
 
-#     Primitive("make_colorpair", arrow(tcolor, tcolor, tcolorpair), None),
+    Primitive("make_colorpair", arrow(tcolor, tcolor, tcolorpair), None),
 
 # ##### tintcolorpair #####
 
@@ -959,7 +959,7 @@ manuallySolvedTasks = {
     "ce4f8723.json":"(lambda (overlap_split_blocks (split_grid $0 true) (lambda (lambda (color_logical $1 $0 green lor)))))",
     "0520fde7.json": "(lambda (overlap_split_blocks (split_grid $0 true) (lambda (lambda (color_logical $1 $0 red land)))))",
     "c9e6f938.json": "(lambda (to_min_grid (move (reflect (grid_to_block $0) false) 3 east true) false))",
-    "97999447.json": "(lambda (blocks_to_original_grid (map_blocks (map_tiles (find_tiles_by_black_b $0) (lambda (extend_towards_until $0 east (lambda (touches_any_boundary (tile_to_block $0)))))) (lambda (fill_snakewise $0 (color_pair invisible grey)))) false true))",
+    "97999447.json": "(lambda (blocks_to_original_grid (map_blocks (map_tiles (find_tiles_by_black_b $0) (lambda (extend_towards_until $0 east (lambda (touches_any_boundary (tile_to_block $0)))))) (lambda (fill_snakewise $0 (make_colorpair invisible grey)))) false true))",
     "5521c0d9.json": "(lambda (blocks_to_original_grid (map_blocks (find_same_color_blocks $0 true false) (lambda (move $0 (get_height $0) north false))) false true))",
     # "007bbfb7": (lambda ()),
     "d037b0a7.json": "(lambda (blocks_to_original_grid (map_tiles (find_tiles_by_black_b $0) (lambda (extend_towards_until $0 south (lambda (touches_boundary (tile_to_block $0) south))))) false true))",
@@ -977,55 +977,14 @@ manuallySolvedTasks = {
 
 if __name__ == "__main__":
 
-    # directory = '/'.join(os.path.abspath(__file__).split('/')[:-4]) + '/arc-data/data/training'
-    # train,test = getTask('f8a8fe49.json', directory)
+    directory = '/'.join(os.path.abspath(__file__).split('/')[:-4]) + '/arc-data/data/training'
+    train,test = getTask('f8a8fe49.json', directory)
 
-    # generatedTasks = generateFromFrontier(train, 73)
-    # for task in generatedTasks:
-    #     for example in task.examples:
-    #         inputGrid, outputGrid = example
-            # print(inputGrid)
-            # print('-------------------------')
-            # print(outputGrid)
-            # print('\n')
-    # example = train[0]
-    # print(example[0])
-    # print('---------------')
-    # print(example[1])
-    # for newExample in colorPermuteExample(example):
-    #     print(newExample[0])
-    #     print('---------------')
-    #     print(newExample[1])
-    # for i in range(len(train)):
-    #     print('\nExample {}'.format(i))
-    #     grid, outputGrid = train[i]
-    #     got = _blockToMinGrid(_move(grid)(_numCols(grid))('right')(True))(False)
-    #     # for block in got:
-    #         # block.pprint()
-    #     #     isHorizontal = False
-    #     #     reflectedBlock = block.reflect(isHorizontal)
-    #     #     refA, refB = reflectedBlock.split(isHorizontal)
-    #     #     refA.pprint()
-    #     #     a,b = block.split(isHorizontal)
-    #     #     a.pprint()
-    #     #
-    #     #     refB.pprint()
-    #     #     b.pprin t()
-    #     #     print(block.isSymmetrical(isHorizontal))
-    #     #     print('\n')
-
-    #     # print('Input: ')
-    #     # inputGrid.pprint()
-    #     print('Got: ')
-    #     got.pprint()
-    #     print('Expected')
-    #     outputGrid.pprint()
-    #     if (got == outputGrid):
-    #         print('HIT')
-        # break
-        # inputGrid.pprint()
-        # count = 0
-
-        # res = _filter(lambda block: _hasMinTiles(4)(block))(inputGrid.findBlocksByCorner(0))
-
-        # _blocksToGrid(res).pprint()
+    generatedTasks = generateFromFrontier(train, 73)
+    for task in generatedTasks:
+        for example in task.examples:
+            inputGrid, outputGrid = example
+            print(inputGrid)
+            print('-------------------------')
+            print(outputGrid)
+            print('\n')
