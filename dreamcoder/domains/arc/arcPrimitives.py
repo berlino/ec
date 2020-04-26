@@ -596,8 +596,7 @@ if runFull:
     tsplitblock = baseType('tsplitblock')
     tlogical = baseType('tlogical')
     ttbs = baseType('template_blocks_scene')
-
-    # tcolorpair = tpair(tcolor, tcolor)
+    tcolorpair = tpair(tcolor, tcolor)
     # tcmap = tlist(tcolorpair)
 
     # tintcolorpair = tpair(tint, tcolor)
@@ -679,7 +678,7 @@ def basePrimitives():
     Primitive('duplicate', arrow(tblock, tdirection, tint, tblock), None),
     Primitive('grow', arrow(tblock, tint, tblock), _grow),
     Primitive('fill_color', arrow(tblock, tcolor, tblock), _fill),
-    Primitive('fill_snakewise', arrow(tblock, tcolors, tblock), None),
+    Primitive('fill_snakewise', arrow(tblock, tcolorpair, tblock), None),
     Primitive('replace_color', arrow(tblock, tcolor, tcolor, tblock), _replaceColors),
     Primitive('remove_black_b', arrow(tblock, tblock), None),
     Primitive('remove_color', arrow(tblock, tcolor, tblock), None),
@@ -796,9 +795,9 @@ def basePrimitives():
 #### ttbs ####
     Primitive("map_tbs", arrow(ttbs, arrow(tblock, tblock, tblock), tbool, tblocks), None),
 
-# ##### tcolorpair #####
+##### tcolorpair #####
 
-#     Primitive("make_colorpair", arrow(tcolor, tcolor, tcolorpair), None),
+    Primitive("make_colorpair", arrow(tcolor, tcolor, tcolorpair), None),
 
 # ##### tintcolorpair #####
 

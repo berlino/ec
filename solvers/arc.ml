@@ -706,12 +706,12 @@ let p_c0f76784 grid cmap =
 
 
 register_special_task "arc" (fun extras ?timeout:(timeout = 0.001) name ty examples ->
-Printf.eprintf "Making an arc task %s \n" name;
+(* Printf.eprintf "Making an arc task %s \n" name; *)
 { name = name    ;
     task_type = ty ;
     log_likelihood =
       (fun p -> 
-        Printf.eprintf "Program: %s \n" (string_of_program p) ;
+        (* Printf.eprintf "Program: %s \n" (string_of_program p) ; *)
         flush_everything () ;
         let p = analyze_lazy_evaluation p in
         let rec loop = function
@@ -789,7 +789,7 @@ ignore(primitive "center_block_on_tile" (tblock @> ttile @> tblock) center_block
 ignore(primitive "duplicate" (tblock @> tdirection @> tint @> tblock) duplicate) ;;
 ignore(primitive "grow" (tblock @> tint @> tblock) grow) ;;
 ignore(primitive "fill_color" (tblock @> tcolor @> tblock) fill_color) ;;
-ignore(primitive "fill_snakewise" (tblock @> tcolors @> tblock) fill_snakewise) ;;
+ignore(primitive "fill_snakewise" (tblock @> tcolorpair @> tblock) fill_snakewise) ;;
 ignore(primitive "replace_color" (tblock @> tcolor @> tcolor @> tblock) replace_color) ;;
 ignore(primitive "remove_black_b" (tblock @> tblock) remove_black_b) ;;
 ignore(primitive "remove_color" (tblock @> tcolor @> tblock) remove_color) ;;
@@ -908,7 +908,7 @@ ignore(primitive "map_tbs" (ttbs @> (tblock @> tblock @> tblock) @> tboolean @> 
 
 (********** tcolorpair **********)
 
-(* ignore(primitive "make_colorpair" (tcolor @> tcolor @> tcolorpair) (fun c1 c2 -> (c1,c2))) ;; *)
+ignore(primitive "make_colorpair" (tcolor @> tcolor @> tcolorpair) (fun c1 c2 -> (c1,c2))) ;;
 
 (********** tintcolorpair **********)
 
