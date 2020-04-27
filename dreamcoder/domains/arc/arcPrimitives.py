@@ -657,14 +657,14 @@ def basePrimitives():
     Primitive('blocks_to_min_grid', arrow(tblocks, tbool, tbool, tgridout),  None),
 
     # arrow(tblocks, tblock)
-    Primitive("nth_of_sorted_object_list", arrow(tblocks, arrow(tblock, tint), tint, tblock), None),
+    Primitive("first_of_sorted_object_list", arrow(tblocks, arrow(tblock, tint), tbool, tblock), None),
     Primitive("singleton_block" , arrow(tblocks, tblock), None),
     Primitive("merge_blocks", arrow(tblocks, tbool, tblock), None),
 
     # arrow(tblocks, tblocks)
     Primitive("filter_blocks", arrow(tblocks, arrow(tblock, tbool), tblocks), _filter),
     Primitive("map_blocks", arrow(tblocks, arrow(tblock, tblock), tblocks), _map),
-    Primitive('sortBlocks',arrow(tblocks, arrow(tblock, tint), tblocks), _sortBlocks),
+    # Primitive('sortBlocks',arrow(tblocks, arrow(tblock, tint), tblocks), _sortBlocks),
 
     # arrow(tblocks, ttbs)
     Primitive("filter_template_block", arrow(tblocks, arrow(tblock, tbool), ttbs), None),

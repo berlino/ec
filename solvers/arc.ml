@@ -244,12 +244,15 @@ let filter_blocks f l = List.filter l ~f:(fun block -> (f block))
 
 let map_blocks f l = List.map l ~f:(fun block -> (f block))
 
-let nth_of_sorted_object_list objects f n = 
+let first_of_sorted_object_list objects f reverse = 
   let with_ints = List.map objects ~f:(fun x -> (f x, x)) in
   let sorted_with_ints = List.sort with_ints ~compare:(fun (a_v, a_x) (b_v, b_x) -> b_v - a_v) in
   let sorted = List.map sorted_with_ints ~f:(fun (v, x) -> x) in
-  if (n < (List.length sorted)) then 
-  (List.nth_exn sorted n) else raise (Failure ("inded out of range"))
+  if (List.length sorted) > 0 then match reverse with
+    | false -> List.nth_exn sorted 0 
+    | true -> List.nth_exn sorted ((List.length sorted)-1)
+  else
+     raise (Failure ("inded out of range"))
 
 let reflect {points;original_grid} is_horizontal = 
   let reflect_point ((y,x),c) = if is_horizontal then ((get_min_y {points;original_grid} - y + get_max_y {points;original_grid} ,x),c)
@@ -769,7 +772,7 @@ ignore(primitive "blocks_to_original_grid" (tblocks @> tboolean @> tboolean @> t
 ignore(primitive "blocks_to_min_grid" (tblocks @> tboolean @> tboolean @> tgridout) blocks_to_min_grid) ;;
 
 (* tblocks -> tblock *)
-ignore(primitive "nth_of_sorted_object_list" (tblocks @> (tblock @> tint) @> tint @> tblock) nth_of_sorted_object_list) ;;
+ignore(primitive "first_of_sorted_object_list" (tblocks @> (tblock @> tint) @> tboolean @> tblock) first_of_sorted_object_list) ;;
 ignore(primitive "singleton_block" (tblocks @> tblock) singleton_block) ;;
 ignore(primitive "merge_blocks" (tblocks @> tboolean @> tblock) merge_blocks) ;;
 
@@ -908,7 +911,7 @@ ignore(primitive "map_tbs" (ttbs @> (tblock @> tblock @> tblock) @> tboolean @> 
 
 (********** tcolorpair **********)
 
-ignore(primitive "make_colorpair" (tcolor @> tcolor @> tcolorpair) (fun c1 c2 -> (c1,c2))) ;;
+ignore(primitive "make_colorpair" (tcolor @> tcolor @> tcolorpair) (fun c1 c2 -> [c1;c2])) ;;
 
 (********** tintcolorpair **********)
 
@@ -1026,11 +1029,11 @@ let p_f25fbde4 grid =
 
 let p_fcb5c309 grid = 
   let blocks = find_same_color_blocks grid true true in
-  let largest_block = nth_of_sorted_object_list blocks (fun block -> List.length block.points) 0 in
+  let largest_block = first_of_sorted_object_list blocks (fun block -> List.length block.points) false in
   let largest_block_no_b = remove_black_b largest_block in
   let colored_block = replace_color largest_block (nth_primary_color largest_block_no_b 0) (nth_primary_color largest_block_no_b 1) in
   to_min_grid colored_block false ;;
-(* test_task "fcb5c309.json" (-1) p_fcb5c309 true ;; *)
+(* (* test_task "fcb5c309.json" (-1) p_fcb5c309 true ;; *) *)
 
 let p_ce4f8723 grid = 
   let split_blocks = split grid true in
