@@ -406,7 +406,7 @@ def ecIterator(grammar, tasks,
             topDownFrontiers, times = wake_generative(grammar, wakingTaskBatch,
                                                       solver=solver,
                                                       maximumFrontier=maximumFrontier,
-                                                      enumerationTimeout=enumerationTimeout if j > 0 else firstTimeEnumerationTimeout,
+                                                      enumerationTimeout=enumerationTimeout,
                                                       CPUs=CPUs,
                                                       evaluationTimeout=evaluationTimeout)
             result.trainSearchTime = {t: tm for t, tm in times.items() if tm is not None}

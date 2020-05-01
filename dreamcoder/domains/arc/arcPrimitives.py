@@ -966,12 +966,12 @@ manuallySolvedTasks = {
     "4347f46a.json": "(lambda (blocks_to_original_grid (map_blocks (find_same_color_blocks $0 false false) (lambda (filter_block_tiles $0 (lambda (is_exterior $0 false))))) false true))",
     "50cb2852.json": "(lambda (blocks_to_original_grid (map_blocks (find_blocks_by_black_b $0 true false) (lambda (fill_color (filter_block_tiles $0 (lambda (is_interior $0 true))) teal))) true true))",
     "a5313dff.json": "(lambda (blocks_to_original_grid (map_blocks (filter_blocks (find_blocks_by_color $0 black false false) (lambda (negate_boolean (touches_any_boundary $0)))) (lambda (fill_color $0 blue))) true true))",
-    # "ea786f4a": (
+    # "ea786f4a": map_for_directions
     "22eb0ac0.json": "(lambda (blocks_to_original_grid (map_tiles (find_tiles_by_black_b $0) (lambda (extend_towards_until_edge $0 east))) true false))",
     "88a10436.json": "(lambda (blocks_to_original_grid (map_tbs (filter_template_block (find_blocks_by_black_b $0 true false) (lambda (is_rectangle $0 false))) (lambda (lambda (center_block_on_tile $0 (block_to_tile $1)))) false) true true))",
-    "a48eeaf7.json": "(lambda (blocks_to_original_grid (map_tbs (filter_template_block (find_blocks_by_inferred_b $0 true false) (lambda (has_min_tiles $0 2))) (lambda (lambda (move_until_touches_block (block_to_tile $0) $1 true))) true) false false))",
-    "2c608aff.json": "(lambda (blocks_to_original_grid (map_tbs (filter_template_block (find_blocks_by_inferred_b $0 true false) (lambda (has_min_tiles $0 2))) (lambda (lambda (extend_until_touches_block (block_to_tile $0) $1 false))) true) true false))",
-    "1f642eb9.json": "(lambda (blocks_to_original_grid (map_tbs (filter_template_block (find_blocks_by_inferred_b $0 true false) (lambda (has_min_tiles $0 2))) (lambda (lambda (move_until_overlaps_block (block_to_tile $0) $1 false))) false) true false))",
+    "a48eeaf7.json": "(lambda (blocks_to_original_grid (map_tbs (filter_template_block (find_blocks_by_inferred_b $0 true false) (lambda (is_tile $0))) (lambda (lambda (move_until_touches_block (block_to_tile $0) $1 true))) true) false false))",
+    "2c608aff.json": "(lambda (blocks_to_original_grid (map_tbs (filter_template_block (find_blocks_by_inferred_b $0 true false) (lambda (is_tile $0))) (lambda (lambda (extend_until_touches_block (block_to_tile $0) $1 false))) true) true false))",
+    "1f642eb9.json": "(lambda (blocks_to_original_grid (map_tbs (filter_template_block (find_blocks_by_inferred_b $0 true false) (lambda (is_tile $0))) (lambda (lambda (move_until_overlaps_block (block_to_tile $0) $1 false))) false) true false))",
 }
 
 if __name__ == "__main__":

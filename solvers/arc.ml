@@ -932,7 +932,6 @@ ignore(primitive "make_colorpair" (tcolor @> tcolor @> tcolorpair) (fun c1 c2 ->
 (* ignore(primitive "p_913fb3ed" (tgridin @> tcmap @> tgridout) p_913fb3ed) ;;
 ignore(primitive "p_c0f76784" (tgridin @> ticmap @> tgridout) p_c0f76784) ;; *)
 
-
 let python_split x =
   let split = String.split_on_chars ~on:[','] x in 
   let filt_split = List.filter split ~f:(fun x -> x <> "") in
@@ -1033,7 +1032,7 @@ let p_fcb5c309 grid =
   let largest_block_no_b = remove_black_b largest_block in
   let colored_block = replace_color largest_block (nth_primary_color largest_block_no_b 0) (nth_primary_color largest_block_no_b 1) in
   to_min_grid colored_block false ;;
-(* (* test_task "fcb5c309.json" (-1) p_fcb5c309 true ;; *) *)
+(* test_task "fcb5c309.json" (-1) p_fcb5c309 true ;; *)
 
 let p_ce4f8723 grid = 
   let split_blocks = split grid true in
@@ -1081,8 +1080,10 @@ let p_d037b0a7 grid =
 let p_5117e062 grid = 
   let blocks = find_blocks_by_black_b grid true false in
   let filtered_blocks = filter_blocks (fun block -> has_color block 8) blocks in
-  let final_block = fill_color (merge_blocks filtered_blocks true) (nth_primary_color (merge_blocks filtered_blocks true) 0) in
+  let tealed_block = merge_blocks filtered_blocks true in
+  let final_block = fill_color (tealed_block) (nth_primary_color (tealed_block) 0) in
   to_min_grid final_block false ;;
+(* "(lambda (to_min_grid (fill_color (merge_blocks (filter_blocks (lambda (has_color block teal)) (find_blocks_by_black_b $0 true false) true) (nth_primary_color (teal_block) 0)) false))" *)
 (* test_task "5117e062.json" (-1) p_5117e062 true ;; *)
 
 let p_4347f46a grid = 
@@ -1121,28 +1122,28 @@ let p_22eb0ac0 grid =
 
 let p_88a10436 grid = 
   let blocks = find_blocks_by_black_b grid true false in
-  let tbs = filter_template_block blocks (fun block -> (is_rectangle block false)) in 
+  let tbs = filter_template_block blocks is_tile in 
   let final_blocks = map_tbs tbs (fun planet_block satelite_block -> center_block_on_tile satelite_block (block_to_tile planet_block)) false in
   blocks_to_original_grid final_blocks true true ;;
 (* test_task "88a10436.json" (-1) p_88a10436 true;; *)
 
 let p_a48eeaf7 grid = 
   let blocks = find_blocks_by_inferred_b grid true false in 
-  let planet_block, satelite_blocks = filter_template_block blocks (fun block -> has_min_tiles block 2) in 
+  let planet_block, satelite_blocks = filter_template_block blocks (fun block -> not (is_tile block)) in 
   let modified_tbs = map_tbs (planet_block, satelite_blocks) (fun planet_block satelite_block -> move_until_touches_block (block_to_tile satelite_block) planet_block true) true in 
   blocks_to_original_grid modified_tbs false false ;;
 (* test_task "a48eeaf7.json" (-1) p_a48eeaf7 true ;; *)
 
 let p_2c608aff grid = 
   let blocks = find_blocks_by_inferred_b grid true false in 
-  let planet_block, satelite_blocks = filter_template_block blocks (fun block -> has_min_tiles block 2) in 
+  let planet_block, satelite_blocks = filter_template_block blocks (fun block -> not (is_tile block)) in 
   let modified_tbs = map_tbs (planet_block, satelite_blocks) (fun planet_block satelite_block -> extend_until_touches_block (block_to_tile satelite_block) planet_block false) true in 
   blocks_to_original_grid modified_tbs true false ;;
 (* test_task "2c608aff.json" (-1) p_2c608aff true ;;   *)
 
 let p_1f642eb9 grid = 
   let blocks = find_blocks_by_black_b grid true false in 
-  let planet_block, satelite_blocks = filter_template_block blocks (fun block -> has_min_tiles block 2) in 
+  let planet_block, satelite_blocks = filter_template_block blocks (fun block -> not (is_tile block)) in 
   let modified_tbs = map_tbs (planet_block, satelite_blocks) (fun planet_block satelite_block -> move_until_overlaps_block (block_to_tile satelite_block) planet_block false) false in 
   blocks_to_original_grid modified_tbs true false ;;
 

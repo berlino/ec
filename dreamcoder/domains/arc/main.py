@@ -12,8 +12,8 @@ import torch.nn.functional as F
 import numpy as np
 
 from dreamcoder.dreamcoder import explorationCompression, sleep_recognition
-from dreamcoder.utilities import eprint, flatten, testTrainSplit
-from dreamcoder.grammar import Grammar
+from dreamcoder.utilities import eprint, flatten, testTrainSplit, lse
+from dreamcoder.grammar import Grammar, ContextualGrammar
 from dreamcoder.task import Task
 from dreamcoder.type import Context, arrow, tbool, tlist, tint, t0, UnificationFailure
 from dreamcoder.recognition import RecognitionModel
@@ -211,13 +211,15 @@ def resume_from_path(resume):
     resume = len(result.grammars) - 1
     eprint("Loaded checkpoint from", path)
     grammar = result.grammars[-1] if result.grammars else grammar
-    return result, grammar
+    return result, grammar, result.grammars[0]
 
 def getTrainFrontier(resumePath, n):
-    result, resumeGrammar = resume_from_path(resumePath)
-    firstFrontier = [frontier[0] for (key,frontier) in result.frontiersOverTime.items() if len(frontier[0].entries) > 0]
-    expandedFrontier = expandFrontier(firstFrontier, n)
-    return expandedFrontier, resumeGrammar
+    result, resumeGrammar, preConsolidationGrammar = resume_from_path(resumePath)
+    firstFrontier = [frontiers[0] for (key,frontiers) in result.frontiersOverTime.items() if len(frontiers[0].entries) > 0]
+    allFrontiers = [frontier for (task,frontier) in result.allFrontiers.items() if len(frontier.entries) > 0]
+    # expandedFrontier = expandFrontier(firstFrontier, n)
+    print(result.recognitionModel)
+    return firstFrontier, allFrontiers, resumeGrammar, preConsolidationGrammar, result.recognitionModel
 
 def getTask(taskName, allTasks):
     for task in allTasks:
@@ -230,8 +232,88 @@ def scoreProgram(p, recognizer=None, grammar=None, taskName=None, task=None):
         task = getTask(taskName, trainTasks)
     if recognizer is not None:
         grammar = recognizer.grammarOfTask(task).untorch()
+    if grammar is None:
+        return 0
     ll = grammar.logLikelihood(arrow(tgridin, tgridout), p)
     return ll
+
+def normalizeProductions(grammar):
+    z = lse([l for l,_,p in grammar.productions])
+    normalizedProductions = [(p[0]-z, p[2]) for p in grammar.productions]
+    return Grammar.fromProductions(normalizedProductions)
+
+def upweightProduction(name, scaleFactor, grammar):
+    productions = [(p[0],p[2]) for p in grammar.productions]
+    for i in range(len(productions)):
+        if str(productions[i][1]) == name:
+            print('production before: {}'.format(productions[i][0]))
+            productions[i] = (productions[i][0] + math.log(scaleFactor), productions[i][1])
+            print('production after: {}'.format(productions[i][0]))
+    return Grammar.fromProductions(productions)
+
+def upweightConditionalProduction(parentPrimitive, argumentIndex, production, scaleFactor, contextualGrammar):
+    primitiveGrammar = contextualGrammar.library[parentPrimitive][argumentIndex]
+    print('primitiveGrammar before: ', primitiveGrammar)
+    newPrimitiveGrammar = upweightProduction(production, scaleFactor, primitiveGrammar)
+    print('conditionalGrammar after: ', newPrimitiveGrammar)
+    newContextualGrammar = copy.deepcopy(contextualGrammar)
+    newContextualGrammar.library[parentPrimitive][argumentIndex] = newPrimitiveGrammar
+    return newContextualGrammar
+
+def upweightConditionalProductions(parent2UpdateProduction, scaleFactor, contextualGrammar):
+    currentGrammar = contextualGrammar
+    for ((parentPrimitive, argIndex),production) in parent2UpdateProduction.items():
+        currentGrammar = upweightConditionalProduction(parentPrimitive, argIndex, production, scaleFactor, currentGrammar)
+    return currentGrammar
+
+def evaluateGrammars(dreamcoderFrontier, manuallySolvedTasks, grammar1=None, grammar2=None, recognizer1=None, recognizer2=None):
+
+    print('\n ------------------------------ Solved by Dreamcoder ------------------------------------ \n')
+    averageLLBefore, averageLLAfter = 0,0
+    for frontier in dreamcoderFrontier:
+        llBefore = scoreProgram(frontier.entries[0].program, grammar=grammar1, recognizer=recognizer1)
+        llAfter = scoreProgram(frontier.entries[0].program, grammar=grammar2, recognizer=recognizer2)
+        if llAfter == 0:
+            print("{}: {}".format(frontier.task, llBefore))
+        else:
+            print("{}: {} -> {}".format(frontier.task.name, llBefore, llAfter))
+        print("Program: {}\n".format(frontier.entries[0].program))
+        averageLLBefore += llBefore
+        averageLLAfter += llAfter
+
+    print("Solved {} tasks".format(len(dreamcoderFrontier)))
+    if llAfter == 0:
+        print('Average LL: {}'.format(averageLLBefore / len(dreamcoderFrontier)))
+    else:
+        print('Average LL: {} -> {}'.format(averageLLBefore / len(dreamcoderFrontier), (averageLLAfter / len(dreamcoderFrontier))))
+
+    print('\n ------------------------------ Manually Solved ------------------------------------ \n')        
+
+
+    solvedByDreamcoder = 0
+    averageLLBefore, averageLLAfter = 0,0
+    for task,program in manuallySolvedTasks.items():
+        if task not in [frontier.task.name for frontier in dreamcoderFrontier]:
+            p = Program.parse(manuallySolvedTasks[task])
+            llBefore = scoreProgram(p, grammar=grammar1, recognizer=recognizer1)
+            llAfter = scoreProgram(p, grammar=grammar2, recognizer=recognizer2)
+            if llAfter == 0:
+                print("{}: {}".format(task, llBefore))
+            else:
+                print("{}: {} -> {}".format(task, llBefore, llAfter))
+            print("Program: {}\n".format(p))
+            averageLLBefore += llBefore
+            averageLLAfter += llAfter
+        else:
+            solvedByDreamcoder += 1
+    
+    print("{} of {} manually written solutions were found by Dreamcoder".format(solvedByDreamcoder, len(manuallySolvedTasks)))
+    numUnsolved = len(manuallySolvedTasks) - solvedByDreamcoder
+    if llAfter == 0:
+        print('Average LL: {}'.format(averageLLBefore / numUnsolved))
+    else:
+        print('Average LL: {} -> {}'.format(averageLLBefore/numUnsolved, averageLLAfter/numUnsolved))
+
 
 def main(args):
     """
@@ -255,14 +337,7 @@ def main(args):
 
     import os
 
-    directory = (
-        "/".join(os.path.abspath(__file__).split("/")[:-4]) + "/arc-data/data/training"
-    )
-    print(directory)
-
-    # for key in samples.keys():
-    #     check(key, lambda x: samples[key](x), directory)
-
+    directory = "/".join(os.path.abspath(__file__).split("/")[:-4]) + "/arc-data/data/"
 
     if single_train_task:
         # trainTasks = retrieveARCJSONTasks(directory, ["913fb3ed.json", "72ca375d.json","f25fbde4.json","fcb5c309.json","ce4f8723.json","0520fde7.json","c9e6f938.json","97999447.json","5521c0d9.json","007bbfb7.json","d037b0a7.json","5117e062.json","4347f46a.json","50cb2852.json","88a10436.json","a5313dff"])
@@ -270,7 +345,9 @@ def main(args):
         # Tile tasks
         # trainTasks = retrieveARCJSONTasks(directory, ["97999447.json", "d037b0a7.json", "4347f46a.json", "50cb2852.json"])
     else:
-        trainTasks, testTasks = retrieveARCJSONTasks(directory, None)
+        trainTasks, _ = retrieveARCJSONTasks(directory + 'training', None)
+
+    testTasks, _ = retrieveARCJSONTasks(directory + 'evaluation')
 
     baseGrammar = Grammar.uniform(basePrimitives() + leafPrimitives())
     # print("base Grammar {}".format(baseGrammar))
@@ -288,10 +365,46 @@ def main(args):
     # # v = arcNN.featuresOfTask(nnTrainTask[0])
     # # print(v)
 
-    resumePath = '/Users/theo/Development/program_induction/results/checkpoints/2020-04-13T18:58:48.642078/'
-    pickledFile = 'list_aic=1.0_arity=3_BO=True_CO=True_ES=1_ET=1200_t_zero=3600_HR=0.0_it=2_MF=10_noConsolidation=False_pc=30.0_RT=1800_RR=False_RW=False_solver=ocaml_STM=True_L=1.0_TRR=default_K=2_topkNotMAP=False_graph=True.pickle'
-    expandedFrontiers, resumeGrammar = getTrainFrontier(resumePath + pickledFile, 0)
-    # # recognitionModel = RecognitionModel(ArcCNN(), baseGrammar)
+    # resumePath = '/Users/theo/Development/program_induction/experimentOutputs/arc/'
+    # # pickledFile = '2020-04-27T15:41:52.288988/arc_aic=1.0_arity=3_ET=28800_t_zero=28800_it=1_MF=10_noConsolidation=True_pc=30.0_RW=False_solver=ocaml_STM=True_L=1.0_TRR=default_K=2_topkNotMAP=False_rec=False.pickle'   
+    # altPickledFile = '2020-04-28T23:28:35.521649/arc_aic=1.0_arity=3_BO=True_CO=True_ES=1_ET=1200_t_zero=28800_HR=0.0_it=1_MF=10_noConsolidation=False_pc=1.0_RT=1800_RR=False_RW=False_solver=ocaml_STM=True_L=1.0_TRR=unsolved_K=2_topkNotMAP=False_graph=True.pickle'
+    # firstFrontier, allFrontiers, topDownGrammar, preConsolidationGrammar, resumeRecognizer = getTrainFrontier(resumePath + altPickledFile, 0)
+    # print(topDownGrammar)
+    # print(firstFrontier)
+
+    # # Tasks I'm not solving
+    # # evaluateGrammars(firstFrontier, manuallySolvedTasks, grammar1=preConsolidationGrammar.insideOutside(firstFrontier, 30, iterations=1))
+    # # evaluateGrammars(firstFrontier, manuallySolvedTasks, grammar1=preConsolidationGrammar.insideOutside(firstFrontier, 1))
+
+    # # How does contextual model do?
+    # # evaluateGrammars(firstFrontier, manuallySolvedTasks, grammar1=topDownGrammar, recognizer2=resumeRecognizer)
+
+    # parent2UpdateProduction = {
+    #     # (Primitive('blocks_to_original_grid', arrow(tblocks, tbool, tbool, tgridout),  None), 0): 'map_tbs',
+    #     # (Primitive("map_tbs", arrow(ttbs, arrow(tblock, tblock, tblock), tbool, tblocks), None),1): 'move_until_touches_block',
+
+    #     (Primitive('blocks_to_original_grid', arrow(tblocks, tbool, tbool, tgridout),  None), 0): 'map_blocks',
+    #     # (Primitive("map_blocks", arrow(tblocks, arrow(tblock, tblock), tblocks), None),1): 'fill_color',
+    #     (Primitive('fill_color', arrow(tblock, tcolor, tblock), None), 1): 'blue',
+    #     # (Primitive("filter_blocks", arrow(tblocks, arrow(tblock, tbool), tblocks), None),1): 'touches_any_boundary',
+
+    #     # (Primitive('blocks_to_original_grid', arrow(tblocks, tbool, tbool, tgridout),  None), 0): 'map_blocks',
+    #     # (Primitive("map_tiles", arrow(ttiles, arrow(ttile, tblock), tblocks), None),1): 'extend_towards_until',
+    #     # (Primitive("make_colorpair", arrow(tcolor, tcolor, tcolorpair), None), 1): 'invisible',
+
+    #     # (Primitive('fill_color', arrow(tblock, tcolor, tblock), None), 1): 'teal',
+    #     # (Primitive("map_blocks", arrow(tblocks, arrow(tblock, tblock), tblocks), None),1): 'fill_snakewise',
+    #     # (Primitive("filter_template_block", arrow(tblocks, arrow(tblock, tbool), ttbs), None),0):'find_blocks_by_inferred_b',
+    #     # (Primitive("filter_template_block", arrow(tblocks, arrow(tblock, tbool), ttbs), None),1):'has_min_tiles',
+    #     # (Primitive("filter", arrow(tblocks, arrow(tblock, tblock), tblocks), None),0): 'extend_towards_until'
+    # }
+    # preConsolidationGrammarInsideOut = preConsolidationGrammar.insideOutside(firstFrontier,1)
+    # contextualGrammar = ContextualGrammar.fromGrammar(preConsolidationGrammarInsideOut)
+    # newContextualGrammar = upweightConditionalProductions(parent2UpdateProduction, 100, contextualGrammar)
+    # evaluateGrammars(firstFrontier, manuallySolvedTasks, grammar1=preConsolidationGrammarInsideOut, grammar2=newContextualGrammar)
+
+    # # recognitionModel = RecognitionModel(, baseGrammar)
+    # # expandedFrontier = expandedFrontier()
     # # for frontier in expandedFrontiers:
     # #     task = frontier.task
     # #     print('Task: {}'.format(task.name))
@@ -303,53 +416,25 @@ def main(args):
     # #     dill.dump(trainedRecognizer, handle)
     # #     print('Stored recognizer at: {}'.format(path))
 
-    # # def getTaskProgram(taskName):
+    # # # def getTaskProgram(taskName):
 
-    # #     key = taskName.split('_')[1]
-    # #     return taskToProgram[key]
+    # # #     key = taskName.split('_')[1]
+    # # #     return taskToProgram[key]
 
-    # # taskToProgram = {frontier.task.name:getTaskProgram(frontier) for frontier in expandedFrontier}
+    # # # taskToProgram = {frontier.task.name:getTaskProgram(frontier) for frontier in expandedFrontier}
 
-    # # nnTrainTasks = [frontier.task for frontier in expandedFrontier]
-    # # for task,program in manuallySolvedTasks.items():
-    # #     if task not in taskToProgram:
-    # #         taskToProgram[task] = Program.parse(manuallySolvedTasks[task])
+    # # # nnTrainTasks = [frontier.task for frontier in expandedFrontier]
+    # # # for task,program in manuallySolvedTasks.items():
+    # # #     if task not in taskToProgram:
+    # # #         taskToProgram[task] = Program.parse(manuallySolvedTasks[task])
 
 
-    # trainedRecognizerPath = 'recognitionModels/2020-04-26 15:05:28.972185_trainTasks=2343_timeout=1200'
-    # with open(trainedRecognizerPath, 'rb') as handle:
-    #     trainedRecognizer = dill.load(handle)
-    # # print('{} Train Tasks'.format(len(nnTrainTasks)))
-    # # scoreTasks(trainedRecognizer, nnTrainTasks, taskToProgram, True)
-    # # print('\n {} Test Tasks'.format(len(nnTestTasks)))
-    # # scoreTasks(trainedRecognizer, nnTestTasks, taskToProgram, True)
+    # # trainedRecognizerPath = 'recognitionModels/2020-04-26 15:05:28.972185_trainTasks=2343_timeout=1200'
+    # # with open(trainedRecognizerPath, 'rb') as handle:
+    # #     trainedRecognizer = dill.load(handle)
+    # # # print('{} Train Tasks'.format(len(nnTrainTasks)))
+    # # # scoreTasks(trainedRecognizer, nnTrainTasks, taskToProgram, True)
+    # # # print('\n {} Test Tasks'.format(len(nnTestTasks)))
+    # # # scoreTasks(trainedRecognizer, nnTestTasks, taskToProgram, True)
 
-    # print('\n ------------------------------ Train ------------------------------------ \n')
-
-    otherGrammar = baseGrammar.insideOutside(expandedFrontiers, 3)
-
-    # for frontier in expandedFrontiers:
-    #     llBefore = scoreProgram(frontier.entries[0].program, grammar=baseGrammar)
-    #     llAfter = scoreProgram(frontier.entries[0].program, grammar=otherGrammar)
-    #     # llResume = scoreProgram(frontier.entries[0].program, grammar=resumeGrammar)
-    #     # llAfter = scoreProgram(frontier.entries[0].program, trainedRecognizer, task=frontier.task)
-    #     # print("{}".format(Grammar.uniform(basePrimitives() + leafPrimitives())))
-    #     print("{}: {}, {}".format(frontier.task.name, llBefore, llAfter))
-    #     print("Program: {}".format(frontier.entries[0].program))
-
-    # print('\n ------------------------------ Test ------------------------------------ \n')        
-
-    # for task,program in manuallySolvedTasks.items():
-    #     if task not in [frontier.task.name for frontier in expandedFrontiers]:
-    #         p = Program.parse(manuallySolvedTasks[task])
-    #         llBefore = scoreProgram(p, grammar=baseGrammar)
-    #         llAfter = scoreProgram(p, grammar=otherGrammar)
-    #         # try:
-    #         #     llResume = scoreProgram(p, grammar=resumeGrammar)
-    #         # except:
-    #         #     llResume = -1
-    #         # llAfter = scoreProgram(p, trainedRecognizer, task=frontier.task)
-    #         print("{}: {}, {}".format(frontier.task.name, llBefore, llAfter))
-    #         print("Program: {}".format(p))
-
-    explorationCompression(otherGrammar, trainTasks, testingTasks=testTasks, **args)
+    # explorationCompression(baseGrammar, trainTasks, testingTasks=testTasks, **args)
