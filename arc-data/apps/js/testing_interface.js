@@ -91,6 +91,8 @@ function nextIteration() {
             ITERATION_INDEX = -1
         }
         hitList = contents.match(regex)
+
+        try {
         let compressionRegex = new RegExp('WARNING: Do not have an English description of:\n [^\n]+', 'g')
         let start = EC_OUTPUT.indexOf('Induced a grammar in', END_INDEX)
         let end = EC_OUTPUT.indexOf('Induced a grammar in', start+1)
@@ -98,6 +100,12 @@ function nextIteration() {
         NEW_PRIMITIVES_LIST = compressionList.map((element) => element.slice(48))
         document.getElementById('new_primitives').innerHTML = NEW_PRIMITIVES_LIST.join("</p><p>")
         console.log(NEW_PRIMITIVES_LIST)
+        } catch (e) {
+            errorMsg('Failed to get compression output');
+            console.log("Error", e.stack);
+                console.log("Error", e.name);
+                console.log("Error", e.message);        
+        }
 
         TASK_NAME_LIST = hitList.map((element) => element.slice(4, element.search('json') + 4))
         TASK_NAME_LIST = [...new Set(TASK_NAME_LIST)]
