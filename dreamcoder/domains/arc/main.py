@@ -437,6 +437,4 @@ def main(args):
     # # # print('\n {} Test Tasks'.format(len(nnTestTasks)))
     # # # scoreTasks(trainedRecognizer, nnTestTasks, taskToProgram, True)
 
-
-    print()
     # explorationCompression(baseGrammar, trainTasks, testingTasks=testTasks, **args)
