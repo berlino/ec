@@ -333,11 +333,11 @@ class Grid(RectangleBlock):
         rows = [' '.join(row) for row in temp.tolist()]
         return '\n'.join(rows)
 
-    def __repr__(self):
-        temp = {}
-        for yPos,xPos in self.points:
-            temp["{},{}".format(yPos, xPos)] = self.points[(yPos,xPos)]
-        return {'grid':temp}
+    # def __repr__(self):
+    #     temp = {}
+    #     for yPos,xPos in self.points:
+    #         temp["{},{}".format(yPos, xPos)] = self.points[(yPos,xPos)]
+    #     return {'grid':temp}
 
     def fromPoints(self, points):
         return Grid(points=points, originalGrid=self.originalGrid)

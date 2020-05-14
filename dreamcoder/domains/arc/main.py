@@ -219,7 +219,7 @@ def getTrainFrontier(resumePath, n):
     allFrontiers = [frontier for (task,frontier) in result.allFrontiers.items() if len(frontier.entries) > 0]
     # expandedFrontier = expandFrontier(firstFrontier, n)
     print(result.recognitionModel)
-    return firstFrontier, allFrontiers, resumeGrammar, preConsolidationGrammar, result.recognitionModel
+    return firstFrontier, allFrontiers, result.frontiersOverTime, resumeGrammar, preConsolidationGrammar, result.recognitionModel
 
 def getTask(taskName, allTasks):
     for task in allTasks:
@@ -365,10 +365,25 @@ def main(args):
     # # v = arcNN.featuresOfTask(nnTrainTask[0])
     # # print(v)
 
-    # resumePath = '/Users/theo/Development/program_induction/experimentOutputs/arc/'
-    # # pickledFile = '2020-04-27T15:41:52.288988/arc_aic=1.0_arity=3_ET=28800_t_zero=28800_it=1_MF=10_noConsolidation=True_pc=30.0_RW=False_solver=ocaml_STM=True_L=1.0_TRR=default_K=2_topkNotMAP=False_rec=False.pickle'   
-    # altPickledFile = '2020-04-28T23:28:35.521649/arc_aic=1.0_arity=3_BO=True_CO=True_ES=1_ET=1200_t_zero=28800_HR=0.0_it=1_MF=10_noConsolidation=False_pc=1.0_RT=1800_RR=False_RW=False_solver=ocaml_STM=True_L=1.0_TRR=unsolved_K=2_topkNotMAP=False_graph=True.pickle'
-    # firstFrontier, allFrontiers, topDownGrammar, preConsolidationGrammar, resumeRecognizer = getTrainFrontier(resumePath + altPickledFile, 0)
+    resumePath = '/Users/theo/Development/program_induction/experimentOutputs/arc/'
+    resumeDirectory = '2020-05-10T14:49:21.186479/'
+    pickledFile = 'arc_aic=1.0_arity=3_BO=True_CO=True_ES=1_ET=1200_t_zero=28800_HR=0.0_it=6_MF=10_noConsolidation=False_pc=1.0_RT=1800_RR=False_RW=False_solver=ocaml_STM=True_L=1.0_TRR=unsolved_K=2_topkNotMAP=False.pickle'
+    firstFrontier, allFrontiers, frontierOverTime, topDownGrammar, preConsolidationGrammar, resumeRecognizer = getTrainFrontier(resumePath + resumeDirectory + pickledFile, 0)
+
+    def convertFrontiersOverTimeToJson(frontiersOverTime):
+        frontiersOverTimeJson = {}
+        numFrontiers = len(list(frontiersOverTime.values())[0])
+        print('{} frontiers per task'.format(numFrontiers))
+        for task,frontiers in frontiersOverTime.items():
+            print('frontiers: ', frontiers)
+            frontiersOverTimeJson[task.name] = {i:str(frontier.entries[0].program) for i,frontier in enumerate(frontiers) if len(frontier.entries) > 0}
+        return frontiersOverTimeJson
+
+
+    frontiersOverTime = convertFrontiersOverTimeToJson(frontierOverTime)
+    with open(resumePath + resumeDirectory + 'frontiersOverTime.json', 'w') as fp:
+        json.dump(frontiersOverTime, fp)
+
     # print(topDownGrammar)
     # print(firstFrontier)
 

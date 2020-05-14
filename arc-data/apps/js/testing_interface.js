@@ -1,5 +1,7 @@
 
 // Internal state.
+var CURRENT_TASK_NAME = ""
+var CURRENT_TASK_INDEX = -1;
 var CURRENT_INPUT_GRID = new Grid(3, 3);
 var CURRENT_OUTPUT_GRID = new Grid(3, 3);
 var TEST_PAIRS = new Array();
@@ -18,6 +20,7 @@ console.log(ITERATION_NAMES);
 
 var ITERATION_INDEX = 0;
 var NEW_PRIMITIVES_LIST = new Array();
+var TASKS_DICT = {};
 
 // Cosmetic.
 var EDITION_GRID_HEIGHT = 500;
@@ -37,6 +40,38 @@ function clearButtonLabels() {
     document.getElementById('task_from_list').innerHTML = '';
     document.getElementById('program_found').innerHTML = '';
 }
+
+function loadEcResultFile(e) {
+    var file = e.target.files[0];
+    if (!file) {
+        errorMsg('No file selected');
+        return;
+    }
+    var reader = new FileReader();
+    reader.onload = function (e) {
+        var contents = e.target.result;
+        try {
+            TASKS_DICT = JSON.parse(contents);
+            TASK_NAME_LIST = []
+            Object.keys(TASKS_DICT).forEach(function(key) {
+                if (Object.keys(TASKS_DICT[key]).length > 0) {
+                    TASK_NAME_LIST.push(key)
+                }
+            console.log(TASK_NAME_LIST)
+            });
+        } catch (e) {
+            errorMsg('Bad file format');
+            console.log("Error", e.stack);
+            console.log("Error", e.name);
+            console.log("Error", e.message);
+            return;
+        }
+    }
+    reader.readAsText(file);
+    return
+}
+
+
 
 function loadEcOutputFile(e) {
     console.log('called loadEcOutputFile')
@@ -80,59 +115,13 @@ function loadEcOutputFile(e) {
 }
 
 function changeIteration(next) {
-    try {
-        let regex = new RegExp('HIT[^\n]+', 'g')
-        TASK_FROM_LIST_COUNT = 0
-        if (EC_OUTPUT.includes('enumeration results', END_INDEX)) {
-            var oldEndIndex = END_INDEX;
-            END_INDEX = EC_OUTPUT.indexOf('Average description length of a program solving a task', oldEndIndex+1);
-            console.log(END_INDEX);
-            console.log(oldEndIndex);
-            contents = EC_OUTPUT.slice(EC_OUTPUT.indexOf('enumeration results', oldEndIndex), END_INDEX)
-            console.log(contents)
-        } else {
-            END_INDEX = EC_OUTPUT.indexOf('Average description length of a program solving a task');
-            contents = EC_OUTPUT.slice(EC_OUTPUT.indexOf('enumeration results'), END_INDEX)
-            ITERATION_INDEX = -1
-        }
-        hitList = contents.match(regex)
-
-        try {
-        let compressionRegex = new RegExp('WARNING: Do not have an English description of:\n [^\n]+', 'g')
-        let start = EC_OUTPUT.indexOf('Induced a grammar in', END_INDEX)
-        let end = EC_OUTPUT.indexOf('Induced a grammar in', start+1)
-        compressionList = EC_OUTPUT.slice(start, end).match(compressionRegex)
-        NEW_PRIMITIVES_LIST = compressionList.map((element) => element.slice(48))
-        document.getElementById('new_primitives').innerHTML = NEW_PRIMITIVES_LIST.join("</p><p>")
-        console.log(NEW_PRIMITIVES_LIST)
-        } catch (e) {
-            errorMsg('Failed to get compression output');
-            console.log("Error", e.stack);
-                console.log("Error", e.name);
-                console.log("Error", e.message);        
-        }
-
-        TASK_NAME_LIST = hitList.map((element) => element.slice(4, element.search('json') + 4))
-        TASK_NAME_LIST = [...new Set(TASK_NAME_LIST)]
-        TASK_PROGRAM_LIST = hitList.map((element) => element.slice(element.search('json') + 8).replace(/log/g, '<br> log'))
-        console.log('load EC output')
-        console.log(TASK_FROM_LIST_COUNT)
-        console.log(TASK_NAME_LIST)
-        console.log(TASK_PROGRAM_LIST)
-        taskFromList();
-        if (next) {
-            ITERATION_INDEX += 1;
-        } else {
-            ITERATION_INDEX -= 1;
-        }
-        document.getElementById('iteration_name').innerHTML = ITERATION_NAMES[ITERATION_INDEX];
-    } catch (e) {
-        errorMsg('Bad file format');
-        console.log("Error", e.stack);
-            console.log("Error", e.name);
-            console.log("Error", e.message);
-        return;
+    if (next) {
+        ITERATION_INDEX += 1;
+    } else {
+        ITERATION_INDEX -= 1;
     }
+    document.getElementById('iteration_name').innerHTML = ITERATION_NAMES[ITERATION_INDEX];
+    updateProgram();
     loadJSONTask(train, test);
 }
 
@@ -291,6 +280,12 @@ function previousTaskFromList() {
     taskFromList();
 }
 
+function updateProgram() {
+    document.getElementById('program_found').innerHTML = get(TASKS_DICT[TASK_NAME_LIST[TASK_FROM_LIST_COUNT]], `${ITERATION_INDEX+1}`, `Not Solved`);
+    console.log(`TASK_FROM_LIST_COUNT INDEX ${TASK_FROM_LIST_COUNT}`);
+    console.log(`ITERATION INDEX ${ITERATION_INDEX}`);
+}
+
 function taskFromList() {
     console.log(TASK_FROM_LIST_COUNT)
     console.log(TASK_NAME_LIST)
@@ -298,7 +293,7 @@ function taskFromList() {
 
     clearButtonLabels();
     document.getElementById('task_from_list').innerHTML = (TASK_FROM_LIST_COUNT+1).toString() + ' out of ' + TASK_NAME_LIST.length.toString() + ' tasks solved: ' + TASK_NAME_LIST[TASK_FROM_LIST_COUNT];
-    document.getElementById('program_found').innerHTML = TASK_PROGRAM_LIST[TASK_FROM_LIST_COUNT]
+    updateProgram();
     var subset = "training";
     $.getJSON("https://api.github.com/repos/fchollet/ARC/contents/data/" + subset, function (tasks) {
         var task = tasks.find(task => task.name == TASK_NAME_LIST[TASK_FROM_LIST_COUNT])
@@ -325,14 +320,19 @@ function taskFromList() {
         });
 }
 
+function get(object, key, default_value) {
+    var result = object[key];
+    return (typeof result !== "undefined") ? result : default_value;
+}
+
 function randomTask() {
     TASK_FROM_LIST_COUNT = 0
     var subset = "training";
     $.getJSON("https://api.github.com/repos/fchollet/ARC/contents/data/" + subset, function (tasks) {
         var task = tasks.find(task => task.name == 'fcb5c309.json')
-        var taskIndex = Math.floor(Math.random() * tasks.length)
-        var task = tasks[taskIndex];
-        $.getJSON(task["download_url"], function (json) {
+        CURRENT_TASK_INDEX = Math.floor(Math.random() * tasks.length)
+        CURRENT_TASK_NAME = tasks[CURRENT_TASK_INDEX];
+        $.getJSON(CURRENT_TASK_NAME["download_url"], function (json) {
             try {
                 train = json['train'];
                 test = json['test'];
@@ -348,8 +348,11 @@ function randomTask() {
                 errorMsg('Error loading task');
             });
         clearButtonLabels();
-        document.getElementById('taskName').innerHTML = `Task ${taskIndex} out of ${tasks.length}: ${task['name']}`;
-        document.getElementById('random_task').innerHTML = `Task ${taskIndex} out of ${tasks.length}: ${task['name']}`;
+        document.getElementById('taskName').innerHTML = `Task ${CURRENT_TASK_INDEX} out of ${tasks.length}: ${task['name']}`;
+        document.getElementById('random_task').innerHTML = `Task ${CURRENT_TASK_INDEX} out of ${tasks.length}: ${task['name']}`;
+        document.getElementById('task_from_list').innerHTML = `Task ${CURRENT_TASK_INDEX} out of ${tasks.length}: ${task['name']}`;
+        document.getElementById('taskName').innerHTML = `Task ${CURRENT_TASK_INDEX} out of ${tasks.length}: ${task['name']}`;
+        updateProgram();
     })
         .error(function () {
             errorMsg('Error loading task list');
@@ -458,7 +461,7 @@ $(document).ready(function () {
     });
 
     $('.load_ec_output').on('change', function (event) {
-        loadEcOutputFile(event);
+        loadEcResultFile(event);
     });
 
     $('.load_ec_output').on('click', function (event) {
