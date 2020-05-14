@@ -32,10 +32,6 @@
                     <label id="program_found"></label>
                 </div>
                 <div id="task_preview"></div>
-            
-                        <div class="primitives_found" id="load_new_primitives">
-                            <div class="primitives_found" id="new_primitives"></div>
-                        </div>
             </div>
 
             <div id="evaluation_view">
@@ -66,8 +62,11 @@
                         <button onclick="previousTaskFromList()" id="task_from_list_btn"> <- </button>
                         <button onclick="nextTaskFromList()" id="task_from_list_btn"> -> </button>
                         <label for="task_from_list" id="task_from_list"></label>
-                        <button onclick="nextIteration()" id="task_from_list_btn">Next Iteration</button>
-                        <label for="iteration_name" id="iteration_name"></label>
+                        <div id="load_task_control_btns"?>
+                            <button onclick="changeIteration(true)" id="task_from_list_btn">Next Iteration</button>
+                            <button onclick="changeIteration(false)" id="task_from_list_btn">Previous Iteration</button>
+                            <label for="iteration_name" id="iteration_name"></label>
+                        </div>
                     </div>
                     <div id="edition_view">
                         <div id="editor_grid_control_btns">
@@ -136,6 +135,9 @@
                     <div id="error_display"></div>
                     <div id="info_display"></div>
                 </div>
+                <div class="primitives_found" id="load_new_primitives">
+                            <div class="primitives_found" id="new_primitives"></div>
+                        </div>
             </div>
         </div>
     </body>

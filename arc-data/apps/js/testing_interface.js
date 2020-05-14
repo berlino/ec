@@ -11,6 +11,11 @@ var TASK_PROGRAM_LIST = new Array();
 var EC_OUTPUT = '';
 var END_INDEX = 0;
 var ITERATION_NAMES = ['1st_top_down', '1st_bottom_up', '2nd_top_down', '2nd_bottom_up', '3rd_top_down', '3rd_bottom_up', '4th_top_down', '4th_bottom_up', '5th_top_down', '5th_bottom_up'];
+var ITERATIONS = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20];
+ITERATION_NAMES = ITERATIONS.map(i => [`${i}_top_down`,`${i}_bottom_up`]);
+ITERATION_NAMES = ITERATION_NAMES.flat(2);
+console.log(ITERATION_NAMES);
+
 var ITERATION_INDEX = 0;
 var NEW_PRIMITIVES_LIST = new Array();
 
@@ -74,7 +79,7 @@ function loadEcOutputFile(e) {
     reader.readAsText(file);
 }
 
-function nextIteration() {
+function changeIteration(next) {
     try {
         let regex = new RegExp('HIT[^\n]+', 'g')
         TASK_FROM_LIST_COUNT = 0
@@ -115,7 +120,11 @@ function nextIteration() {
         console.log(TASK_NAME_LIST)
         console.log(TASK_PROGRAM_LIST)
         taskFromList();
-        ITERATION_INDEX += 1;
+        if (next) {
+            ITERATION_INDEX += 1;
+        } else {
+            ITERATION_INDEX -= 1;
+        }
         document.getElementById('iteration_name').innerHTML = ITERATION_NAMES[ITERATION_INDEX];
     } catch (e) {
         errorMsg('Bad file format');
@@ -321,7 +330,8 @@ function randomTask() {
     var subset = "training";
     $.getJSON("https://api.github.com/repos/fchollet/ARC/contents/data/" + subset, function (tasks) {
         var task = tasks.find(task => task.name == 'fcb5c309.json')
-        var task = tasks[Math.floor(Math.random() * tasks.length)];
+        var taskIndex = Math.floor(Math.random() * tasks.length)
+        var task = tasks[taskIndex];
         $.getJSON(task["download_url"], function (json) {
             try {
                 train = json['train'];
@@ -338,8 +348,8 @@ function randomTask() {
                 errorMsg('Error loading task');
             });
         clearButtonLabels();
-        document.getElementById('taskName').innerHTML = task['name'];
-        document.getElementById('random_task').innerHTML = task['name'];
+        document.getElementById('taskName').innerHTML = `Task ${taskIndex} out of ${tasks.length}: ${task['name']}`;
+        document.getElementById('random_task').innerHTML = `Task ${taskIndex} out of ${tasks.length}: ${task['name']}`;
     })
         .error(function () {
             errorMsg('Error loading task list');
