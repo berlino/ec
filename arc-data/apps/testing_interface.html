@@ -63,8 +63,10 @@
                         <button onclick="nextTaskFromList()" id="task_from_list_btn"> -> </button>
                         <label for="task_from_list" id="task_from_list"></label>
                         <div id="load_task_control_btns"?>
-                            <button onclick="changeIteration(true)" id="task_from_list_btn">Next Iteration</button>
-                            <button onclick="changeIteration(false)" id="task_from_list_btn">Previous Iteration</button>
+                            <label for="fader">Iteration</label>
+                            <input type="range" min="0" max="6" value="0" id="fader" 
+                                step="1" oninput="outputUpdate(value)">
+                            <output for="fader" id="volume">50</output>
                             <label for="iteration_name" id="iteration_name"></label>
                         </div>
                     </div>

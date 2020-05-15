@@ -35,6 +35,15 @@ function resetTask() {
     resetOutputGrid();
 }
 
+function get(object, key, default_value) {
+    try {
+        var result = object[key];
+        return result
+    } catch (e) {
+        return default_value
+    }
+}
+
 function clearButtonLabels() {
     document.getElementById('random_task').innerHTML = '';
     document.getElementById('task_from_list').innerHTML = '';
@@ -68,6 +77,7 @@ function loadEcResultFile(e) {
         }
     }
     reader.readAsText(file);
+    console.log(TASKS_DICT);
     return
 }
 
@@ -120,9 +130,16 @@ function changeIteration(next) {
     } else {
         ITERATION_INDEX -= 1;
     }
-    document.getElementById('iteration_name').innerHTML = ITERATION_NAMES[ITERATION_INDEX];
+    document.getElementById('myRange').innerHTML = ITERATION_INDEX;
     updateProgram();
     loadJSONTask(train, test);
+}
+
+function outputUpdate(vol) {
+    console.log(vol);
+    ITERATION_INDEX = parseInt(vol);
+    updateProgram();
+    document.querySelector('#volume').value = vol;
 }
 
 function refreshEditionGrid(jqGrid, dataGrid) {
@@ -281,9 +298,11 @@ function previousTaskFromList() {
 }
 
 function updateProgram() {
-    document.getElementById('program_found').innerHTML = get(TASKS_DICT[TASK_NAME_LIST[TASK_FROM_LIST_COUNT]], `${ITERATION_INDEX+1}`, `Not Solved`);
-    console.log(`TASK_FROM_LIST_COUNT INDEX ${TASK_FROM_LIST_COUNT}`);
-    console.log(`ITERATION INDEX ${ITERATION_INDEX}`);
+    if  (Object.keys(TASKS_DICT).length > 0) {
+        document.getElementById('program_found').innerHTML = get(TASKS_DICT[CURRENT_TASK_NAME], `${ITERATION_INDEX+1}`, `Not Solved`);
+        console.log(`TASK_FROM_LIST_COUNT INDEX ${TASK_FROM_LIST_COUNT}`);
+        console.log(`ITERATION INDEX ${ITERATION_INDEX}`);
+    }
 }
 
 function taskFromList() {
@@ -293,10 +312,11 @@ function taskFromList() {
 
     clearButtonLabels();
     document.getElementById('task_from_list').innerHTML = (TASK_FROM_LIST_COUNT+1).toString() + ' out of ' + TASK_NAME_LIST.length.toString() + ' tasks solved: ' + TASK_NAME_LIST[TASK_FROM_LIST_COUNT];
+    CURRENT_TASK_NAME = TASK_NAME_LIST[TASK_FROM_LIST_COUNT];
     updateProgram();
     var subset = "training";
     $.getJSON("https://api.github.com/repos/fchollet/ARC/contents/data/" + subset, function (tasks) {
-        var task = tasks.find(task => task.name == TASK_NAME_LIST[TASK_FROM_LIST_COUNT])
+        var task = tasks.find(task => task.name == CURRENT_TASK_NAME)
         $.getJSON(task["download_url"], function (json) {
             try {
                 train = json['train'];
@@ -320,19 +340,14 @@ function taskFromList() {
         });
 }
 
-function get(object, key, default_value) {
-    var result = object[key];
-    return (typeof result !== "undefined") ? result : default_value;
-}
-
 function randomTask() {
     TASK_FROM_LIST_COUNT = 0
     var subset = "training";
     $.getJSON("https://api.github.com/repos/fchollet/ARC/contents/data/" + subset, function (tasks) {
         var task = tasks.find(task => task.name == 'fcb5c309.json')
         CURRENT_TASK_INDEX = Math.floor(Math.random() * tasks.length)
-        CURRENT_TASK_NAME = tasks[CURRENT_TASK_INDEX];
-        $.getJSON(CURRENT_TASK_NAME["download_url"], function (json) {
+        CURRENT_TASK_NAME = tasks[CURRENT_TASK_INDEX].name;
+        $.getJSON(tasks[CURRENT_TASK_INDEX]["download_url"], function (json) {
             try {
                 train = json['train'];
                 test = json['test'];
