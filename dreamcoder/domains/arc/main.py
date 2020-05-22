@@ -18,33 +18,8 @@ from dreamcoder.task import Task
 from dreamcoder.type import Context, arrow, tbool, tlist, tint, t0, UnificationFailure
 from dreamcoder.recognition import RecognitionModel
 from dreamcoder.program import Program
-
-# from dreamcoder.domains.list.listPrimitives import basePrimitives, primitives, McCarthyPrimitives, bootstrapTarget_extra, no_length
-# from dreamcoder.domains.arc.arcPrimitives2 import _solve6, basePrimitives, pprint, tcolor
-from dreamcoder.domains.arc.arcPrimitives import (
-    leafPrimitives,
-    basePrimitives,
-    pprint,
-    tcolor,
-    tgridin,
-    tgridout,
-    tdirection,
-    Grid,
-)
-from dreamcoder.domains.arc.arcPrimitives import (
-    _solvefcb5c309,
-    _solve50cb2852,
-    _solve007bbfb7,
-    _solve0520fde7,
-    _solvec9e6f938,
-    _solvef25fbde4,
-    _solve97999447,
-    _solve72ca375d,
-    _solve5521c0d9,
-    _solvece4f8723,
-)
-
 from dreamcoder.domains.arc.arcPrimitives import *
+from dreamcoder.domains.arc.taskGeneration import *
 
 def retrieveARCJSONTasks(directory, filenames=None):
 
@@ -213,13 +188,32 @@ def resume_from_path(resume):
     grammar = result.grammars[-1] if result.grammars else grammar
     return result, grammar, result.grammars[0]
 
+def getLearnedProductions(result):
+    currentProductions = set()
+    learnedProductions = {}
+    for i,grammar in enumerate(result.grammars):
+        learnedProductions[i] = {}
+        productions = set([str(p[2]) for p in grammar.productions])
+        if len(list(currentProductions)) == 0:
+            currentProductions = productions
+        else:
+            print('----------------------------------------------------{}-----------------------------------------------------'.format(i))        
+            newProductions = productions.difference(currentProductions)
+            for j,production in enumerate(newProductions):
+                learnedProductions[i][j] = production
+                print(j, production)
+        currentProductions = currentProductions.union(productions)
+    return learnedProductions
+
+
 def getTrainFrontier(resumePath, n):
     result, resumeGrammar, preConsolidationGrammar = resume_from_path(resumePath)
     firstFrontier = [frontiers[0] for (key,frontiers) in result.frontiersOverTime.items() if len(frontiers[0].entries) > 0]
     allFrontiers = [frontier for (task,frontier) in result.allFrontiers.items() if len(frontier.entries) > 0]
     # expandedFrontier = expandFrontier(firstFrontier, n)
-    print(result.recognitionModel)
-    return firstFrontier, allFrontiers, result.frontiersOverTime, resumeGrammar, preConsolidationGrammar, result.recognitionModel
+    print(result.learningCurve)
+    learnedProductions = getLearnedProductions(result)
+    return firstFrontier, allFrontiers, result.frontiersOverTime, resumeGrammar, preConsolidationGrammar, result.recognitionModel, learnedProductions
 
 def getTask(taskName, allTasks):
     for task in allTasks:
@@ -368,21 +362,24 @@ def main(args):
     resumePath = '/Users/theo/Development/program_induction/experimentOutputs/arc/'
     resumeDirectory = '2020-05-10T14:49:21.186479/'
     pickledFile = 'arc_aic=1.0_arity=3_BO=True_CO=True_ES=1_ET=1200_t_zero=28800_HR=0.0_it=6_MF=10_noConsolidation=False_pc=1.0_RT=1800_RR=False_RW=False_solver=ocaml_STM=True_L=1.0_TRR=unsolved_K=2_topkNotMAP=False.pickle'
-    firstFrontier, allFrontiers, frontierOverTime, topDownGrammar, preConsolidationGrammar, resumeRecognizer = getTrainFrontier(resumePath + resumeDirectory + pickledFile, 0)
+    firstFrontier, allFrontiers, frontierOverTime, topDownGrammar, preConsolidationGrammar, resumeRecognizer, learnedProductions = getTrainFrontier(resumePath + resumeDirectory + pickledFile, 0)
 
     def convertFrontiersOverTimeToJson(frontiersOverTime):
         frontiersOverTimeJson = {}
         numFrontiers = len(list(frontiersOverTime.values())[0])
-        print('{} frontiers per task'.format(numFrontiers))
+        # print('{} frontiers per task'.format(numFrontiers))
         for task,frontiers in frontiersOverTime.items():
-            print('frontiers: ', frontiers)
-            frontiersOverTimeJson[task.name] = {i:str(frontier.entries[0].program) for i,frontier in enumerate(frontiers) if len(frontier.entries) > 0}
+            # print('frontiers: ', frontiers)
+            frontiersOverTimeJson[task.name] = {i:str(frontier.entries[0].program) + '\n' + str(frontier.entries[0].logPosterior) for i,frontier in enumerate(frontiers) if len(frontier.entries) > 0}
         return frontiersOverTimeJson
 
 
     frontiersOverTime = convertFrontiersOverTimeToJson(frontierOverTime)
-    with open(resumePath + resumeDirectory + 'frontiersOverTime.json', 'w') as fp:
-        json.dump(frontiersOverTime, fp)
+    # with open(resumePath + resumeDirectory + 'frontiersOverTime.json', 'w') as fp:
+    #     json.dump(frontiersOverTime, fp)
+
+    with open(resumePath + resumeDirectory + 'ecResults.json', 'w') as fp:
+        json.dump({'learnedProductions':learnedProductions, 'frontiersOverTime':frontiersOverTime}, fp)
 
     # print(topDownGrammar)
     # print(firstFrontier)

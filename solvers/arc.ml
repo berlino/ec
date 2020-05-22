@@ -638,48 +638,6 @@ let map_tbs template_blocks_scene map_f with_template_block =
   let temp = if with_template_block then [template_block] else [] in 
   temp @ (List.map rest_blocks ~f:(fun block -> map_f template_block block)) ;;
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 (* let cmap = [(3,6);(8,4);(2,1)] ;;
 
 let get_color_from_cmap color cmap = 
@@ -919,7 +877,6 @@ ignore(primitive "make_colorpair" (tcolor @> tcolor @> tcolorpair) (fun c1 c2 ->
 
 (********** tcmap **********)
 
-
 (* ignore(primitive "make_cmap" (tcolorpair @> tcolorpair @> tcolorpair @> tcmap) (fun cp1 cp2 cp3 -> [cp1 ; cp2; cp3])) ;; *)
 (* ignore(primitive "get_color_from_cmap" (tcmap @> tcolor @> tcolor) get_color_from_cmap) ;; *)
 
@@ -927,10 +884,8 @@ ignore(primitive "make_colorpair" (tcolor @> tcolor @> tcolorpair) (fun c1 c2 ->
 
 (* ignore(primitive "make_icmap" (tintcolorcpair @> tintcolorcpair @> tintcolorcpair @> ticmap) (fun cp1 cp2 cp3 -> [cp1 ; cp2; cp3])) ;; *)
 
-(********** 913fb3ed **********)
 
-(* ignore(primitive "p_913fb3ed" (tgridin @> tcmap @> tgridout) p_913fb3ed) ;;
-ignore(primitive "p_c0f76784" (tgridin @> ticmap @> tgridout) p_c0f76784) ;; *)
+(* Testing *)
 
 let python_split x =
   let split = String.split_on_chars ~on:[','] x in 

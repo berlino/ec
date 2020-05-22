@@ -582,10 +582,6 @@ def _solve007bbfb7(a): return _zipGrids(_grow(a)(3))(_duplicate2dN(a)(2))(_keepN
 def _solveGenericBlockMap(grid): return lambda findFunc: lambda mapFunc: lambda combineFunc: combineFunc(_map(mapFunc)(findFunc(grid)))
 # def _solve42a50994(grid): return lambda count: _blocksToGrid(_filter(lambda block: _hasMinTiles(count)(block))(_findBlocksBy(grid)(True)))(grid.getNumRows())(grid.getNumCols())
 
-
-class RecursionDepthExceeded(Exception):
-    pass
-
 if runFull:
     tblock = baseType('tblock')
     tcolor = baseType('tcolor')
@@ -814,20 +810,6 @@ def basePrimitives():
 #     Primitive("make_icmap", arrow(tintcolorpair, tintcolorpair, tintcolorpair, ticmap), None),
 ]
 
-##### t0 #####
-
-    # t0
-    # Primitive("reduce", arrow(arrow(t1, t0, t1), t1, tlist(t0), t1), _reduce),
-    # Primitive("map", arrow(arrow(t0, t1), tlist(t0), tlist(t1)), _map),
-    # Primitive("filter", arrow(arrow(t0, tbool), tlist(t0), tlist(t0)), _filter),
-    # Primitive("mapi",arrow(arrow(tint,t0,t1), tlist(t0), tlist(t1)),_mapi),
-    # Primitive("filteri", arrow(arrow(tint, t0, t1), tlist(t0), tlist(t1)), _filteri)]
-
-##### Task Blueprints #####
-
-    # Primitive('findAndMap', arrow(tgrid, arrow(tgrid, tblocks), arrow(tblock, tblock), arrow(tblocks, tgrid), tgrid), _solveGenericBlockMap)
-
-
 
 # def retrieveARCJSONTask(filename, directory):
 #     with open(directory + '/' + filename, "r") as f:
@@ -864,92 +846,15 @@ def pprint(arr):
     # print(a(1))
 
 def getTask(filename, directory):
+    """
+    Loads the filename task at directory
+    """
+
     with open(directory + '/' + filename, "r") as f:
         loaded = json.load(f)
-
     train = [((Grid(gridArray=example['input'],)), Grid(gridArray=example['output'])) for example in loaded['train']]
     test = [((Grid(gridArray=example['input'],)), Grid(gridArray=example['output'])) for example in loaded['test']]
-
     return train, test
-
-def replaceColors(inputGrid, colorMap):
-    return inputGrid.fromPoints({key:colorMap.get(oldColor,oldColor) for (key,oldColor) in inputGrid.points.items()})
-
-def getColorsToReplace(examples, doNotReplace=[0]):
-    allColors = set()
-    for example in examples:
-        inputGrid = example[0][0]
-        allColors = allColors.union(set(inputGrid.points.values()))
-    return allColors - set(doNotReplace)
-
-class LessPermutationsThanRequiredExamples(Exception):
-    pass
-
-def randomCombination(iterable,n):
-    i = 0
-    pool = tuple(iterable)
-    rng = range(len(pool))
-    indices = random.sample(rng, n)
-    while i < n:
-        yield pool[indices[i]]
-        i += 1
-
-
-def getColorMaps(examples, n, doNotReplace=[0]):
-    colorsToReplace = getColorsToReplace(examples, doNotReplace)
-    colorPallete = set(list(intToColor.keys())) - set(doNotReplace)
-    k = len(colorsToReplace)
-    maxExamples = int(perm(len(colorPallete), k))
-    if perm(len(colorPallete), k) < n:
-        print('WARNING: Can only generate {} examples for task:'.format(maxExamples))
-        n = maxExamples
-        # raise LessPermutationsThanRequiredExamples
-    iterable = itertools.permutations(colorPallete, k)
-    newColors = list(randomCombination(iterable, n))
-    return [{oldColor:newColor[i] for i,oldColor in enumerate(colorsToReplace)} for newColor in newColors], n
-
-def colorPermuteExample(example, colorMap):
-    example = copy.deepcopy(example)
-    inputGrid, outputGrid = example[0][0], example[1]
-    return ((replaceColors(inputGrid, colorMap),), replaceColors(outputGrid, colorMap))
-
-def generateFromFrontier(frontier, n):
-    programs, task = [str(frontierEntry.program) for frontierEntry in copy.deepcopy(frontier.entries)], copy.deepcopy(frontier.task)
-    examples = task.examples
-    doNotReplace = set([0])
-    for color in colorToInt.keys():
-        if color in ' '.join(programs):
-            doNotReplace.add(colorToInt[color])
-    print('Do not replace {} from task {}'.format(', '.join([intToColor[c] for c in list(doNotReplace)]), task))
-    colorMaps, temp = getColorMaps(examples, n, doNotReplace)
-    if temp < n:
-        print(task)
-    n = min(temp, n)
-    generatedTasks = []
-    for t in range(n):
-        newTask = copy.deepcopy(task)
-        newTask.name = '{}_{}'.format(t, task.name)
-        for example in examples:
-            newExample = colorPermuteExample(example, colorMaps[t])
-            newTask.examples.append(newExample)
-        generatedTasks.append(newTask)
-    return generatedTasks
-
-def expandFrontier(frontiers, n):
-    expandedFrontiers = []
-    for frontier in frontiers:
-        try:
-            expandedTasks = generateFromFrontier(frontier, n)
-        except LessPermutationsThanRequiredExamples:
-            print('LessPermutationsThanRequiredExamples')
-
-        for task in expandedTasks:
-            newFrontier = copy.deepcopy(frontier)
-            newFrontier.task = task
-            expandedFrontiers.append(newFrontier)
-    expandedFrontiers += frontiers
-    print('Expanded Frontier has length: {}'.format(len(expandedFrontiers)))
-    return expandedFrontiers
 
 manuallySolvedTasks = {
     "72ca375d.json":"(lambda (blocks_to_min_grid (filter_blocks (find_same_color_blocks $0 true false) (lambda (is_tile $0))) false false))",

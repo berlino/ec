@@ -50,7 +50,8 @@
                         <input type="file" id="load_task_file_input" class="load_task"/>
                     </div>
                     <div id="load_task_control_btns">
-                        <button onclick="randomTask()" id="random_task_btn">Random task</button>
+                        <input type="number" id="task_index_input" style="width: 50px">
+                        <button onclick="randomTask()" id="random_task_btn">Go</button>
                         <label for="random_task_btn" id="random_task"></label>
 
                     </div>
@@ -64,7 +65,7 @@
                         <label for="task_from_list" id="task_from_list"></label>
                         <div id="load_task_control_btns"?>
                             <label for="fader">Iteration</label>
-                            <input type="range" min="0" max="6" value="0" id="fader" 
+                            <input type="range" min="0" max=10 value="0" id="fader" 
                                 step="1" oninput="outputUpdate(value)">
                             <output for="fader" id="volume">50</output>
                             <label for="iteration_name" id="iteration_name"></label>

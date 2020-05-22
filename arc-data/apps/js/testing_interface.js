@@ -12,14 +12,12 @@ var TASK_NAME_LIST = new Array();
 var TASK_PROGRAM_LIST = new Array();
 var EC_OUTPUT = '';
 var END_INDEX = 0;
-var ITERATION_NAMES = ['1st_top_down', '1st_bottom_up', '2nd_top_down', '2nd_bottom_up', '3rd_top_down', '3rd_bottom_up', '4th_top_down', '4th_bottom_up', '5th_top_down', '5th_bottom_up'];
-var ITERATIONS = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20];
-ITERATION_NAMES = ITERATIONS.map(i => [`${i}_top_down`,`${i}_bottom_up`]);
-ITERATION_NAMES = ITERATION_NAMES.flat(2);
-console.log(ITERATION_NAMES);
 
+var ITERATIONS = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20];
 var ITERATION_INDEX = 0;
-var NEW_PRIMITIVES_LIST = new Array();
+var MAX_ITERATION = 0;
+
+var LEARNED_PRODUCTIONS = {};
 var TASKS_DICT = {};
 
 // Cosmetic.
@@ -60,11 +58,14 @@ function loadEcResultFile(e) {
     reader.onload = function (e) {
         var contents = e.target.result;
         try {
-            TASKS_DICT = JSON.parse(contents);
+            var json = JSON.parse(contents)
+            TASKS_DICT = json['frontiersOverTime'];
+            LEARNED_PRODUCTIONS = json['learnedProductions'];
             TASK_NAME_LIST = []
             Object.keys(TASKS_DICT).forEach(function(key) {
                 if (Object.keys(TASKS_DICT[key]).length > 0) {
                     TASK_NAME_LIST.push(key)
+                    MAX_ITERATION = Object.keys(TASKS_DICT[key]).length
                 }
             console.log(TASK_NAME_LIST)
             });
@@ -78,6 +79,7 @@ function loadEcResultFile(e) {
     }
     reader.readAsText(file);
     console.log(TASKS_DICT);
+    TASK_FROM_LIST_COUNT = 0
     return
 }
 
@@ -299,10 +301,12 @@ function previousTaskFromList() {
 
 function updateProgram() {
     if  (Object.keys(TASKS_DICT).length > 0) {
-        document.getElementById('program_found').innerHTML = get(TASKS_DICT[CURRENT_TASK_NAME], `${ITERATION_INDEX+1}`, `Not Solved`);
+        document.getElementById('program_found').innerHTML = get(TASKS_DICT[CURRENT_TASK_NAME], `${ITERATION_INDEX}`, `Not Solved`);
         console.log(`TASK_FROM_LIST_COUNT INDEX ${TASK_FROM_LIST_COUNT}`);
         console.log(`ITERATION INDEX ${ITERATION_INDEX}`);
+        document.getElementById('new_primitives').innerHTML = Object.values(get(LEARNED_PRODUCTIONS, `${ITERATION_INDEX}`, `No new primitives found`)).join("</p><p>");
     }
+
 }
 
 function taskFromList() {
@@ -340,12 +344,23 @@ function taskFromList() {
         });
 }
 
+
 function randomTask() {
-    TASK_FROM_LIST_COUNT = 0
+    TASK_FROM_LIST_COUNT = 0;
+    console.log('task index: ', CURRENT_TASK_INDEX);
     var subset = "training";
     $.getJSON("https://api.github.com/repos/fchollet/ARC/contents/data/" + subset, function (tasks) {
-        var task = tasks.find(task => task.name == 'fcb5c309.json')
-        CURRENT_TASK_INDEX = Math.floor(Math.random() * tasks.length)
+
+        var CURRENT_TASK_INDEX = document.getElementById('task_index_input').value;
+        CURRENT_TASK_INDEX = parseInt(CURRENT_TASK_INDEX);
+        console.log("read_from_form parsed", CURRENT_TASK_INDEX);
+        console.log("isNaN", isNaN(CURRENT_TASK_INDEX));
+        if (isNaN(CURRENT_TASK_INDEX)) {
+            console.log('tasks length ', tasks.length)
+            CURRENT_TASK_INDEX = Math.floor(Math.random() * tasks.length);    
+        }
+
+        console.log('final ', CURRENT_TASK_INDEX);
         CURRENT_TASK_NAME = tasks[CURRENT_TASK_INDEX].name;
         $.getJSON(tasks[CURRENT_TASK_INDEX]["download_url"], function (json) {
             try {
@@ -357,16 +372,16 @@ function randomTask() {
             }
             loadJSONTask(train, test);
             $('#load_task_file_input')[0].value = "";
-            infoMsg("Loaded task training/" + task["name"]);
+            infoMsg("Loaded task training/" + CURRENT_TASK_NAME);
         })
             .error(function () {
                 errorMsg('Error loading task');
             });
         clearButtonLabels();
-        document.getElementById('taskName').innerHTML = `Task ${CURRENT_TASK_INDEX} out of ${tasks.length}: ${task['name']}`;
-        document.getElementById('random_task').innerHTML = `Task ${CURRENT_TASK_INDEX} out of ${tasks.length}: ${task['name']}`;
-        document.getElementById('task_from_list').innerHTML = `Task ${CURRENT_TASK_INDEX} out of ${tasks.length}: ${task['name']}`;
-        document.getElementById('taskName').innerHTML = `Task ${CURRENT_TASK_INDEX} out of ${tasks.length}: ${task['name']}`;
+        document.getElementById('taskName').innerHTML = `Task ${CURRENT_TASK_INDEX} out of ${tasks.length}: ${CURRENT_TASK_NAME}`;
+        document.getElementById('random_task').innerHTML = `Task ${CURRENT_TASK_INDEX} out of ${tasks.length}: ${CURRENT_TASK_NAME}`;
+        document.getElementById('task_from_list').innerHTML = `Task ${CURRENT_TASK_INDEX} out of ${tasks.length}: ${CURRENT_TASK_NAME}`;
+        document.getElementById('taskName').innerHTML = `Task ${CURRENT_TASK_INDEX} out of ${tasks.length}: ${CURRENT_TASK_NAME}`;
         updateProgram();
     })
         .error(function () {
