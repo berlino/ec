@@ -61,11 +61,12 @@ function loadEcResultFile(e) {
             var json = JSON.parse(contents)
             TASKS_DICT = json['frontiersOverTime'];
             LEARNED_PRODUCTIONS = json['learnedProductions'];
+            MAX_ITERATION = Object.keys(LEARNED_PRODUCTIONS).length
+            console.log("MAX_ITERATION", MAX_ITERATION)
             TASK_NAME_LIST = []
             Object.keys(TASKS_DICT).forEach(function(key) {
                 if (Object.keys(TASKS_DICT[key]).length > 0) {
                     TASK_NAME_LIST.push(key)
-                    MAX_ITERATION = Object.keys(TASKS_DICT[key]).length
                 }
             console.log(TASK_NAME_LIST)
             });

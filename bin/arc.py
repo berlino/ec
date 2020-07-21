@@ -4,7 +4,7 @@ try:
 except ModuleNotFoundError:
     import bin.binutil  # alt import if called as module
 
-from dreamcoder.domains.arc.main import list_options, main, ArcCNN
+from dreamcoder.domains.arc.main import list_options, main, ArcNN
 from dreamcoder.dreamcoder import commandlineArguments
 from dreamcoder.recognition import DummyFeatureExtractor
 from dreamcoder.utilities import numberOfCPUs

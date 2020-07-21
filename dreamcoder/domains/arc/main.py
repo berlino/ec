@@ -104,7 +104,7 @@ def gridToArray(grid):
         temp[yPos, xPos] = str(grid.points[(yPos,xPos)])
     return temp
 
-class ArcCNN(nn.Module):
+class ArcNN(nn.Module):
     special = 'arc'
     
     def __init__(self, tasks=[], testingTasks=[], cuda=False, H=64, inputDimensions=25):
@@ -125,26 +125,26 @@ class ArcCNN(nn.Module):
         v = F.relu(self.linear(v))
         return v.view(-1)
 
-    # def featuresOfTask(self, t, t2=None):  # Take a task and returns [features]
-    #     v = None
-    #     for example in t.examples[-1:]:
-    #         inputGrid, outputGrid = example
-    #         inputGrid = inputGrid[0]
+    def featuresOfTask(self, t, t2=None):  # Take a task and returns [features]
+        v = None
+        for example in t.examples[-1:]:
+            inputGrid, outputGrid = example
+            inputGrid = inputGrid[0]
 
-    #         inputVector = np.array(gridToArray(inputGrid)).flatten().astype(np.float32)
-    #         paddedInputVector = nn.functional.pad(torch.from_numpy(inputVector), (0,900 - inputVector.shape[0]), 'constant', 0)
+            inputVector = np.array(gridToArray(inputGrid)).flatten().astype(np.float32)
+            paddedInputVector = nn.functional.pad(torch.from_numpy(inputVector), (0,900 - inputVector.shape[0]), 'constant', 0)
 
-    #         outputVector = np.array(gridToArray(outputGrid)).flatten().astype(np.float32)
-    #         paddedOutputVector = nn.functional.pad(torch.from_numpy(outputVector), (900 - outputVector.shape[0],0), 'constant', 0)
+            outputVector = np.array(gridToArray(outputGrid)).flatten().astype(np.float32)
+            paddedOutputVector = nn.functional.pad(torch.from_numpy(outputVector), (900 - outputVector.shape[0],0), 'constant', 0)
 
-    #         exampleVector = torch.cat([paddedInputVector, paddedOutputVector], dim=0)
-    #         if v is None:
-    #             v = exampleVector
-    #         else:
-    #             v = torch.cat([v, exampleVector], dim=0)
-    #     return self(v)
+            exampleVector = torch.cat([paddedInputVector, paddedOutputVector], dim=0)
+            if v is None:
+                v = exampleVector
+            else:
+                v = torch.cat([v, exampleVector], dim=0)
+        return self(v)
 
-    def featuresOfTask(self, t):
+    def customFeaturesOfTask(self, t):
         v = None
         for example in t.examples[-1:]:
             inputGrid, outputGrid = example
@@ -317,17 +317,17 @@ def main(args):
     random.seed(args.pop("random_seed"))
     single_train_task = args.pop("train_few")
 
-    samples = {
-        "007bbfb7.json": _solve007bbfb7,
-        "c9e6f938.json": _solvec9e6f938,
-        "50cb2852.json": lambda grid: _solve50cb2852(grid)(8),
-        "fcb5c309.json": _solvefcb5c309,
-        "97999447.json": _solve97999447,
-        "f25fbde4.json": _solvef25fbde4,
-        "72ca375d.json": _solve72ca375d,
-        "5521c0d9.json": _solve5521c0d9,
-        "ce4f8723.json": _solvece4f8723,
-    }
+    # samples = {
+    #     "007bbfb7.json": _solve007bbfb7,
+    #     "c9e6f938.json": _solvec9e6f938,
+    #     "50cb2852.json": lambda grid: _solve50cb2852(grid)(8),
+    #     "fcb5c309.json": _solvefcb5c309,
+    #     "97999447.json": _solve97999447,
+    #     "f25fbde4.json": _solvef25fbde4,
+    #     "72ca375d.json": _solve72ca375d,
+    #     "5521c0d9.json": _solve5521c0d9,
+    #     "ce4f8723.json": _solvece4f8723,
+    # }
 
     import os
 
@@ -359,9 +359,9 @@ def main(args):
     # # v = arcNN.featuresOfTask(nnTrainTask[0])
     # # print(v)
 
-    resumePath = '/Users/theo/Development/program_induction/experimentOutputs/arc/'
-    resumeDirectory = '2020-05-10T14:49:21.186479/'
-    pickledFile = 'arc_aic=1.0_arity=3_BO=True_CO=True_ES=1_ET=1200_t_zero=28800_HR=0.0_it=6_MF=10_noConsolidation=False_pc=1.0_RT=1800_RR=False_RW=False_solver=ocaml_STM=True_L=1.0_TRR=unsolved_K=2_topkNotMAP=False.pickle'
+    resumePath = '/Users/theo/Development/program_induction/ec/experimentOutputs/arc/'
+    resumeDirectory = '2020-05-03T13:16:07.770984/'
+    pickledFile = 'arc_aic=1.0_arity=3_BO=True_CO=True_ES=1_ET=3600_t_zero=3600_HR=0.0_it=20_MF=10_noConsolidation=False_pc=1.0_RT=1800_RR=False_RW=False_solver=ocaml_STM=True_L=1.0_batch=30_TRR=randomShuffle_K=2_topkNotMAP=False.pickle'
     firstFrontier, allFrontiers, frontierOverTime, topDownGrammar, preConsolidationGrammar, resumeRecognizer, learnedProductions = getTrainFrontier(resumePath + resumeDirectory + pickledFile, 0)
 
     def convertFrontiersOverTimeToJson(frontiersOverTime):
