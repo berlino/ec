@@ -33,7 +33,7 @@ There are also `tblocks`, `ttiles` which are lists of `tblock` and `ttile`.
 ## Results
 To view these results clone the repository and open ec/arc-data/apps/testing_interface.html with your browser. Once you can see the main ARC test interface click on the "Choose File" button to "Load EC Console output". Then select the ecResults.json file found in ec/experimentOutputs/arc/.../ecResults.json.
 
-##### Full training corpus Enumeration with Bigram Model (slurm-16817187.out)
+#### Full training corpus Enumeration with Bigram Model (slurm-16817187.out)
 ec/experimentOutputs/arc/2020-05-10T14:49:21.186479
 
 Iterations: 6,
@@ -41,7 +41,7 @@ Top-down enumeration timeout: 8 hours,
 Bottom-up enumeration timeout: 20 minutes
 
 
-##### Batch Enumeration with Bigram Model (slurm-16769822.out)
+#### Batch Enumeration with Bigram Model (slurm-16769822.out)
 experimentOutputs/arc/2020-05-01T19:00:26.769291
 
 Iterations: 20,
