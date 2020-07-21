@@ -36,18 +36,18 @@ To view these results clone the repository and open ec/arc-data/apps/testing_int
 ##### Full training corpus Enumeration with Bigram Model (slurm-16817187.out)
 ec/experimentOutputs/arc/2020-05-10T14:49:21.186479
 
-Iterations: 6
-Top-down enumeration timeout: 8 hours
+Iterations: 6,
+Top-down enumeration timeout: 8 hours,
 Bottom-up enumeration timeout: 20 minutes
 
 
 ##### Batch Enumeration with Bigram Model (slurm-16769822.out)
 experimentOutputs/arc/2020-05-01T19:00:26.769291
 
-Iterations: 20
+Iterations: 20,
 (At iteration 0, top-down enumerated for all tasks for 8 hours to jump start)
-Batch size: 30
-Top-down enumeration timeout: 1 hour
+Batch size: 30,
+Top-down enumeration timeout: 1 hour,
 Bottom-up enumeration timeout: 1 hour
 ## Next Steps
 ### DSL
