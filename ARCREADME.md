@@ -40,8 +40,10 @@ Iterations: 6,
 Top-down enumeration timeout: 8 hours,
 Bottom-up enumeration timeout: 20 minutes
 
-8 Hour Top Down enumeration (no Bigram model enumeration): 31/400
-After 1 full cycle: 72/400
+8 Hour Top Down enumeration (w/o bigram model): 31/400 <br />
+After 1 full cycle (top-dow): 71/400 <br />
+After 2 full cycles: 73/400 <br />
+After 3 full cycles: 74/400
 
 
 #### Batch Enumeration with Bigram Model (slurm-16769822.out)
