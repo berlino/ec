@@ -91,6 +91,6 @@ There are a lot of possible ways to extend the current architecture which is mer
 Required for the recognition model to work well this should definitely be a priority moving forward. Being able to train the neural network on dream tasks and just solved tasks is really important for bootstrapping and library learning to work well. This requires both a way to sample programs as well as a way to sample input grids. Currently the only progress to this end is code to permute grid non-special color (so that the program found is correct for the color-permuted grid too. This code can be found in `dreamcoder/domains/arc/taskGeneration.py`.
 
 ### Compression
-From the experiments run, it seems that compression often learns highly specific long programs due to the presence of very similar tasks. Thinking about and modifying compression to encourage learning shorter and more compositional primitives is a promising direction forward.
+From the experiments run, it seems that compression often learns highly specific long programs due to the presence of very similar tasks. Thinking about and modifying compression to encourage learning shorter and more general primitives is a promising direction forward.
 
 
