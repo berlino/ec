@@ -12,7 +12,7 @@ from dreamcoder.task import Task
 from dreamcoder.type import Context, arrow, tbool, tlist, tint, t0, UnificationFailure
 from dreamcoder.domains.list.listPrimitives import basePrimitives, primitives, McCarthyPrimitives, bootstrapTarget_extra, no_length
 from dreamcoder.domains.list.makeListTasks import make_list_bootstrap_tasks, sortBootstrap, EASYLISTTASKS
-
+from dreamcoder.domains.list.propertySignatureExtractor import PropertySignatureExtractor
 
 def retrieveJSONTasks(filename, features=False):
     """
@@ -362,10 +362,14 @@ def main(args):
                                    (p.name != "unfold" or haveUnfold) and \
                                    (p.name != "length" or haveLength)])
 
+    extractor_name = args.pop("extractor")
     extractor = {
         "learned": LearnedFeatureExtractor,
-    }[args.pop("extractor")]
-    extractor.H = args.pop("hidden")
+        "prop_sig": PropertySignatureExtractor
+        }[extractor_name]
+
+    if extractor_name == "learned":
+        extractor.H = args.pop("hidden")
 
     timestamp = datetime.datetime.now().isoformat()
     outputDirectory = "experimentOutputs/list/%s"%timestamp
@@ -406,5 +410,14 @@ def main(args):
     else:
         train = tasks
         test = []
+
+    tasks_json = [task.as_json_dict() for task in train]
+    # json.dump(tasks_json, open("list_tasks_experiment.json", "w"))
+
+    import pandas as pd
+
+    df = pd.DataFrame.from_records(tasks_json)
+    print(df.head(3))
+    df.to_csv("list_train_tasks_experiment.csv")
 
     explorationCompression(baseGrammar, train, testingTasks=test, **args)

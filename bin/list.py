@@ -5,6 +5,7 @@ except ModuleNotFoundError:
     import bin.binutil  # alt import if called as module
 
 from dreamcoder.domains.list.main import main, list_options
+# from dreamcoder.domains.list.makeListTasks import main
 from dreamcoder.dreamcoder import commandlineArguments
 from dreamcoder.utilities import numberOfCPUs
 
@@ -17,3 +18,5 @@ if __name__ == '__main__':
         CPUs=numberOfCPUs(),
         extras=list_options)
     main(args)
+
+

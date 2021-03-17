@@ -6,6 +6,7 @@ from dreamcoder.utilities import eprint, hashable
 
 from random import randint, random, seed
 from itertools import product
+import json
 
 # Excluded routines either impossible or astronomically improbable
 # I'm cutting these off at ~20 nats in learned grammars.
@@ -554,8 +555,7 @@ def exportTasks():
         pickle.dump(tasks, f)
     eprint("Wrote list tasks to data/list_tasks.pkl")
 
-
-if __name__ == "__main__":
+def main():
     import json
     def retrieveJSONTasks(filename, features=False):
         """
@@ -581,7 +581,19 @@ if __name__ == "__main__":
                 [((ex["i"],), ex["o"]) for ex in item["examples"]])),
             cache=False,
         ) for item in loaded]
-    for t in retrieveJSONTasks("data/list_tasks.json") + sortBootstrap() + make_list_bootstrap_tasks():
-        print(t.describe())
-        print()
+    tasks = retrieveJSONTasks("data/list_tasks.json") + sortBootstrap()
+
+    tasks_json = [task.as_json_dict() for task in tasks]
+    # json.dump(tasks_json, open("list_tasks_experiment.json", "w"))
+
+    import pandas as pd
+
+    df = pd.DataFrame.from_records(tasks_json)
+    print(df.head(3))
+    df.to_csv("list_tasks_experiment.csv")
+
+    return 
+
+if __name__ == "__main__":
+    pass
     # exportTasks()
