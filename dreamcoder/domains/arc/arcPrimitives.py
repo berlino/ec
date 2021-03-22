@@ -5,11 +5,22 @@ if runFull:
     from dreamcoder.program import Primitive, Program, baseType
     from dreamcoder.grammar import Grammar
     from dreamcoder.type import tlist, tint, tbool, arrow, t0, t1, t2, tpair
+else:
+    class Task:
+        def __init__(self,examples):
+            self.examples = [((example[0],),example[1]) for example in examples]
+            self.program = "(lambda (overlap_split_blocks (split_grid $0 (has_color (tile_to_block (block_to_tile (grid_to_block $0))) red)) (lambda (lambda $0))))"
     #
+
+import itertools
 from functools import reduce
 import json
+import math
 import numpy as np
 import os
+import copy
+import random
+from scipy.special import perm, comb
 
 class Block:
 
@@ -304,6 +315,7 @@ class RectangleBlock(Block):
     #     return temp.tolist()
 
 class Grid(RectangleBlock):
+
     def __init__(self, gridArray=None, points=None, originalGrid=None):
         self.points = {}
         if points is not None:
@@ -314,13 +326,18 @@ class Grid(RectangleBlock):
                     self.points[(y, x)] = gridArray[y][x]
         super().__init__(self.points, originalGrid)
 
-    def __repr__(self):
-        temp = {}
+    def __str__(self):
+        temp = np.full((self.getNumRows(),self.getNumCols()),None)
         for yPos,xPos in self.points:
-            temp["{},{}".format(yPos, xPos)] = self.points[(yPos,xPos)]
-        return {'grid':temp}
+            temp[yPos, xPos] = str(self.points[(yPos,xPos)])
+        rows = [' '.join(row) for row in temp.tolist()]
+        return '\n'.join(rows)
 
-
+    # def __repr__(self):
+    #     temp = {}
+    #     for yPos,xPos in self.points:
+    #         temp["{},{}".format(yPos, xPos)] = self.points[(yPos,xPos)]
+    #     return {'grid':temp}
 
     def fromPoints(self, points):
         return Grid(points=points, originalGrid=self.originalGrid)
@@ -424,8 +441,34 @@ class Grid(RectangleBlock):
         return Grid(points={key:c if color != backgroundColor else backgroundColor for key,color in self.points.items()})
 
     def maskAndCenter(self, mask):
-        return self.fromPoints(points={(key[0] - mask.topLeftTile[0], key[1] - mask.topLeftTile[1]):color for key,color in self.points.items() if key in mask.points})
+        return self.fromPoints(points={(key[0] - mask.topLeftTile[0 ], key[1] - mask.topLeftTile[1]):color for key,color in self.points.items() if key in mask.points})
 
+
+colorToInt = {
+"black":0,
+"blue":1,  
+"red":2,
+"green":3,
+"yellow":4,
+"grey":5,
+"pink":6,
+"orange":7,
+"teal":8,
+"maroon":9
+}
+
+intToColor = {
+0:"black",
+1:"blue",
+2:"red",
+3:"green",
+4:"yellow",
+5:"grey",
+6:"pink",
+7:"orange",
+8:"teal",
+9:"maroon",
+}
 
 _black = 0
 _blue = 1
@@ -539,10 +582,6 @@ def _solve007bbfb7(a): return _zipGrids(_grow(a)(3))(_duplicate2dN(a)(2))(_keepN
 def _solveGenericBlockMap(grid): return lambda findFunc: lambda mapFunc: lambda combineFunc: combineFunc(_map(mapFunc)(findFunc(grid)))
 # def _solve42a50994(grid): return lambda count: _blocksToGrid(_filter(lambda block: _hasMinTiles(count)(block))(_findBlocksBy(grid)(True)))(grid.getNumRows())(grid.getNumCols())
 
-
-class RecursionDepthExceeded(Exception):
-    pass
-
 if runFull:
     tblock = baseType('tblock')
     tcolor = baseType('tcolor')
@@ -553,8 +592,7 @@ if runFull:
     tsplitblock = baseType('tsplitblock')
     tlogical = baseType('tlogical')
     ttbs = baseType('template_blocks_scene')
-
-    # tcolorpair = tpair(tcolor, tcolor)
+    tcolorpair = tpair(tcolor, tcolor)
     # tcmap = tlist(tcolorpair)
 
     # tintcolorpair = tpair(tint, tcolor)
@@ -615,8 +653,8 @@ def basePrimitives():
     Primitive('blocks_to_min_grid', arrow(tblocks, tbool, tbool, tgridout),  None),
 
     # arrow(tblocks, tblock)
-    # Primitive("nth_of_sorted_object_list", arrow(tblocks, arrow(tblock, tint), tint, tblock), None),
-    # Primitive("singleton_block" , arrow(tblocks, tblock), None),
+    Primitive("first_of_sorted_object_list", arrow(tblocks, arrow(tblock, tint), tbool, tblock), None),
+    Primitive("singleton_block" , arrow(tblocks, tblock), None),
     Primitive("merge_blocks", arrow(tblocks, tbool, tblock), None),
 
     # arrow(tblocks, tblocks)
@@ -636,7 +674,7 @@ def basePrimitives():
     Primitive('duplicate', arrow(tblock, tdirection, tint, tblock), None),
     Primitive('grow', arrow(tblock, tint, tblock), _grow),
     Primitive('fill_color', arrow(tblock, tcolor, tblock), _fill),
-    Primitive('fill_snakewise', arrow(tblock, tcolors, tblock), None),
+    Primitive('fill_snakewise', arrow(tblock, tcolorpair, tblock), None),
     Primitive('replace_color', arrow(tblock, tcolor, tcolor, tblock), _replaceColors),
     Primitive('remove_black_b', arrow(tblock, tblock), None),
     Primitive('remove_color', arrow(tblock, tcolor, tblock), None),
@@ -688,10 +726,10 @@ def basePrimitives():
     Primitive('find_blocks_by_color', arrow(tgridin, tcolor, tbool, tbool, tblocks), lambda grid: grid),
     Primitive('find_blocks_by_inferred_b', arrow(tgridin, tbool, tbool, tblocks), lambda grid: grid),    
     #arrow(tgridin, tblock)
-    # Primitive('grid_to_block', arrow(tgridin, tblock), lambda grid: grid),
+    Primitive('grid_to_block', arrow(tgridin, tblock), lambda grid: grid),
     
     # arrow(tgridin, tsplitblocks)
-    # Primitive('split_grid', arrow(tgridin, tbool, tsplitblocks), None),
+    Primitive('split_grid', arrow(tgridin, tbool, tsplitblocks), None),
 
     # arrow(tgridin, ttiles)
     Primitive('find_tiles_by_black_b', arrow(tgridin, ttiles), None),
@@ -724,23 +762,20 @@ def basePrimitives():
 
     # arrow(ttiles, ttiles)
     Primitive("filter_tiles", arrow(ttiles, arrow(ttile, tbool), ttiles), _filter),
-    Primitive("map_tiles", arrow(ttiles, arrow(ttile, ttile), ttiles), _map),
+    Primitive("map_tiles", arrow(ttiles, arrow(ttile, tblock), tblocks), _map),
 
 ##### tsplitblocks #####
 
     # arrow(tsplitblocks -> tgridout)
-    # Primitive('overlap_split_blocks', arrow(tsplitblocks, arrow(tcolor, tcolor, tcolor), tgridout), None),
+    Primitive('overlap_split_blocks', arrow(tsplitblocks, arrow(tcolor, tcolor, tcolor), tgridout), None),
     
     # arrow(tsplitblocks -> tblocks)
-    # Primitive('splitblocks_to_blocks', arrow(tsplitblocks, tblocks), None),
+    Primitive('splitblocks_to_blocks', arrow(tsplitblocks, tblocks), None),
 
 ##### tcolor #####
 
     # arrow(tcolor, tcolor)
     Primitive('color_logical', arrow(tcolor, tcolor, tcolor, tlogical, tcolor), None),
-    
-    # arrow(tcolor, tcolors)
-    # Primitive('color_pair', arrow(tcolor, tcolor, tcolors), None),
 
 ##### tlogical #####
 
@@ -754,11 +789,11 @@ def basePrimitives():
     Primitive("negate_boolean", arrow(tbool, tbool), None),
 
 #### ttbs ####
-    Primitive("map_tbs", arrow(ttbs, arrow(tblock, tblock), tbool, tblocks), None),
+    Primitive("map_tbs", arrow(ttbs, arrow(tblock, tblock, tblock), tbool, tblocks), None),
 
-# ##### tcolorpair #####
+##### tcolorpair #####
 
-#     Primitive("make_colorpair", arrow(tcolor, tcolor, tcolorpair), None),
+    Primitive("make_colorpair", arrow(tcolor, tcolor, tcolorpair), None),
 
 # ##### tintcolorpair #####
 
@@ -774,20 +809,6 @@ def basePrimitives():
 
 #     Primitive("make_icmap", arrow(tintcolorpair, tintcolorpair, tintcolorpair, ticmap), None),
 ]
-
-##### t0 #####
-
-    # t0
-    # Primitive("reduce", arrow(arrow(t1, t0, t1), t1, tlist(t0), t1), _reduce),
-    # Primitive("map", arrow(arrow(t0, t1), tlist(t0), tlist(t1)), _map),
-    # Primitive("filter", arrow(arrow(t0, tbool), tlist(t0), tlist(t0)), _filter),
-    # Primitive("mapi",arrow(arrow(tint,t0,t1), tlist(t0), tlist(t1)),_mapi),
-    # Primitive("filteri", arrow(arrow(tint, t0, t1), tlist(t0), tlist(t1)), _filteri)]
-
-##### Task Blueprints #####
-
-    # Primitive('findAndMap', arrow(tgrid, arrow(tgrid, tblocks), arrow(tblock, tblock), arrow(tblocks, tgrid), tgrid), _solveGenericBlockMap)
-
 
 
 # def retrieveARCJSONTask(filename, directory):
@@ -825,58 +846,49 @@ def pprint(arr):
     # print(a(1))
 
 def getTask(filename, directory):
+    """
+    Loads the filename task at directory
+    """
+
     with open(directory + '/' + filename, "r") as f:
         loaded = json.load(f)
-
     train = [((Grid(gridArray=example['input'],)), Grid(gridArray=example['output'])) for example in loaded['train']]
     test = [((Grid(gridArray=example['input'],)), Grid(gridArray=example['output'])) for example in loaded['test']]
-
     return train, test
+
+manuallySolvedTasks = {
+    "72ca375d.json":"(lambda (blocks_to_min_grid (filter_blocks (find_same_color_blocks $0 true false) (lambda (is_tile $0))) false false))",
+    "f25fbde4.json":"(lambda (to_min_grid (grow (merge_blocks (find_blocks_by_black_b $0 true false) true) 1) false))",
+    # "fcb5c309":"()", repeating code
+    "ce4f8723.json":"(lambda (overlap_split_blocks (split_grid $0 true) (lambda (lambda (color_logical $1 $0 green lor)))))",
+    "0520fde7.json": "(lambda (overlap_split_blocks (split_grid $0 true) (lambda (lambda (color_logical $1 $0 red land)))))",
+    "c9e6f938.json": "(lambda (to_min_grid (move (reflect (grid_to_block $0) false) 3 east true) false))",
+    "97999447.json": "(lambda (blocks_to_original_grid (map_blocks (map_tiles (find_tiles_by_black_b $0) (lambda (extend_towards_until $0 east (lambda (touches_any_boundary (tile_to_block $0)))))) (lambda (fill_snakewise $0 (make_colorpair invisible grey)))) false true))",
+    "5521c0d9.json": "(lambda (blocks_to_original_grid (map_blocks (find_same_color_blocks $0 true false) (lambda (move $0 (get_height $0) north false))) false true))",
+    # "007bbfb7": (lambda ()),
+    "d037b0a7.json": "(lambda (blocks_to_original_grid (map_tiles (find_tiles_by_black_b $0) (lambda (extend_towards_until $0 south (lambda (touches_boundary (tile_to_block $0) south))))) false true))",
+    # "5117e062": (
+    "4347f46a.json": "(lambda (blocks_to_original_grid (map_blocks (find_same_color_blocks $0 false false) (lambda (filter_block_tiles $0 (lambda (is_exterior $0 false))))) false true))",
+    "50cb2852.json": "(lambda (blocks_to_original_grid (map_blocks (find_blocks_by_black_b $0 true false) (lambda (fill_color (filter_block_tiles $0 (lambda (is_interior $0 true))) teal))) true true))",
+    "a5313dff.json": "(lambda (blocks_to_original_grid (map_blocks (filter_blocks (find_blocks_by_color $0 black false false) (lambda (negate_boolean (touches_any_boundary $0)))) (lambda (fill_color $0 blue))) true true))",
+    # "ea786f4a": map_for_directions
+    "22eb0ac0.json": "(lambda (blocks_to_original_grid (map_tiles (find_tiles_by_black_b $0) (lambda (extend_towards_until_edge $0 east))) true false))",
+    "88a10436.json": "(lambda (blocks_to_original_grid (map_tbs (filter_template_block (find_blocks_by_black_b $0 true false) (lambda (is_rectangle $0 false))) (lambda (lambda (center_block_on_tile $0 (block_to_tile $1)))) false) true true))",
+    "a48eeaf7.json": "(lambda (blocks_to_original_grid (map_tbs (filter_template_block (find_blocks_by_inferred_b $0 true false) (lambda (is_tile $0))) (lambda (lambda (move_until_touches_block (block_to_tile $0) $1 true))) true) false false))",
+    "2c608aff.json": "(lambda (blocks_to_original_grid (map_tbs (filter_template_block (find_blocks_by_inferred_b $0 true false) (lambda (is_tile $0))) (lambda (lambda (extend_until_touches_block (block_to_tile $0) $1 false))) true) true false))",
+    "1f642eb9.json": "(lambda (blocks_to_original_grid (map_tbs (filter_template_block (find_blocks_by_inferred_b $0 true false) (lambda (is_tile $0))) (lambda (lambda (move_until_overlaps_block (block_to_tile $0) $1 false))) false) true false))",
+}
 
 if __name__ == "__main__":
 
     directory = '/'.join(os.path.abspath(__file__).split('/')[:-4]) + '/arc-data/data/training'
-    train,test = getTask('a416b8f3.json', directory)
+    train,test = getTask('f8a8fe49.json', directory)
 
-    for i in range(len(train)):
-        print('\nExample {}'.format(i))
-        grid, outputGrid = train[i]
-        got = _blockToMinGrid(_move(grid)(_numCols(grid))('right')(True))(False)
-        # for block in got:
-            # block.pprint()
-        #     isHorizontal = False
-        #     reflectedBlock = block.reflect(isHorizontal)
-        #     refA, refB = reflectedBlock.split(isHorizontal)
-        #     refA.pprint()
-        #     a,b = block.split(isHorizontal)
-        #     a.pprint()
-        #
-        #     refB.pprint()
-        #     b.pprin t()
-        #     print(block.isSymmetrical(isHorizontal))
-        #     print('\n')
-
-        # print('Input: ')
-        # inputGrid.pprint()
-        print('Got: ')
-        got.pprint()
-        print('Expected')
-        outputGrid.pprint()
-        if (got == outputGrid):
-            print('HIT')
-        # break
-        # inputGrid.pprint()
-        # count = 0
-
-        # res = _filter(lambda block: _hasMinTiles(4)(block))(inputGrid.findBlocksByCorner(0))
-        # _blocksToGrid(res).pprint()
-
-    # Primitive('reflect', arrow(tgrid, tbool, tgrid), _reflect),
-    # Primitive('grow', arrow(tgrid, tint, tgrid), _grow),
-    # Primitive('concat', arrow(tgrid, tgrid, tdirection, tgrid), _concat),
-    # Primitive('concatN', arrow(tgrid, tgrid, tdirection, tint, tgrid), _concatN),
-    # Primitive('duplicate', arrow(tgrid, tdirection, tgrid), _duplicate),
-    # Primitive('duplicateN', arrow(tgrid, tdirection, tint, tgrid), _duplicateN),
-    # Primitive('zipGrids', arrow(tgrid, tgrid, arrow(tcolor, tcolor, tcolor), tgrid), _zipGrids),
-    # Primitive('zipGrids2', arrow(tgrids, arrow(tcolor, tcolor, tcolor), tgrid), _zipGrids2),
-    # Primitive('concatNAndReflect', arrow(tgrid, tbool, tdirection, tgrid), _concatNAndReflect),
+    generatedTasks = generateFromFrontier(train, 73)
+    for task in generatedTasks:
+        for example in task.examples:
+            inputGrid, outputGrid = example
+            print(inputGrid)
+            print('-------------------------')
+            print(outputGrid)
+            print('\n')

@@ -139,7 +139,6 @@ class Program(object):
 
     @staticmethod
     def parse(s):
-        print(s)
         s = parseSExpression(s)
         def p(e):
             if isinstance(e,list):

@@ -292,9 +292,9 @@ let tsplitblock = make_ground "tsplitblock" ;;
 let tlogical = make_ground "tlogical" ;;
 let ttbs = make_ground "template_blocks_scene" ;;
 let tpair t t' = kind "pair" [t;t'];;
+let tcolorpair = tpair tcolor tcolor ;;
 
-(* let tcolorpair = tpair tcolor tcolor ;;
-let tcmap = tlist tcolorpair ;; *)
+(* let tcmap = tlist tcolorpair ;; *)
 
 (* let tintcolorcpair = tpair tint tcolor ;;
 let ticmap = tlist tintcolorcpair ;; *)
