@@ -249,7 +249,7 @@ def list_options(parser):
                         help="Which primitive set to use",
                         choices=["McCarthy", "base", "rich", "common", "noLength"])
     parser.add_argument("--extractor", type=str,
-                        choices=["hand", "deep", "learned"],
+                        choices=["hand", "deep", "learned", "prop_sig"],
                         default="learned")
     parser.add_argument("--split", metavar="TRAIN_RATIO",
                         type=float,
@@ -363,6 +363,7 @@ def main(args):
                                    (p.name != "length" or haveLength)])
 
     extractor_name = args.pop("extractor")
+    print(extractor_name)
     extractor = {
         "learned": LearnedFeatureExtractor,
         "prop_sig": PropertySignatureExtractor
@@ -384,6 +385,10 @@ def main(args):
 
     eprint("Got {} list tasks".format(len(tasks)))
     split = args.pop("split")
+
+    # tasks = [task for task in tasks if task.request == arrow(tlist(tint), tlist(tint))]
+    # eprint("Got {} list tasks after filtering keeping only tlist(tint) -> tlist(tint) tasks".format(len(tasks)))
+
     if split:
         train_some = defaultdict(list)
         for t in tasks:
@@ -411,13 +416,4 @@ def main(args):
         train = tasks
         test = []
 
-    tasks_json = [task.as_json_dict() for task in train]
-    # json.dump(tasks_json, open("list_tasks_experiment.json", "w"))
-
-    import pandas as pd
-
-    df = pd.DataFrame.from_records(tasks_json)
-    print(df.head(3))
-    df.to_csv("list_train_tasks_experiment.csv")
-
-    explorationCompression(baseGrammar, train, testingTasks=test, **args)
+    # explorationCompression(baseGrammar, train, testingTasks=test, **args)
