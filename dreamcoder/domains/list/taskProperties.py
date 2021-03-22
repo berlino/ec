@@ -79,8 +79,8 @@ def handWrittenProperties():
 	]
 
 	outputIdxParamProperties = [
-		# Primitive("output_list_length_n", arrow(tlist(t0), tlist(t1), tint, tbool), 
-		# 	lambda n: lambda outputList: lambda inputList: len(outputList) == n)
+		Primitive("output_list_length_n", arrow(tlist(t0), tlist(t1), tint, tbool), 
+			lambda n: lambda outputList: lambda inputList: len(outputList) == n)
 	]
 
 	inputIdxOutputIdxParamProperties = [
@@ -120,7 +120,7 @@ def handWrittenPropertyFuncs(handWrittenPropertyPrimitives, kMin, kMax,
 			propertyFuncs.append(prop.value(idx))
 
 	inputIdxOutputIdxParamProperties = handWrittenPropertyPrimitives[4]
-	for prop in outputIdxParamProperties:
+	for prop in inputIdxOutputIdxParamProperties:
 		for inputIdx in range(inputIdxMax+1):
 			for outputIdx in range(outputIdxMax+1):
 				propertyFuncs.append(prop.value(outputIdx)(inputIdx))
