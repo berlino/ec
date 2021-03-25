@@ -19,7 +19,7 @@ class PropertySignatureExtractor(nn.Module):
         testingTasks=[], 
         cuda=False, 
         H=64, 
-        embedSize=16,
+        embedSize=1,
         # What should be the timeout for trying to construct Helmholtz tasks?
         helmholtzTimeout=0.25,
         # What should be the timeout for running a Helmholtz program?
@@ -30,7 +30,7 @@ class PropertySignatureExtractor(nn.Module):
         self.recomputeTasks = True
         self.outputDimensionality = H
         self.embedSize = embedSize
-        self.embedding = nn.Embedding(3, self.embedSize)
+        # self.embedding = nn.Embedding(3, self.embedSize)
 
         # maps from a requesting type to all of the inputs that we ever saw with that request
         self.requestToInputs = {
@@ -114,24 +114,24 @@ class PropertySignatureExtractor(nn.Module):
 
                 # property can't be applied to this io example and so property for the whole spec is Mixed (2)
                 if booleanValue is None:
-                    return 2
+                    return 0
                 specBooleanValues.append(booleanValue)
 
             if all(specBooleanValues) is True:
                 return 1
             elif all([booleanValue is False for booleanValue in specBooleanValues]):
-                return 0
-            return 2
+                return -1
+            return 0
 
         propertyValues = []
         for propertyFunc in self.propertyFuncs:
             propertyValue = getPropertyValue(propertyFunc, t)
             propertyValues.append(propertyValue)
         
-        booleanPropSig = torch.LongTensor(propertyValues)
-        embeddedPropSig = self.embedding(booleanPropSig).flatten()
+        booleanPropSig = torch.FloatTensor(propertyValues)
+        # embeddedPropSig = self.embedding(booleanPropSig).flatten()
 
-        return self(embeddedPropSig)
+        return self(booleanPropSig)
 
 
     def featuresOfTasks(self, ts, t2=None):  # Take a task and returns [features]

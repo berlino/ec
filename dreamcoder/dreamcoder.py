@@ -206,7 +206,7 @@ def ecIterator(grammar, tasks,
     if matrixRank is not None and not contextual:
         eprint("Matrix rank only applies to contextual recognition models, aborting")
         assert False
-    assert useDSL or useRecognitionModel, "You specified that you didn't want to use the DSL AND you don't want to use the recognition model. Figure out what you want to use."
+    # assert useDSL or useRecognitionModel, "You specified that you didn't want to use the DSL AND you don't want to use the recognition model. Figure out what you want to use."
     if testingTimeout > 0 and len(testingTasks) == 0:
         eprint("You specified a testingTimeout, but did not provide any held out testing tasks, aborting.")
         assert False

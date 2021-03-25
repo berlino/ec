@@ -17,7 +17,7 @@ if __name__ == '__main__':
         a=3, maximumFrontier=10, topK=2, pseudoCounts=30.0,
         helmholtzRatio=0.5, structurePenalty=1.,
         CPUs=numberOfCPUs(),
-        extras=list_options)
+        extras=list_options, useRecognitionModel=True)
     main(args)
     # viewResults()
 # 
