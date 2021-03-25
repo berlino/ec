@@ -4,7 +4,7 @@ from dreamcoder.type import tlist, tint, tbool, arrow, t0, t1, t2
 
 def _everyOutputElGtEveryInputSameIdxEl(inputList, outputList):
 	endIdx = min(len(inputList), len(outputList))
-	return all([inputList[i] == outputList[i] for i in range(endIdx)])
+	return all([inputList[i] < outputList[i] for i in range(endIdx)])
 
 def _inputPrefixOfOutput(inputList, outputList):
 	if len(inputList) > len(outputList):
@@ -27,7 +27,6 @@ def handWrittenProperties():
 	programs easier for these tasks and hopefully also generalize to the test tasks.
 
 	Ways to generate even more properties:
-		1. Take negation of every one of these
 		2. Boolean Combination (usually AND e.g. land(input_subset_of_output, output_is_subset_of_input))
 		3. Replace "all elements of list" with "any"
 
@@ -44,7 +43,7 @@ def handWrittenProperties():
 			lambda outputList: lambda inputList: set(inputList).issubset(set(outputList))),
 
 		Primitive("output_same_length_as_input", arrow(tlist(t0), tlist(t1), tbool), 
-			lambda outputList: lambda inputList: len(inputList) == (outputList)),
+			lambda outputList: lambda inputList: len(inputList) == len(outputList)),
 
 		Primitive("output_shorter_than_input", arrow(tlist(t0), tlist(t1), tbool), 
 			lambda outputList: lambda inputList: len(inputList) > len(outputList)),
@@ -54,7 +53,7 @@ def handWrittenProperties():
 
 		Primitive("every_output_el_gt_every_input_same_idx_el", arrow(tlist(t0), tlist(t1), tbool), 
 			lambda outputList: lambda inputList: _everyOutputElGtEveryInputSameIdxEl(inputList, outputList)),
-
+ 
 		Primitive("input_prefix_of_output", arrow(tlist(t0), tlist(t0), tbool), 
 			lambda outputList: lambda inputList: _inputPrefixOfOutput(inputList, outputList)),
 
@@ -84,8 +83,8 @@ def handWrittenProperties():
 	]
 
 	inputIdxOutputIdxParamProperties = [
-		Primitive("output_idx_i_equals_input_idx_j", arrow(tlist(tint), tlist(tint), tint, tint, tbool),
-			lambda i: lambda j: lambda outputList: lambda inputList: inputList[j] == outputList[i])
+		# Primitive("output_idx_i_equals_input_idx_j", arrow(tlist(tint), tlist(tint), tint, tint, tbool),
+		# 	lambda i: lambda j: lambda outputList: lambda inputList: inputList[j] == outputList[i])
 	]
 
 	return [noParamProperties, 

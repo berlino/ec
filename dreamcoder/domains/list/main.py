@@ -3,6 +3,8 @@ from collections import defaultdict
 import json
 import math
 import os
+import torch.nn as nn
+import torch
 import datetime
 
 from dreamcoder.dreamcoder import explorationCompression
@@ -206,6 +208,53 @@ try:
                 bidirectional=True)
 except: pass
 
+class CombinedExtractor(nn.Module):
+    special = None
+
+    def __init__(self, 
+        tasks=[], 
+        testingTasks=[], 
+        cuda=False, 
+        H=64, 
+        embedSize=16,
+        # What should be the timeout for trying to construct Helmholtz tasks?
+        helmholtzTimeout=0.25,
+        # What should be the timeout for running a Helmholtz program?
+        helmholtzEvaluationTimeout=0.01):
+        super(CombinedExtractor, self).__init__()
+
+        self.propSigExtractor = PropertySignatureExtractor(tasks=tasks, testingTasks=testingTasks, H=H, embedSize=embedSize, helmholtzTimeout=helmholtzTimeout, helmholtzEvaluationTimeout=helmholtzEvaluationTimeout,
+            cuda=cuda)
+        self.learnedFeatureExtractor = LearnedFeatureExtractor(tasks=tasks, testingTasks=testingTasks, cuda=cuda)
+
+        # self.propSigExtractor = PropertySignatureExtractor
+        # self.learnedFeatureExtractor = LearnedFeatureExtractor
+
+        self.outputDimensionality = 2 * H
+        self.recomputeTasks = True
+        self.parallelTaskOfProgram = True
+
+    def forward(self, v, v2=None):
+        pass
+
+    def featuresOfTask(self, t):
+
+        learnedFeatureExtractorVector = self.learnedFeatureExtractor.featuresOfTask(t)
+        propSigExtractorVector = self.propSigExtractor.featuresOfTask(t)
+
+        if learnedFeatureExtractorVector is not None and propSigExtractorVector is not None:
+            return torch.cat((learnedFeatureExtractorVector, propSigExtractorVector))
+        else:
+            return None
+
+    def featuresOfTasks(self, ts, t2=None):  # Take a task and returns [features]
+        """Takes the goal first; optionally also takes the current state second"""
+        return [self.featuresOfTask(t) for t in ts]
+
+    def taskOfProgram(self, p, tp):
+        return self.learnedFeatureExtractor.taskOfProgram(p=p, tp=tp)
+
+
 def train_necessary(t):
     if t.name in {"head", "is-primes", "len", "pop", "repeat-many", "tail", "keep primes", "keep squares"}:
         return True
@@ -249,7 +298,7 @@ def list_options(parser):
                         help="Which primitive set to use",
                         choices=["McCarthy", "base", "rich", "common", "noLength"])
     parser.add_argument("--extractor", type=str,
-                        choices=["hand", "deep", "learned", "prop_sig"],
+                        choices=["hand", "deep", "learned", "prop_sig", "combined"],
                         default="learned")
     parser.add_argument("--split", metavar="TRAIN_RATIO",
                         type=float,
@@ -366,14 +415,16 @@ def main(args):
     print(extractor_name)
     extractor = {
         "learned": LearnedFeatureExtractor,
-        "prop_sig": PropertySignatureExtractor
+        "prop_sig": PropertySignatureExtractor,
+        "combined": CombinedExtractor
         }[extractor_name]
 
+    hidden = args.pop("hidden")
     if extractor_name == "learned":
-        extractor.H = args.pop("hidden")
+        extractor.H = hidden
 
     timestamp = datetime.datetime.now().isoformat()
-    outputDirectory = "experimentOutputs/list/%s"%timestamp
+    outputDirectory = "kevinExperimentOutputs/list/%s"%timestamp
     os.system("mkdir -p %s"%outputDirectory)
     
     args.update({
@@ -416,4 +467,4 @@ def main(args):
         train = tasks
         test = []
 
-    # explorationCompression(baseGrammar, train, testingTasks=test, **args)
+    explorationCompression(baseGrammar, train, testingTasks=test, **args)

@@ -284,6 +284,7 @@ def ecIterator(grammar, tasks,
         try:
             resume = int(resume)
             path = checkpointPath(resume)
+            print("Potential Resume Path: {}".format(path))
         except ValueError:
             path = resume
         with open(path, "rb") as handle:

@@ -679,7 +679,7 @@ class RecognitionModel(nn.Module):
                                               len(self.grammar.primitives))
         self._auxiliaryLoss = nn.BCEWithLogitsLoss()
 
-        if cuda: self.cuda()
+        # if cuda: self.cuda()
 
         if previousRecognitionModel:
             self._MLP.load_state_dict(previousRecognitionModel._MLP.state_dict())
@@ -1088,9 +1088,12 @@ class RecognitionModel(nn.Module):
         return self
 
     def sampleHelmholtz(self, requests, statusUpdate=None, seed=None):
+
         if seed is not None:
             random.seed(seed)
+
         request = random.choice(requests)
+        # print("sampled request: {}".format(request))
 
         program = self.generativeModel.sample(request, maximumDepth=6, maxAttempts=100)
         if program is None:
@@ -1242,7 +1245,7 @@ class RecurrentFeatureExtractor(nn.Module):
         # This is an optimization hack
         self.MAXINPUTS = 100
 
-        if cuda: self.cuda()
+        # if cuda: self.cuda()
 
     @property
     def outputDimensionality(self): return self.H

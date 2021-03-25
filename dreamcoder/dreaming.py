@@ -21,6 +21,9 @@ def helmholtzEnumeration(g, request, inputs, timeout, _=None,
     if evaluationTimeout: message["evaluationTimeout"] = evaluationTimeout
     if special: message["special"] = special
     message = json.dumps(message)
+
+    print("------------------- message ------------------------------------------")
+    print(message)
     with open('/tmp/hm', 'w') as handle:
         handle.write(message)
     try:
