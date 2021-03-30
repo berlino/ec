@@ -19,7 +19,7 @@ class PropertySignatureExtractor(nn.Module):
         testingTasks=[], 
         cuda=False, 
         H=64, 
-        embedSize=1,
+        embedSize=16,
         # What should be the timeout for trying to construct Helmholtz tasks?
         helmholtzTimeout=0.25,
         # What should be the timeout for running a Helmholtz program?
@@ -30,7 +30,11 @@ class PropertySignatureExtractor(nn.Module):
         self.recomputeTasks = True
         self.outputDimensionality = H
         self.embedSize = embedSize
-        # self.embedding = nn.Embedding(3, self.embedSize)
+
+        if self.embedSize == 1:
+            print("No embedding used for property values")
+        else:
+            self.embedding = nn.Embedding(3, self.embedSize)
 
         # maps from a requesting type to all of the inputs that we ever saw with that request
         self.requestToInputs = {
@@ -102,6 +106,10 @@ class PropertySignatureExtractor(nn.Module):
                 value_idx (int): The index of the property corresponding to propertyFunc for task t.
                 0 corresponds to False, 1 corresponds to True and 2 corresponds to Mixed
             """
+            mixed = 2 if self.embedSize > 1 else 0
+            allTrue = 1
+            allFalse = 0 if self.embedSize > 1 else -1
+
             specBooleanValues = []
             for example in t.examples[-1:]:
                 exampleInput, exampleOutput = example[0][0], example[1]
@@ -114,24 +122,27 @@ class PropertySignatureExtractor(nn.Module):
 
                 # property can't be applied to this io example and so property for the whole spec is Mixed (2)
                 if booleanValue is None:
-                    return 0
+                    return mixed
                 specBooleanValues.append(booleanValue)
 
             if all(specBooleanValues) is True:
-                return 1
+                return allTrue
+
             elif all([booleanValue is False for booleanValue in specBooleanValues]):
-                return -1
-            return 0
+                return allFalse
+            return mixed
 
         propertyValues = []
         for propertyFunc in self.propertyFuncs:
             propertyValue = getPropertyValue(propertyFunc, t)
             propertyValues.append(propertyValue)
         
-        booleanPropSig = torch.FloatTensor(propertyValues)
-        # embeddedPropSig = self.embedding(booleanPropSig).flatten()
-
-        return self(booleanPropSig)
+        booleanPropSig = torch.LongTensor(propertyValues)
+        if self.embedSize > 1:
+            embeddedPropSig = self.embedding(booleanPropSig).flatten()
+            return self(embeddedPropSig)
+        else:
+            return self(booleanPropSig.float())
 
 
     def featuresOfTasks(self, ts, t2=None):  # Take a task and returns [features]
