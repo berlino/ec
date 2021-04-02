@@ -36,3 +36,4 @@ venv/
 tests/out/
 .DS_Store
 slurm*
+core*
