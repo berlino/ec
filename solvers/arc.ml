@@ -1038,7 +1038,7 @@ let p_5117e062 grid =
   let tealed_block = merge_blocks filtered_blocks true in
   let final_block = fill_color (tealed_block) (nth_primary_color (tealed_block) 0) in
   to_min_grid final_block false ;;
-(* "(lambda (to_min_grid (fill_color (merge_blocks (filter_blocks (lambda (has_color block teal)) (find_blocks_by_black_b $0 true false) true) (nth_primary_color (teal_block) 0)) false))" *)
+(* "(lambda (to_min_grid (fill_color (merge_blocks (filter_blocks (lambda (has_color block teal)) (find_blocks_by_black_b $0 true false) true) (nth_primary_color (merge_blocks (filter_blocks (lambda (has_color block teal)) (find_blocks_by_black_b $0 true false) true) 0)) false))" *)
 (* test_task "5117e062.json" (-1) p_5117e062 true ;; *)
 
 let p_4347f46a grid = 

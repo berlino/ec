@@ -856,22 +856,23 @@ def getTask(filename, directory):
     test = [((Grid(gridArray=example['input'],)), Grid(gridArray=example['output'])) for example in loaded['test']]
     return train, test
 
+
 manuallySolvedTasks = {
     "72ca375d.json":"(lambda (blocks_to_min_grid (filter_blocks (find_same_color_blocks $0 true false) (lambda (is_tile $0))) false false))",
     "f25fbde4.json":"(lambda (to_min_grid (grow (merge_blocks (find_blocks_by_black_b $0 true false) true) 1) false))",
-    # "fcb5c309":"()", repeating code
+    "fcb5c309.json": "(lambda (to_min_grid (replace_color (first_of_sorted_object_list (find_same_color_blocks $0 true true) (lambda (get_num_tiles $0)) false) (nth_primary_color (remove_black_b (first_of_sorted_object_list (find_same_color_blocks $0 true true) (lambda (get_num_tiles $0)) false)) 0) (nth_primary_color (remove_black_b (first_of_sorted_object_list (find_same_color_blocks $0 true true) (lambda (get_num_tiles $0)) false)) 0)) false))",
     "ce4f8723.json":"(lambda (overlap_split_blocks (split_grid $0 true) (lambda (lambda (color_logical $1 $0 green lor)))))",
     "0520fde7.json": "(lambda (overlap_split_blocks (split_grid $0 true) (lambda (lambda (color_logical $1 $0 red land)))))",
     "c9e6f938.json": "(lambda (to_min_grid (move (reflect (grid_to_block $0) false) 3 east true) false))",
     "97999447.json": "(lambda (blocks_to_original_grid (map_blocks (map_tiles (find_tiles_by_black_b $0) (lambda (extend_towards_until $0 east (lambda (touches_any_boundary (tile_to_block $0)))))) (lambda (fill_snakewise $0 (make_colorpair invisible grey)))) false true))",
     "5521c0d9.json": "(lambda (blocks_to_original_grid (map_blocks (find_same_color_blocks $0 true false) (lambda (move $0 (get_height $0) north false))) false true))",
-    # "007bbfb7": (lambda ()),
+    # "007bbfb7.json": "cant represent",
     "d037b0a7.json": "(lambda (blocks_to_original_grid (map_tiles (find_tiles_by_black_b $0) (lambda (extend_towards_until $0 south (lambda (touches_boundary (tile_to_block $0) south))))) false true))",
-    # "5117e062": (
+    "5117e062.json": "(lambda (to_min_grid (fill_color (merge_blocks (filter_blocks (find_blocks_by_black_b $0 true false) (lambda (has_color $0 teal))) true) (nth_primary_color (merge_blocks (filter_blocks (find_blocks_by_black_b $0 true false) (lambda (has_color $0 teal))) true) 0)) false))",
     "4347f46a.json": "(lambda (blocks_to_original_grid (map_blocks (find_same_color_blocks $0 false false) (lambda (filter_block_tiles $0 (lambda (is_exterior $0 false))))) false true))",
     "50cb2852.json": "(lambda (blocks_to_original_grid (map_blocks (find_blocks_by_black_b $0 true false) (lambda (fill_color (filter_block_tiles $0 (lambda (is_interior $0 true))) teal))) true true))",
     "a5313dff.json": "(lambda (blocks_to_original_grid (map_blocks (filter_blocks (find_blocks_by_color $0 black false false) (lambda (negate_boolean (touches_any_boundary $0)))) (lambda (fill_color $0 blue))) true true))",
-    # "ea786f4a": map_for_directions
+    # "ea786f4a.json": "cant represent",
     "22eb0ac0.json": "(lambda (blocks_to_original_grid (map_tiles (find_tiles_by_black_b $0) (lambda (extend_towards_until_edge $0 east))) true false))",
     "88a10436.json": "(lambda (blocks_to_original_grid (map_tbs (filter_template_block (find_blocks_by_black_b $0 true false) (lambda (is_rectangle $0 false))) (lambda (lambda (center_block_on_tile $0 (block_to_tile $1)))) false) true true))",
     "a48eeaf7.json": "(lambda (blocks_to_original_grid (map_tbs (filter_template_block (find_blocks_by_inferred_b $0 true false) (lambda (is_tile $0))) (lambda (lambda (move_until_touches_block (block_to_tile $0) $1 true))) true) false false))",
