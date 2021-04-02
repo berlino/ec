@@ -1,4 +1,4 @@
-from dreamcoder.likelihoodModel import AllOrNothingLikelihoodModel
+from dreamcoder.likelihoodModel import AllOrNothingLikelihoodModel, PropertyHeuristicModel
 from dreamcoder.grammar import *
 from dreamcoder.utilities import get_root_dir
 
@@ -14,7 +14,8 @@ def multicoreEnumeration(g, tasks, _=None,
                          maximumFrontier=None,
                          verbose=True,
                          evaluationTimeout=None,
-                         testing=False):
+                         testing=False,
+                         allTasks=None):
     '''g: Either a Grammar, or a map from task to grammar.
     Returns (list-of-frontiers, map-from-task-to-search-time, map-from-task-to-number-enumerated)'''
 
@@ -35,7 +36,8 @@ def multicoreEnumeration(g, tasks, _=None,
     likelihoodModel = None
     if solver == 'pypy' or solver == 'python':
       # Use an all or nothing likelihood model.
-      likelihoodModel = AllOrNothingLikelihoodModel(timeout=evaluationTimeout) 
+      # likelihoodModel = AllOrNothingLikelihoodModel(timeout=evaluationTimeout) 
+      likelihoodModel = PropertyHeuristicModel(timeout=None, tasks=allTasks)
       
     solver = solvers[solver]
 
@@ -404,9 +406,8 @@ def enumerateForTasks(g, tasks, likelihoodModel, _=None,
     budget = lowerBound + budgetIncrement
     try:
         totalNumberOfPrograms = 0
-        while time() < starting + timeout and \
-                any(len(h) < mf for h, mf in zip(hits, maximumFrontiers)) and \
-                budget <= upperBound:
+        while time() < starting + timeout and budget <= upperBound:
+                # any(len(h) < mf for h, mf in zip(hits, maximumFrontiers)) and \
             numberOfPrograms = 0
 
             for prior, _, p in g.enumeration(Context.EMPTY, [], request,

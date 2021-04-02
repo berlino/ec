@@ -410,4 +410,4 @@ def main(args):
         train = tasks
         test = []
 
-    explorationCompression(baseGrammar, train, testingTasks=test, **args)
+    # explorationCompression(baseGrammar, train, testingTasks=test, **args)

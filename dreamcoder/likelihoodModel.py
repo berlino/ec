@@ -32,6 +32,65 @@ class EuclideanLikelihoodModel:
         logLikelihood = float(-distance)  # FIXME: this is really naive
         return exp(logLikelihood) > self.successCutoff, logLikelihood
 
+class PropertyHeuristicModel:
+    """
+    Used to evaluate whether an enumerated property is good, where a good property
+    is one that helps us guide the search for the true program correpsonding to
+    the task.
+    """
+
+    def __init__(self, timeout=None, tasks=None):
+        self.timeout = timeout
+        self.tasks = tasks
+
+    def _getTaskPropertyValue(self, f, task):
+        taskPropertyValue = "mixed"
+        try:
+            exampleValues = [task.predict(f,x) for x,_ in task.examples]
+            if all([value is False for value in exampleValues]):
+                taskPropertyValue = "allFalse"
+            elif all([value is True for value in exampleValues]):
+                taskPropertyValue = "allTrue"
+
+        except Exception as e:
+            print(task.examples[0])
+            print(e)
+            taskPropertyValue = "mixed"
+        return taskPropertyValue
+
+    def score(self, program, task):
+
+        if self.tasks is None:
+            raise Exception("You must provide all tasks to score function")
+        
+        numTasks = len(self.tasks)
+
+        try:
+            f = program.evaluate([])
+        except IndexError:
+            # free variable
+            return False
+        except Exception as e:
+            eprint("Exception during evaluation:", e)
+            return False
+
+        taskPropertyValue = self._getTaskPropertyValue(f, task)
+        if taskPropertyValue == "mixed":
+            return False, 0.0
+        else:
+            propertyValueCounts = {"mixed":0, "allFalse":0, "allTrue":0}
+            for task in self.tasks:
+                temp = self._getTaskPropertyValue(f, task)
+                propertyValueCounts[temp] += 1
+
+            score = 1.0 - ((propertyValueCounts[taskPropertyValue] - 1.0) / numTasks)
+            # print(program)
+            # print("propertyHeuristicScore", score)
+            # print("propertyValueCounts", propertyValueCounts)
+
+            return score > 0.9, score
+
+
 def longest_common_substr(arr):
     #array of examples 
 
@@ -300,7 +359,7 @@ class ProbabilisticLikelihoodModel:
             #TODO: change the way normalized_cum_ll is calculated 
             #TODO: refactor to pass in bigram_model, and others
             #TODO: refactor to do 95% certainty thing josh wants
-            success = normalized_cum_ll > task.ll_cutoff
+            success = normalized_cum_ll > task
 
 
 
