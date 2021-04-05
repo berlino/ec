@@ -217,13 +217,14 @@ class CombinedExtractor(nn.Module):
         cuda=False, 
         H=64, 
         embedSize=16,
+        useEmbeddings=True,
         # What should be the timeout for trying to construct Helmholtz tasks?
         helmholtzTimeout=0.25,
         # What should be the timeout for running a Helmholtz program?
         helmholtzEvaluationTimeout=0.01):
         super(CombinedExtractor, self).__init__()
 
-        self.propSigExtractor = PropertySignatureExtractor(tasks=tasks, testingTasks=testingTasks, H=H, embedSize=16, helmholtzTimeout=helmholtzTimeout, helmholtzEvaluationTimeout=helmholtzEvaluationTimeout,
+        self.propSigExtractor = PropertySignatureExtractor(tasks=tasks, testingTasks=testingTasks, H=H, embedSize=embedSize, useEmbeddings=useEmbeddings, helmholtzTimeout=helmholtzTimeout, helmholtzEvaluationTimeout=helmholtzEvaluationTimeout,
             cuda=cuda)
         self.learnedFeatureExtractor = LearnedFeatureExtractor(tasks=tasks, testingTasks=testingTasks, cuda=cuda)
 

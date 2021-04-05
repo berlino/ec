@@ -6,6 +6,7 @@ except ModuleNotFoundError:
 
 from dreamcoder.domains.list.main import main, list_options, LearnedFeatureExtractor
 from dreamcoder.domains.list.resultsProcessing import viewResults
+from dreamcoder.domains.list.propertySignatureExtractor import testPropertySignatureFeatureExtractor
 # from dreamcoder.domains.list.makeListTasks import main
 from dreamcoder.dreamcoder import commandlineArguments
 from dreamcoder.utilities import numberOfCPUs
@@ -18,7 +19,10 @@ if __name__ == '__main__':
         helmholtzRatio=0.5, structurePenalty=1.,
         CPUs=numberOfCPUs(),
         extras=list_options, useRecognitionModel=False)
+
+    # testPropertySignatureFeatureExtractor(7)
     main(args)
     # viewResults()
+
 # 
 

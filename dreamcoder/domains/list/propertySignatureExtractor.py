@@ -18,7 +18,8 @@ class PropertySignatureExtractor(nn.Module):
         tasks=[], 
         testingTasks=[], 
         cuda=False, 
-        H=64, 
+        H=64,
+        useEmbeddings=True, 
         embedSize=16,
         # What should be the timeout for trying to construct Helmholtz tasks?
         helmholtzTimeout=0.25,
@@ -29,12 +30,13 @@ class PropertySignatureExtractor(nn.Module):
         self.CUDA = cuda
         self.recomputeTasks = True
         self.outputDimensionality = H
-        self.embedSize = embedSize
+        self.useEmbeddings = useEmbeddings
 
-        if self.embedSize == 1:
-            print("No embedding used for property values")
+        if self.useEmbeddings:
+            self.embedding = nn.Embedding(3, embedSize)
+            self.embedSize = embedSize
         else:
-            self.embedding = nn.Embedding(3, self.embedSize)
+            self.embedSize = 1
 
         # maps from a requesting type to all of the inputs that we ever saw with that request
         self.requestToInputs = {
@@ -76,15 +78,15 @@ class PropertySignatureExtractor(nn.Module):
         print(self.maxTaskInt, self.maxInputListLength, self.maxOutputListLength)
 
         groupedProperties = handWrittenProperties()
-        self.properties = [prop for subList in groupedProperties for prop in subList]
-        self.propertyFuncs = handWrittenPropertyFuncs(groupedProperties, 0, self.maxTaskInt, self.maxInputListLength, self.maxOutputListLength)
-        print("{} Properties used".format(len(self.propertyFuncs)))
+        self.propertyTemplates = [primitive.name for subList in groupedProperties for primitive in subList]
+        self.properties = handWrittenPropertyFuncs(groupedProperties, 0, self.maxTaskInt, self.maxInputListLength, self.maxOutputListLength)
+        print("{} Properties used".format(len(self.properties)))
 
         if cuda:
             self.CUDA=True
             self.cuda()  # I think this should work?
 
-        self.linear = nn.Linear(len(self.propertyFuncs) * self.embedSize, H)
+        self.linear = nn.Linear(len(self.properties) * self.embedSize, H)
         self.hidden = nn.Linear(H, H)
 
     def forward(self, v, v2=None):
@@ -96,28 +98,35 @@ class PropertySignatureExtractor(nn.Module):
 
     def featuresOfTask(self, t):
 
-        def getPropertyValue(propertyFunc, t):
+        def getPropertyValue(propertyName, propertyFunc, t):
             """
             Args:
-                propertyFunc (function): property function of type (exampleInput -> exampleOutput -> {False, True, None})
+                propertyName (str): name of property
+                propertyFunc (function):  property function of type (exampleInput -> exampleOutput -> {False, True, None})
                 t (Task): task
 
             Returns:
                 value_idx (int): The index of the property corresponding to propertyFunc for task t.
                 0 corresponds to False, 1 corresponds to True and 2 corresponds to Mixed
             """
+
             mixed = 2 if self.embedSize > 1 else 0
             allTrue = 1
             allFalse = 0 if self.embedSize > 1 else -1
 
             specBooleanValues = []
-            for example in t.examples[-1:]:
+            for example in t.examples:
                 exampleInput, exampleOutput = example[0][0], example[1]
                 try:
+                    if not isinstance(exampleOutput, list):
+                        exampleOutput = [exampleOutput]
+                    if not isinstance(exampleInput, list):
+                        exampleInput = [exampleInput]
                     booleanValue = propertyFunc(exampleOutput)(exampleInput)
                 except Exception as e:
-                    # print("Failed to apply property: {} to input {}".format(str(propertyFunc), exampleInput))
-                    # print(e)
+                    print(exampleOutput, type(exampleOutput))
+                    print("Failed to apply property: {} to input {}".format(propertyName, exampleInput))
+                    print(e)
                     booleanValue = None
 
                 # property can't be applied to this io example and so property for the whole spec is Mixed (2)
@@ -133,12 +142,14 @@ class PropertySignatureExtractor(nn.Module):
             return mixed
 
         propertyValues = []
-        for propertyFunc in self.propertyFuncs:
-            propertyValue = getPropertyValue(propertyFunc, t)
+        for propertyName, propertyFunc in self.properties:
+            propertyValue = getPropertyValue(propertyName, propertyFunc, t)
             propertyValues.append(propertyValue)
         
         booleanPropSig = torch.LongTensor(propertyValues)
-        if self.embedSize > 1:
+        self.test = booleanPropSig
+
+        if self.useEmbeddings:
             embeddedPropSig = self.embedding(booleanPropSig).flatten()
             return self(embeddedPropSig)
         else:
@@ -193,5 +204,30 @@ class PropertySignatureExtractor(nn.Module):
                     return Task("Helmholtz", tp, list(zip(xss, ys)))
             return None
 
+
+def testPropertySignatureFeatureExtractor(task_idx):
+    from dreamcoder.domains.list.makeListTasks import make_list_bootstrap_tasks
+    tasks = make_list_bootstrap_tasks()
+    tasks = [task for task in tasks if task.request == arrow(tlist(tint), tlist(tint))]
+    print("{} tasks".format(len(tasks)))
+    task = tasks[task_idx]
+    featureExtractor = PropertySignatureExtractor(tasks=tasks, useEmbeddings=False)
+
+    print("Task: {}".format(task))
+    for i,o in task.examples:
+        print("{} -> {}".format(i[0], o))
+
+    featureExtractor.featuresOfTask(task)
+    propertySig = featureExtractor.test
+
+    for i,propertyName in enumerate([propertyName for propertyName, propertyFunc in featureExtractor.properties]):
+        print("{}: {}".format(propertyName, propertySig[i]))
+    return
+
+
 if __name__ == "__main__":
     pass
+
+
+
+

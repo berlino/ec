@@ -6,18 +6,18 @@ def _everyOutputElGtEveryInputSameIdxEl(inputList, outputList):
 	endIdx = min(len(inputList), len(outputList))
 	return all([inputList[i] < outputList[i] for i in range(endIdx)])
 
-def _inputPrefixOfOutput(inputList, outputList):
-	if len(inputList) > len(outputList):
+def _aPrefixOfB(a, b):
+	if len(a) > len(b):
 		return False
 	else:
-		return all([inputList[i] == outputList[i] for i in range(len(inputList))])
+		return all([a[i] == b[i] for i in range(len(a))])
 
-def _inputSuffixOfOutput(inputList, outputList):
-	if len(inputList) > len(outputList):
+def _aSuffixOfB(a, b):
+	if len(a) > len(b):
 		return False
 	else:
-		offset = len(outputList) - len(inputList)
-		return all([inputList[i] == outputList[offset + i] for i in range(len(inputList))])
+		offset = len(b) - len(a)
+		return all([a[i] == b[offset + i] for i in range(len(a))])
 
 def handWrittenProperties():
 	"""
@@ -55,10 +55,16 @@ def handWrittenProperties():
 			lambda outputList: lambda inputList: _everyOutputElGtEveryInputSameIdxEl(inputList, outputList)),
  
 		Primitive("input_prefix_of_output", arrow(tlist(t0), tlist(t0), tbool), 
-			lambda outputList: lambda inputList: _inputPrefixOfOutput(inputList, outputList)),
+			lambda outputList: lambda inputList: _aPrefixOfB(inputList ,outputList)),
 
 		Primitive("input_suffix_of_output", arrow(tlist(t0), tlist(t0), tbool), 
-			lambda outputList: lambda inputList: _inputSuffixOfOutput(inputList, outputList))
+			lambda outputList: lambda inputList: _aSuffixOfB(inputList, outputList)),
+
+		Primitive("output_prefix_of_input", arrow(tlist(t0), tlist(t0), tbool), 
+			lambda outputList: lambda inputList: _aPrefixOfB(outputList, inputList)),
+
+		Primitive("output_suffix_of_input", arrow(tlist(t0), tlist(t0), tbool), 
+			lambda outputList: lambda inputList: _aSuffixOfB(outputList, inputList))
 		]
 
 	kParamProperties = [
@@ -69,8 +75,9 @@ def handWrittenProperties():
 			lambda k: lambda outputList: lambda inputList: all([el < k for el in outputList])),
 
 		Primitive("output_contains_k", arrow(tlist(t0), tlist(t1), t1, tbool),
-			lambda k: lambda outputList: lambda inputList: k in outputList),
+			lambda k: lambda outputList: lambda inputList: (k in outputList)),
 	]
+
 
 	inputIdxParamProperties = [
 		Primitive("output_contains_input_idx_i", arrow(tlist(t0), tlist(t1), tint, tbool),
@@ -84,7 +91,7 @@ def handWrittenProperties():
 
 	inputIdxOutputIdxParamProperties = [
 		# Primitive("output_idx_i_equals_input_idx_j", arrow(tlist(tint), tlist(tint), tint, tint, tbool),
-		# 	lambda i: lambda j: lambda outputList: lambda inputList: inputList[j] == outputList[i])
+		# 	lambda i: lambda j: lambda outputList: lambda inputList: None if (j >= len(inputList) or i >= len(outputList)) else inputList[j] == outputList[i])
 	]
 
 	return [noParamProperties, 
@@ -101,28 +108,28 @@ def handWrittenPropertyFuncs(handWrittenPropertyPrimitives, kMin, kMax,
 
 	noParamProperties = handWrittenPropertyPrimitives[0]
 	for prop in noParamProperties:
-		propertyFuncs.append(prop.value)
+		propertyFuncs.append((prop.name, prop.value))
 
 	kParamProperties = handWrittenPropertyPrimitives[1]
 	for prop in kParamProperties:
 		for k in range(kMin, kMax+1):
-			propertyFuncs.append(prop.value(k))
+			propertyFuncs.append(("{}_k={}".format(prop.name, k), prop.value(k)))
 
 	inputIdxParamProperties = handWrittenPropertyPrimitives[2]
 	for prop in inputIdxParamProperties:
-		for idx in range(inputIdxMax+1):
-			propertyFuncs.append(prop.value(idx))
+		for i in range(inputIdxMax+1):
+			propertyFuncs.append(("{}_i={}".format(prop.name, i), prop.value(i)))
 
 	outputIdxParamProperties = handWrittenPropertyPrimitives[3]
 	for prop in outputIdxParamProperties:
-		for idx in range(outputIdxMax+1):
-			propertyFuncs.append(prop.value(idx))
+		for n in range(outputIdxMax+1):
+			propertyFuncs.append((("{}_n={}".format(prop.name, n), prop.value(n))))
 
 	inputIdxOutputIdxParamProperties = handWrittenPropertyPrimitives[4]
 	for prop in inputIdxOutputIdxParamProperties:
-		for inputIdx in range(inputIdxMax+1):
-			for outputIdx in range(outputIdxMax+1):
-				propertyFuncs.append(prop.value(outputIdx)(inputIdx))
+		for j in range(inputIdxMax+1):
+			for i in range(outputIdxMax+1):
+				propertyFuncs.append(("{}_j={}_i={}".format(prop.name, j, i),prop.value(i)(j)))
 
 	return propertyFuncs
 

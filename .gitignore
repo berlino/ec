@@ -29,3 +29,5 @@ sklearn-container.img
 venv/
 tests/out/
 .DS_Store
+core*
+
