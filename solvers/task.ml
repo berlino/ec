@@ -92,6 +92,45 @@ let run_recent_logo ~timeout program =
 ;;
 
 
+register_special_task "property" (fun extras ?timeout:(timeout = 0.001) name ty examples ->
+(* Printf.eprintf "Making an arc task %s \n" name; *)
+{ name = name    ;
+    task_type = ty ;
+    log_likelihood =
+      (fun p -> 
+        (* Printf.eprintf "Program: %s \n" (string_of_program p) ; *)
+        flush_everything () ;
+        let p = analyze_lazy_evaluation p in
+        let rec loop = function
+          | [] -> true
+          | (xs,y) :: e ->
+            try
+              match run_for_interval
+                      timeout
+                      (fun () -> match (magical (run_lazy_analyzed_with_arguments p xs))
+                                 with
+                                    | Some(true) -> true
+                                    | Some(false) -> true
+                                    | _ -> false
+                      )
+              with
+                | Some(true) -> loop e
+                | _ -> false
+            with (* We have to be a bit careful with exceptions if the
+                  * synthesized program generated an exception, then we just
+                  * terminate w/ false but if the enumeration timeout was
+                  * triggered during program evaluation, we need to pass the
+                  * exception on
+                  *)
+              | UnknownPrimitive(n) -> raise (Failure ("Unknown primitive: "^n))
+              | EnumerationTimeout  -> raise EnumerationTimeout
+              | _                   -> false
+        in
+        if loop examples
+          then 0.0
+          else log 0.0)
+}) ;;
+
 
 register_special_task "LOGO" (fun extras ?timeout:(timeout = 0.001) name ty examples ->
     let open Yojson.Basic.Util in

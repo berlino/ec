@@ -261,7 +261,7 @@ class Grammar(object):
             if not silent:
                 eprint(f, "Not in candidates")
                 eprint("Candidates is", candidates)
-                #eprint("grammar:", grammar.productions)
+                # eprint("grammar:", grammar.productions)
                 eprint("request is", request)
                 eprint("xs", xs)
                 eprint("environment", environment)

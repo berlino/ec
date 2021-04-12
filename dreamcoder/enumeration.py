@@ -15,7 +15,8 @@ def multicoreEnumeration(g, tasks, _=None,
                          verbose=True,
                          evaluationTimeout=None,
                          testing=False,
-                         allTasks=None):
+                         allTasks=None,
+                         likelihoodModel=None):
     '''g: Either a Grammar, or a map from task to grammar.
     Returns (list-of-frontiers, map-from-task-to-search-time, map-from-task-to-number-enumerated)'''
 
@@ -33,11 +34,10 @@ def multicoreEnumeration(g, tasks, _=None,
                "python": solveForTask_python}   
     assert solver in solvers, "You must specify a valid solver. options are ocaml, pypy, or python." 
 
-    likelihoodModel = None
     if solver == 'pypy' or solver == 'python':
+      likelihoodModel = likelihoodModel(tasks=allTasks)
       # Use an all or nothing likelihood model.
       # likelihoodModel = AllOrNothingLikelihoodModel(timeout=evaluationTimeout) 
-      likelihoodModel = PropertyHeuristicModel(timeout=None, tasks=allTasks)
       
     solver = solvers[solver]
 
@@ -221,7 +221,7 @@ def multicoreEnumeration(g, tasks, _=None,
             eprint("Unknown message result:", message.result)
             assert False
 
-    return [frontiers[t] for t in tasks], bestSearchTime, taskToNumberOfPrograms
+    return [frontiers[t] for t in tasks], bestSearchTime, taskToNumberOfPrograms, likelihoodModel
 
 def wrapInThread(f):
     """

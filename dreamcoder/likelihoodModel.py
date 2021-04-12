@@ -3,6 +3,7 @@ import gc
 from dreamcoder.utilities import *
 from collections import Counter
 import math
+import numpy as np
 
 from dreamcoder.domains.regex.groundtruthRegexes import gt_dict
 
@@ -32,6 +33,76 @@ class EuclideanLikelihoodModel:
         logLikelihood = float(-distance)  # FIXME: this is really naive
         return exp(logLikelihood) > self.successCutoff, logLikelihood
 
+class PropertySignatureHeuristicModel:
+    """
+    Used to evaluate whether an enumerated property is good, where a good property
+    is one that results in a diffferent property signature than all the previously
+    encountered ones
+    """
+
+    def __init__(self, timeout=None, tasks=None):
+        self.timeout = timeout
+        self.tasks = tasks
+        self.taskPropertyDict = {}
+        self.properties = []
+        self.taskPropertyValueToInt = {"allFalse":0, "allTrue":1, "mixed":2}
+
+    def _getTaskPropertyValue(self, program, task):
+        
+        taskPropertyValue = "mixed"
+        try:
+            f = program.evaluate([])
+        except IndexError:
+            # free variable
+            return False
+        except Exception as e:
+            eprint("Exception during evaluation:", e)
+            return False
+
+        try:
+            exampleValues = [task.predict(f,x) for x,_ in task.examples]
+            if all([value is False for value in exampleValues]):
+                taskPropertyValue = "allFalse"
+            elif all([value is True for value in exampleValues]):
+                taskPropertyValue = "allTrue"
+
+        except Exception as e:
+            # print(str(e))
+            # print("Task name: {}".format(task.name))
+            # print("Task example input: {}".format(task.examples[0][0][0]))
+            # print("Task example output: {}".format(task.examples[0][0][1]))
+            # print("Program: {}".format(program))
+            taskPropertyValue = "mixed"
+        return taskPropertyValue
+
+    def score(self, program, task):
+
+        if self.tasks is None:
+            raise Exception("You must provide all tasks to score function")
+        
+        numTasks = len(self.tasks)
+        propertyValues = np.zeros((numTasks,))
+
+        for i,task in enumerate(self.tasks):
+            
+            taskPropertyValue = self._getTaskPropertyValue(program, task)
+            # if there is error evaluating the program, discard it
+            if taskPropertyValue is False:
+                return False, 0.0
+            else:
+                propertyValues[i] = self.taskPropertyValueToInt[taskPropertyValue]
+        
+        key = str(propertyValues)
+        noAddCondition = (key in self.taskPropertyDict) or (all([val == "mixed" for val in propertyValues]))
+        if noAddCondition:
+            return False, 0.0
+        else:
+            self.taskPropertyDict[key] = propertyValues
+            self.properties.append((program, propertyValues))
+            print("Adding property to matrix. Now have {} total properties".format(len(self.properties)))
+            return True, 1.0
+
+
 class PropertyHeuristicModel:
     """
     Used to evaluate whether an enumerated property is good, where a good property
@@ -42,9 +113,20 @@ class PropertyHeuristicModel:
     def __init__(self, timeout=None, tasks=None):
         self.timeout = timeout
         self.tasks = tasks
+        self.propertyToTaskValues = {}
 
-    def _getTaskPropertyValue(self, f, task):
+    def _getTaskPropertyValue(self, program, task):
+        
         taskPropertyValue = "mixed"
+        try:
+            f = program.evaluate([])
+        except IndexError:
+            # free variable
+            return False
+        except Exception as e:
+            eprint("Exception during evaluation:", e)
+            return False
+
         try:
             exampleValues = [task.predict(f,x) for x,_ in task.examples]
             if all([value is False for value in exampleValues]):
@@ -53,8 +135,11 @@ class PropertyHeuristicModel:
                 taskPropertyValue = "allTrue"
 
         except Exception as e:
-            print(task.examples[0])
-            print(e)
+            # print(str(e))
+            # print("Task name: {}".format(task.name))
+            # print("Task example input: {}".format(task.examples[0][0][0]))
+            # print("Task example output: {}".format(task.examples[0][0][1]))
+            # print("Program: {}".format(program))
             taskPropertyValue = "mixed"
         return taskPropertyValue
 
@@ -65,30 +150,27 @@ class PropertyHeuristicModel:
         
         numTasks = len(self.tasks)
 
-        try:
-            f = program.evaluate([])
-        except IndexError:
-            # free variable
-            return False
-        except Exception as e:
-            eprint("Exception during evaluation:", e)
-            return False
-
-        taskPropertyValue = self._getTaskPropertyValue(f, task)
-        if taskPropertyValue == "mixed":
+        taskPropertyValue = self._getTaskPropertyValue(program, task)
+        if taskPropertyValue == "mixed" or taskPropertyValue is False:
             return False, 0.0
-        else:
-            propertyValueCounts = {"mixed":0, "allFalse":0, "allTrue":0}
-            for task in self.tasks:
-                temp = self._getTaskPropertyValue(f, task)
-                propertyValueCounts[temp] += 1
+        elif taskPropertyValue == "allTrue" or taskPropertyValue == "allFalse":
+            propertyValueCounts = self.propertyToTaskValues.get(program, None)
+            
+            if propertyValueCounts is None:
+                propertyValueCounts = {"mixed":0, "allFalse":0, "allTrue":0}
+                for task in self.tasks:
+                    temp = self._getTaskPropertyValue(program, task)
+                    propertyValueCounts[temp] += 1
+            self.propertyToTaskValues[program] = propertyValueCounts
 
             score = 1.0 - ((propertyValueCounts[taskPropertyValue] - 1.0) / numTasks)
             # print(program)
             # print("propertyHeuristicScore", score)
             # print("propertyValueCounts", propertyValueCounts)
 
-            return score > 0.9, score
+            return score > 0.1, score
+        else:
+            raise Exception("taskPropertyValue got an unexpected value: {}".format(taskPropertyValue))
 
 
 def longest_common_substr(arr):

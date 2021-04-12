@@ -378,6 +378,10 @@ let primitive6 = primitive "6" tint 6;;
 let primitive7 = primitive "7" tint 7;;
 let primitive8 = primitive "8" tint 8;;
 let primitive9 = primitive "9" tint 9;;
+let primitive_input_to_list = primitive "tinput_to_tlist" (tinput @> tlist tint) (fun x -> x);;
+let primitive_output_to_list = primitive "toutput_to_tlist" (toutput @> tlist tint) (fun x -> x);;
+(* let primitive_output_to_list = primitive "toutput_to_tlist(tint)" (toutput @> tlist tint) (fun x -> x);; *)
+
 (10--100) |> List.iter ~f:(fun n ->
     ignore(primitive (Printf.sprintf "%d" n) tint n));;
 let primitive20 = primitive "ifty" tint 20;;
@@ -1013,6 +1017,11 @@ let t_action_p = make_ground "t_action_p";;
 let t_direction_p = make_ground "t_direction_p";;
 let t_int_p = make_ground "t_int_p";;
 let t_model_p = make_ground "t_model_p";;
+
+(* Josh Rule Property Signature Primitive definitions *)
+
+primitive "toutput -> tlist(tint)" (toutput @> (tlist tint)) (fun x -> x);;
+primitive "tinput -> tlist(tint)" (tinput @> (tlist tint)) (fun x -> x);;
 
 (* Puddleworld Primitive Definitions *)
 

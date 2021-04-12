@@ -235,7 +235,7 @@ def _fix(argument):
             def r(z):
                 recursion_limit[0] -= 1
                 if recursion_limit[0] <= 0:
-                    raise RecursionDepthExceeded()
+                    raise RecursionDepthExceeded("RecursionDepthExceeded")
                 else:
                     return fix(z)
 
@@ -428,7 +428,7 @@ def josh_primitives(w):
             Primitive("eq?", arrow(tint, tint, tbool), _eq),
             Primitive("-n", arrow(tint,tint,tint), _minusNatural),
             Primitive("+n", arrow(tint,tint,tint), _plusNatural),
-            Primitive("gt?", arrow(tint,tint,tint), _gt),
+            Primitive("gt?", arrow(tint,tint,tbool), _gt),
             primitiveRecursion1
         ] + [Primitive(str(j), tint, j) for j in range(10)]
     elif w == "final":
@@ -442,7 +442,7 @@ def josh_primitives(w):
             Primitive("eq?", arrow(tint, tint, tbool), _eq),
             Primitive("-n99", arrow(tint,tint,tint), _minusNatural99),
             Primitive("+n99", arrow(tint,tint,tint), _plusNatural99),
-            Primitive("gt?", arrow(tint,tint,tint), _gt),
+            Primitive("gt?", arrow(tint,tint,tbool), _gt),
             primitiveRecursion1
         ] + [Primitive(str(j), tint, j) for j in range(100)]
     elif w == "3" or w == "3.1":
@@ -456,7 +456,7 @@ def josh_primitives(w):
             Primitive("eq?", arrow(tint, tint, tbool), _eq),
             Primitive("-n9", arrow(tint,tint,tint), _minusNatural9),
             Primitive("+n9", arrow(tint,tint,tint), _plusNatural9),
-            Primitive("gt?", arrow(tint,tint,tint), _gt),
+            Primitive("gt?", arrow(tint,tint,tbool), _gt),
             primitiveRecursion1
         ] + [Primitive(str(j), tint, j) for j in range(10)],
                 [
@@ -469,7 +469,7 @@ def josh_primitives(w):
             Primitive("eq?", arrow(tint, tint, tbool), _eq),
             Primitive("-n99", arrow(tint,tint,tint), _minusNatural99),
             Primitive("+n99", arrow(tint,tint,tint), _plusNatural99),
-            Primitive("gt?", arrow(tint,tint,tint), _gt),
+            Primitive("gt?", arrow(tint,tint,tbool), _gt),
             primitiveRecursion1
         ] + [Primitive(str(j), tint, j) for j in range(100)])
         

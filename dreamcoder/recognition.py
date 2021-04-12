@@ -1168,7 +1168,10 @@ class RecurrentFeatureExtractor(nn.Module):
                  # What should be the timeout for trying to construct Helmholtz tasks?
                  helmholtzTimeout=0.25,
                  # What should be the timeout for running a Helmholtz program?
-                 helmholtzEvaluationTimeout=0.01):
+                 helmholtzEvaluationTimeout=0.01,
+                 # Recurrent feature extractors don't use the grammar but property signature feature extractors 
+                 # require grammar to sample properties
+                 grammar=None):
         super(RecurrentFeatureExtractor, self).__init__()
 
         assert tasks is not None, "You must provide a list of all of the tasks, both those that have been hit and those that have not been hit. Input examples are sampled from these tasks."

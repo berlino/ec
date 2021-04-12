@@ -90,9 +90,7 @@ def handWrittenProperties():
 			lambda inputList: lambda outputList: lambda j: lambda i: None if (j >= len(inputList) or i >= len(outputList)) else inputList[j] == outputList[i])
 	]
 
-	conjunction = Primitive("conjunction", arrow(tbool, tbool, tbool), lambda a: lambda b: a and b)
-
-	return noParamProperties + kParamProperties + inputIdxParamProperties + outputIdxParamProperties + inputIdxOutputIdxParamProperties + [conjunction]
+	return noParamProperties + kParamProperties + inputIdxParamProperties + outputIdxParamProperties + inputIdxOutputIdxParamProperties
 
 
 def handWrittenPropertyFuncs(handWrittenPropertyPrimitives, kMin, kMax, 

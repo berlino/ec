@@ -183,7 +183,10 @@ def ecIterator(grammar, tasks,
                trainset="S8full",
                doshaping=False, 
                dopruning=False,
-               skiptesting=False):
+               skiptesting=False,
+               featureExtractorArgs={}
+            ):
+
     if enumerationTimeout is None:
         eprint(
             "Please specify an enumeration timeout:",
@@ -222,6 +225,8 @@ def ecIterator(grammar, tasks,
     parameters = {
         k: v for k,
         v in locals().items() if k not in {
+            "noConsolidation",
+            "solver",
             "tasks",
             "use_map_search_times",
             "seed",
@@ -263,11 +268,14 @@ def ecIterator(grammar, tasks,
     # Uses `parameters` to construct the checkpoint path
     def checkpointPath(iteration, extra=""):
         parameters["iterations"] = iteration
+        # if parameters["featureExtractorArgs"] is not None:
+        #     for key, val in parameters['featureExtractorArgs'].items():
+        #         parameters[key] = val
         kvs = [
             "{}={}".format(
                 ECResult.abbreviate(k),
                 parameters[k]) for k in sorted(
-                parameters.keys())]
+                parameters.keys()) if k != 'featureExtractorArgs']
         return "{}_{}{}.pickle".format(outputPrefix, "_".join(kvs), extra)
 
     if message:
@@ -348,8 +356,8 @@ def ecIterator(grammar, tasks,
                                                      CPUs=CPUs, evaluationTimeout=evaluationTimeout,
                                                      solver=solver,
                                                      **kw)
-        trainFrontiers, _, trainingTimes = enumerator(tasks, enumerationTimeout=enumerationTimeout)
-        testFrontiers, _, testingTimes = enumerator(testingTasks, enumerationTimeout=testingTimeout, testing=True)
+        trainFrontiers, _, trainingTimes, _ = enumerator(tasks, enumerationTimeout=enumerationTimeout)
+        testFrontiers, _, testingTimes, _ = enumerator(testingTasks, enumerationTimeout=testingTimeout, testing=True)
 
         recognizer = result.recognitionModel
         updateTaskSummaryMetrics(result.recognitionTaskMetrics, trainingTimes, 'recognitionBestTimes')
@@ -463,7 +471,7 @@ def ecIterator(grammar, tasks,
                                enumerationTimeout=enumerationTimeout,
                                helmholtzRatio=thisRatio, helmholtzFrontiers=helmholtzFrontiers(),
                                auxiliaryLoss=auxiliaryLoss, cuda=cuda, CPUs=CPUs, solver=solver,
-                               recognitionSteps=recognitionSteps, maximumFrontier=maximumFrontier)
+                               recognitionSteps=recognitionSteps, maximumFrontier=maximumFrontier, featureExtractorArgs=featureExtractorArgs)
 
             showHitMatrix(tasksHitTopDown, tasksHitBottomUp, wakingTaskBatch)
             
@@ -539,7 +547,7 @@ def evaluateOnTestingTasks(result, testingTasks, grammar, _=None, parallelTest=F
         updateTaskSummaryMetrics(result.recognitionTaskMetrics, recognizer.taskGrammarEntropies(testingTasks), 'heldoutTaskGrammarEntropies')
         updateTaskSummaryMetrics(result.recognitionTaskMetrics, recognizer.taskGrammarEntropies(testingTasks), 'heldoutTaskGrammarEntropies')
     else:
-        testingFrontiers, times, _ = multicoreEnumeration(grammar, testingTasks, 
+        testingFrontiers, times, _, _ = multicoreEnumeration(grammar, testingTasks, 
                                                           solver=solver,
                                                           maximumFrontier=maximumFrontier,
                                                           enumerationTimeout=enumerationTimeout,
@@ -565,7 +573,7 @@ def default_wake_generative(grammar, tasks,
                     CPUs=None,
                     solver=None,
                     evaluationTimeout=None):
-    topDownFrontiers, times, _ = multicoreEnumeration(grammar, tasks, 
+    topDownFrontiers, times, _, _ = multicoreEnumeration(grammar, tasks, 
                                                       maximumFrontier=maximumFrontier,
                                                       enumerationTimeout=enumerationTimeout,
                                                       CPUs=CPUs,
@@ -582,10 +590,10 @@ def sleep_recognition(result, grammar, taskBatch, tasks, testingTasks, allFronti
                       previousRecognitionModel=None, recognitionSteps=None,
                       timeout=None, enumerationTimeout=None, evaluationTimeout=None,
                       helmholtzRatio=None, helmholtzFrontiers=None, maximumFrontier=None,
-                      auxiliaryLoss=None, cuda=None, CPUs=None, solver=None):
+                      auxiliaryLoss=None, cuda=None, CPUs=None, solver=None, featureExtractorArgs=None):
     eprint("Using an ensemble size of %d. Note that we will only store and test on the best recognition model." % ensembleSize)
 
-    featureExtractorObjects = [featureExtractor(tasks, testingTasks=testingTasks, cuda=cuda) for i in range(ensembleSize)]
+    featureExtractorObjects = [featureExtractor(tasks, grammar=grammar, testingTasks=testingTasks, cuda=cuda, featureExtractorArgs=featureExtractorArgs) for i in range(ensembleSize)]
     recognizers = [RecognitionModel(featureExtractorObjects[i],
                                     grammar,
                                     mask=mask,
@@ -618,7 +626,7 @@ def sleep_recognition(result, grammar, taskBatch, tasks, testingTasks, allFronti
     totalTasksHitBottomUp = set()
     for recIndex, recognizer in enumerate(trainedRecognizers):
         eprint("Enumerating from recognizer %d of %d" % (recIndex, len(trainedRecognizers)))
-        bottomupFrontiers, allRecognitionTimes, _ = \
+        bottomupFrontiers, allRecognitionTimes, _, _ = \
                         recognizer.enumerateFrontiers(taskBatch, 
                                                       CPUs=CPUs,
                                                       maximumFrontier=maximumFrontier,
