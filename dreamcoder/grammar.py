@@ -96,6 +96,14 @@ class Grammar(object):
             j["continuationType"] = self.continuationType.json()
         return j
 
+    def jsonWithTypes(self):
+        j = {"logVariable": self.logVariable,
+             "productions": [{"expression": str(p), "logProbability": l, 
+             "type": str(t)} for l, t, p in self.productions]}
+        if self.continuationType is not None:
+            j["continuationType"] = self.continuationType.json()
+        return j
+
     def _immutable_code(self): return self.logVariable, tuple(self.productions)
 
     def __eq__(self, o): return self._immutable_code() == o._immutable_code()
@@ -375,6 +383,7 @@ class Grammar(object):
             failureExport = 'failures/grammarFailure%s.pickle' % (
                 time.time() + getPID())
             eprint("PANIC: Grammar failure, exporting to ", failureExport)
+            print(e)
             with open(failureExport, 'wb') as handle:
                 pickle.dump((e, self, request, expression), handle)
             assert False
