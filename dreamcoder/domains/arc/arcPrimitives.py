@@ -845,17 +845,6 @@ def pprint(arr):
     #
     # print(a(1))
 
-def getTask(filename, directory):
-    """
-    Loads the filename task at directory
-    """
-
-    with open(directory + '/' + filename, "r") as f:
-        loaded = json.load(f)
-    train = [((Grid(gridArray=example['input'],)), Grid(gridArray=example['output'])) for example in loaded['train']]
-    test = [((Grid(gridArray=example['input'],)), Grid(gridArray=example['output'])) for example in loaded['test']]
-    return train, test
-
 
 manuallySolvedTasks = {
     "72ca375d.json":"(lambda (blocks_to_min_grid (filter_blocks (find_same_color_blocks $0 true false) (lambda (is_tile $0))) false false))",

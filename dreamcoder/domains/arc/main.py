@@ -1,69 +1,120 @@
-import random
 from collections import defaultdict
+import datetime
+import dill
 import json
 import math
+import numpy as np
 import os
 import pickle
-import datetime
-
-import dill
+import random
+import signal
+import time
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import numpy as np
 
 from dreamcoder.dreamcoder import explorationCompression, sleep_recognition
-from dreamcoder.utilities import eprint, flatten, testTrainSplit, lse
+from dreamcoder.utilities import eprint, flatten, testTrainSplit, lse, runWithTimeout
 from dreamcoder.grammar import Grammar, ContextualGrammar
 from dreamcoder.task import Task
 from dreamcoder.type import Context, arrow, tbool, tlist, tint, t0, UnificationFailure
 from dreamcoder.recognition import RecognitionModel
 from dreamcoder.program import Program
+from dreamcoder.domains.arc.utilsPostProcessing import *
 from dreamcoder.domains.arc.arcPrimitives import *
 from dreamcoder.domains.arc.taskGeneration import *
+
+class EvaluationTimeout(Exception):
+    pass
+
+
+class ArcTask(Task):
+    def __init__(self, name, request, examples, evalExamples, features=None, cache=False):
+        super().__init__(name, request, examples, features=features, cache=cache)
+        self.evalExamples = evalExamples
+
+
+    def checkEvalExamples(self, e, timeout=None):
+        if timeout is not None:
+            def timeoutCallBack(_1, _2): raise EvaluationTimeout()
+        try:
+            signal.signal(signal.SIGVTALRM, timeoutCallBack)
+            signal.setitimer(signal.ITIMER_VIRTUAL, timeout)
+
+            try:
+                f = e.evaluate([])
+            except IndexError:
+                # free variable
+                return False
+            except Exception as e:
+                eprint("Exception during evaluation:", e)
+                return False
+
+            for x, y in self.evalExamples:
+                if self.cache and (x, e) in EVALUATIONTABLE:
+                    p = EVALUATIONTABLE[(x, e)]
+                else:
+                    try:
+                        p = self.predict(f, x)
+                    except BaseException:
+                        p = None
+                    if self.cache:
+                        EVALUATIONTABLE[(x, e)] = p
+                if p != y:
+                    if timeout is not None:
+                        signal.signal(signal.SIGVTALRM, lambda *_: None)
+                        signal.setitimer(signal.ITIMER_VIRTUAL, 0)
+                    return False
+
+            return True
+        # except e:
+            # eprint(e)
+            # assert(False)
+        except EvaluationTimeout:
+            eprint("Timed out while evaluating", e)
+            return False
+        finally:
+            if timeout is not None:
+                signal.signal(signal.SIGVTALRM, lambda *_: None)
+                signal.setitimer(signal.ITIMER_VIRTUAL, 0)
 
 def retrieveARCJSONTasks(directory, filenames=None):
 
     # directory = '/Users/theo/Development/program_induction/ec/ARC/data/training'
-    trainingData, testingData = [], []
+    data = []
 
     for filename in os.listdir(directory):
         if ("json" in filename):
-            train, test = retrieveARCJSONTask(filename, directory)
+            task = retrieveARCJSONTask(filename, directory)
             if filenames is not None:
                 if filename in filenames:
-                    trainingData.append(train)
-                    testingData.append(test)
+                    data.append(task)
             else:
-                trainingData.append(train)
-                testingData.append(test)
-    return trainingData, testingData
+                data.append(task)
+    return data
 
 
 def retrieveARCJSONTask(filename, directory):
     with open(directory + "/" + filename, "r") as f:
         loaded = json.load(f)
 
-    train = Task(
-        filename,
-        arrow(tgridin, tgridout),
-        [
+    ioExamples = [
             ((Grid(gridArray=example["input"]),), Grid(gridArray=example["output"]))
             for example in loaded["train"]
-        ],
-    )
-    
-    train.specialTask = ('arc', 5)
-    test = Task(
-        filename,
-        arrow(tgridin, tgridout),
-        [
+        ]
+    evalExamples = [
             ((Grid(gridArray=example["input"]),), Grid(gridArray=example["output"]))
             for example in loaded["test"]
-        ],
-    )
+        ]
 
-    return train, test
+    task = ArcTask(
+        filename,
+        arrow(tgridin, tgridout),
+        ioExamples,
+        evalExamples
+    )
+    task.specialTask = ('arc', 5)
+    return task
 
 
 def list_options(parser):
@@ -105,7 +156,7 @@ def gridToArray(grid):
         temp[yPos, xPos] = str(grid.points[(yPos,xPos)])
     return temp
 
-class ArcNN(nn.Module):
+class ArcCNN(nn.Module):
     special = 'arc'
     
     def __init__(self, tasks=[], testingTasks=[], cuda=False, H=64, inputDimensions=25):
@@ -145,179 +196,67 @@ class ArcNN(nn.Module):
                 v = torch.cat([v, exampleVector], dim=0)
         return self(v)
 
-    def customFeaturesOfTask(self, t):
-        v = None
-        for example in t.examples[-1:]:
-            inputGrid, outputGrid = example
-            inputGrid = inputGrid[0]
+    def taskOfProgram(self, p, tp):
+        """
+        For simplicitly we only use one example per task randomly sampled from
+        all possible input grids we've seen.
+        """
+        def randomInput(t): return random.choice(self.argumentsWithType[t])
 
-            inputColors, outputColors = set(inputGrid.points.values()), set(outputGrid.points.values())
-            specialColorsInput = inputColors - outputColors
-            specialColorsInputVector = [int(i in specialColorsInput) for i in range(10)]
-            specialColorsOutput = outputColors - inputColors
-            specialColorsOutputVector = [int(i in specialColorsOutput) for i in range(10)]
-            changeDimensions = [int((inputGrid.getNumCols() != outputGrid.getNumCols()) or (inputGrid.getNumRows() != outputGrid.getNumRows()))]
-            useSplitBlocks = [int(((inputGrid.getNumCols()//outputGrid.getNumCols()) == 2) or ((inputGrid.getNumRows()//outputGrid.getNumRows()) == 2))]
-            fractionBlackBInput = [sum([c == 0 for c in inputGrid.points.values()]) / len(inputGrid.points)]
-            fractionBlackBOutput = [sum([c == 0 for c in outputGrid.points.values()]) / len(outputGrid.points)]
-            pixelWiseError = [0 if (changeDimensions[0] == 1) else (sum([outputGrid.points[key] == outputGrid.points[key] for key in outputGrid.points.keys()]) / len(outputGrid.points))]
+        startTime = time.time()
+        examples = []
+        while True:
+            # TIMEOUT! this must not be a very good program
+            if time.time() - startTime > self.helmholtzTimeout: return None
 
-            finalVector = np.array([specialColorsInputVector + specialColorsOutputVector + changeDimensions + useSplitBlocks + fractionBlackBInput + fractionBlackBOutput + pixelWiseError]).astype(np.float32)
-            finalTensor = torch.from_numpy(finalVector)
-            # print(finalTensor)
-            if v is None:
-                v = finalTensor
-            else:
-                v = torch.cat([v, finalTensor], dim=0)
-        return self(v)
+            # Grab some random inputs
+            xs = [randomInput(t) for t in tp.functionArguments()]
+            try:
+                y = runWithTimeout(lambda: p.runWithArguments(xs), self.helmholtzEvaluationTimeout)
+                examples.append((tuple(xs),y))
+                if len(examples) >= 1:
+                    return Task("Helmholtz", tp, examples)
+            except: continue
+        return None
+
+    # def customFeaturesOfTask(self, t):
+    #     v = None
+    #     for example in t.examples[-1:]:
+    #         inputGrid, outputGrid = example
+    #         inputGrid = inputGrid[0]
+
+    #         inputColors, outputColors = set(inputGrid.points.values()), set(outputGrid.points.values())
+    #         specialColorsInput = inputColors - outputColors
+    #         specialColorsInputVector = [int(i in specialColorsInput) for i in range(10)]
+    #         specialColorsOutput = outputColors - inputColors
+    #         specialColorsOutputVector = [int(i in specialColorsOutput) for i in range(10)]
+    #         changeDimensions = [int((inputGrid.getNumCols() != outputGrid.getNumCols()) or (inputGrid.getNumRows() != outputGrid.getNumRows()))]
+    #         useSplitBlocks = [int(((inputGrid.getNumCols()//outputGrid.getNumCols()) == 2) or ((inputGrid.getNumRows()//outputGrid.getNumRows()) == 2))]
+    #         fractionBlackBInput = [sum([c == 0 for c in inputGrid.points.values()]) / len(inputGrid.points)]
+    #         fractionBlackBOutput = [sum([c == 0 for c in outputGrid.points.values()]) / len(outputGrid.points)]
+    #         pixelWiseError = [0 if (changeDimensions[0] == 1) else (sum([outputGrid.points[key] == outputGrid.points[key] for key in outputGrid.points.keys()]) / len(outputGrid.points))]
+
+    #         finalVector = np.array([specialColorsInputVector + specialColorsOutputVector + changeDimensions + useSplitBlocks + fractionBlackBInput + fractionBlackBOutput + pixelWiseError]).astype(np.float32)
+    #         finalTensor = torch.from_numpy(finalVector)
+    #         # print(finalTensor)
+    #         if v is None:
+    #             v = finalTensor
+    #         else:
+    #             v = torch.cat([v, finalTensor], dim=0)
+    #     return self(v)
 
 
     def featuresOfTasks(self, ts, t2=None):  # Take a task and returns [features]
         """Takes the goal first; optionally also takes the current state second"""
         return [self.featuresOfTask(t) for t in ts]
 
-def resume_from_path(resume):
-    try:
-        resume = int(resume)
-        path = checkpointPath(resume)
-    except ValueError:
-        path = resume
-    with open(path, "rb") as handle:
-        result = dill.load(handle)
-    resume = len(result.grammars) - 1
-    eprint("Loaded checkpoint from", path)
-    grammar = result.grammars[-1] if result.grammars else grammar
-    return result, grammar, result.grammars[0]
-
-def getLearnedProductions(result):
-    currentProductions = set()
-    learnedProductions = {}
-    for i,grammar in enumerate(result.grammars):
-        learnedProductions[i] = {}
-        productions = set([str(p[2]) for p in grammar.productions])
-        if len(list(currentProductions)) == 0:
-            currentProductions = productions
-        else:
-            print('----------------------------------------------------{}-----------------------------------------------------'.format(i))        
-            newProductions = productions.difference(currentProductions)
-            for j,production in enumerate(newProductions):
-                learnedProductions[i][j] = production
-                print(j, production)
-        currentProductions = currentProductions.union(productions)
-    return learnedProductions
-
-
-def getTrainFrontier(resumePath, n):
-    result, resumeGrammar, preConsolidationGrammar = resume_from_path(resumePath)
-    firstFrontier = [frontiers[0] for (key,frontiers) in result.frontiersOverTime.items() if len(frontiers[0].entries) > 0]
-    allFrontiers = [frontier for (task,frontier) in result.allFrontiers.items() if len(frontier.entries) > 0]
-    # expandedFrontier = expandFrontier(firstFrontier, n)
-    print(result.learningCurve)
-    learnedProductions = getLearnedProductions(result)
-    return result, firstFrontier, allFrontiers, result.frontiersOverTime, resumeGrammar, preConsolidationGrammar, result.recognitionModel, learnedProductions
-
-def getTask(taskName, allTasks):
-    for task in allTasks:
-        if task.name == taskName:
-            return task
-    raise Exception
-
-def scoreProgram(p, recognizer=None, grammar=None, taskName=None, task=None):
-    if taskName:
-        task = getTask(taskName, trainTasks)
-    if recognizer is not None:
-        grammar = recognizer.grammarOfTask(task).untorch()
-    if grammar is None:
-        return 0
-    ll = grammar.logLikelihood(arrow(tgridin, tgridout), p)
-    return ll
-
-def normalizeProductions(grammar):
-    z = lse([l for l,_,p in grammar.productions])
-    normalizedProductions = [(p[0]-z, p[2]) for p in grammar.productions]
-    return Grammar.fromProductions(normalizedProductions)
-
-def upweightProduction(name, scaleFactor, grammar):
-    productions = [(p[0],p[2]) for p in grammar.productions]
-    for i in range(len(productions)):
-        if str(productions[i][1]) == name:
-            print('production before: {}'.format(productions[i][0]))
-            productions[i] = (productions[i][0] + math.log(scaleFactor), productions[i][1])
-            print('production after: {}'.format(productions[i][0]))
-    return Grammar.fromProductions(productions)
-
-def upweightConditionalProduction(parentPrimitive, argumentIndex, production, scaleFactor, contextualGrammar):
-    primitiveGrammar = contextualGrammar.library[parentPrimitive][argumentIndex]
-    print('primitiveGrammar before: ', primitiveGrammar)
-    newPrimitiveGrammar = upweightProduction(production, scaleFactor, primitiveGrammar)
-    print('conditionalGrammar after: ', newPrimitiveGrammar)
-    newContextualGrammar = copy.deepcopy(contextualGrammar)
-    newContextualGrammar.library[parentPrimitive][argumentIndex] = newPrimitiveGrammar
-    return newContextualGrammar
-
-def upweightConditionalProductions(parent2UpdateProduction, scaleFactor, contextualGrammar):
-    currentGrammar = contextualGrammar
-    for ((parentPrimitive, argIndex),production) in parent2UpdateProduction.items():
-        currentGrammar = upweightConditionalProduction(parentPrimitive, argIndex, production, scaleFactor, currentGrammar)
-    return currentGrammar
-
-def evaluateGrammars(dreamcoderFrontier, manuallySolvedTasks, grammar1=None, grammar2=None, recognizer1=None, recognizer2=None):
-
-    print('\n ------------------------------ Solved by Dreamcoder ------------------------------------ \n')
-    averageLLBefore, averageLLAfter = 0,0
-    for frontier in dreamcoderFrontier:
-        llBefore = scoreProgram(frontier.entries[0].program, grammar=grammar1, recognizer=recognizer1)
-        llAfter = scoreProgram(frontier.entries[0].program, grammar=grammar2, recognizer=recognizer2)
-        if llAfter == 0:
-            print("{}: {}".format(frontier.task, llBefore))
-        else:
-            print("{}: {} -> {}".format(frontier.task.name, llBefore, llAfter))
-        print("Program: {}\n".format(frontier.entries[0].program))
-        averageLLBefore += llBefore
-        averageLLAfter += llAfter
-
-    print("Solved {} tasks".format(len(dreamcoderFrontier)))
-    if llAfter == 0:
-        print('Average LL: {}'.format(averageLLBefore / len(dreamcoderFrontier)))
-    else:
-        print('Average LL: {} -> {}'.format(averageLLBefore / len(dreamcoderFrontier), (averageLLAfter / len(dreamcoderFrontier))))
-
-    print('\n ------------------------------ Manually Solved ------------------------------------ \n')        
-
-
-    solvedByDreamcoder = 0
-    averageLLBefore, averageLLAfter = 0,0
-    for task,program in manuallySolvedTasks.items():
-        if task not in [frontier.task.name for frontier in dreamcoderFrontier]:
-            p = Program.parse(manuallySolvedTasks[task])
-            llBefore = scoreProgram(p, grammar=grammar1, recognizer=recognizer1)
-            llAfter = scoreProgram(p, grammar=grammar2, recognizer=recognizer2)
-            if llAfter == 0:
-                print("{}: {}".format(task, llBefore))
-            else:
-                print("{}: {} -> {}".format(task, llBefore, llAfter))
-            print("Program: {}\n".format(p))
-            averageLLBefore += llBefore
-            averageLLAfter += llAfter
-        else:
-            solvedByDreamcoder += 1
-    
-    print("{} of {} manually written solutions were found by Dreamcoder".format(solvedByDreamcoder, len(manuallySolvedTasks)))
-    numUnsolved = len(manuallySolvedTasks) - solvedByDreamcoder
-    if llAfter == 0:
-        print('Average LL: {}'.format(averageLLBefore / numUnsolved))
-    else:
-        print('Average LL: {} -> {}'.format(averageLLBefore/numUnsolved, averageLLAfter/numUnsolved))
-
 
 def main(args):
     """
     Takes the return value of the `commandlineArguments()` function as input and
     trains/tests the model on manipulating sequences of numbers.
-    """
-    random.seed(args.pop("random_seed"))
-    single_train_task = args.pop("train_few")
 
+    """
     # samples = {
     #     "007bbfb7.json": _solve007bbfb7,
     #     "c9e6f938.json": _solvec9e6f938,
@@ -332,17 +271,11 @@ def main(args):
 
     import os
 
-    directory = "/".join(os.path.abspath(__file__).split("/")[:-4]) + "/arc-data/data/"
+    homeDirectory = "/".join(os.path.abspath(__file__).split("/")[:-4])
+    dataDirectory = homeDirectory + "/arc-data/data/"
 
-    if single_train_task:
-        # trainTasks = retrieveARCJSONTasks(directory, ["913fb3ed.json", "72ca375d.json","f25fbde4.json","fcb5c309.json","ce4f8723.json","0520fde7.json","c9e6f938.json","97999447.json","5521c0d9.json","007bbfb7.json","d037b0a7.json","5117e062.json","4347f46a.json","50cb2852.json","88a10436.json","a5313dff"])
-        trainTasks, testTasks = retrieveARCJSONTasks(directory, ['3631a71a.json'])
-        # Tile tasks
-        # trainTasks = retrieveARCJSONTasks(directory, ["97999447.json", "d037b0a7.json", "4347f46a.json", "50cb2852.json"])
-    else:
-        trainTasks, _ = retrieveARCJSONTasks(directory + 'training', None)
-
-    testTasks, _ = retrieveARCJSONTasks(directory + 'evaluation')
+    trainTasks = retrieveARCJSONTasks(dataDirectory + 'training', None)
+    holdoutTasks = retrieveARCJSONTasks(dataDirectory + 'evaluation')
 
     baseGrammar = Grammar.uniform(basePrimitives() + leafPrimitives())
     # print("base Grammar {}".format(baseGrammar))
@@ -355,170 +288,40 @@ def main(args):
         {"outputPrefix": "%s/arc" % outputDirectory, "evaluationTimeout": 1,}
     )
 
-    # # nnTrainTask, _ = retrieveARCJSONTasks(directory, ['dae9d2b5.json'])
+    # # nnTrainTask, _ = retrieveARCJSONTasks(dataDirectory, ['dae9d2b5.json'])
     # # arcNN = ArcCNN(inputDimensions=25)
     # # v = arcNN.featuresOfTask(nnTrainTask[0])
     # # print(v)
 
-    resumePath = '/Users/theo/Development/program_induction/ec/experimentOutputs/arc/'
-    resumeDirectory = '2020-05-10T14:49:21.186479/'
-    pickledFile = 'arc_aic=1.0_arity=3_BO=True_CO=True_ES=1_ET=1200_t_zero=28800_HR=0.0_it=6_MF=10_noConsolidation=False_pc=1.0_RT=1800_RR=False_RW=False_solver=ocaml_STM=True_L=1.0_TRR=unsolved_K=2_topkNotMAP=False_graph=True.pickle'
-    result, firstFrontier, allFrontiers, frontierOverTime, topDownGrammar, preConsolidationGrammar, resumeRecognizer, learnedProductions = getTrainFrontier(resumePath + resumeDirectory + pickledFile, 0)
+    print("homeDirectory: {}".format(homeDirectory))
+    resumeDirectory = '/experimentOutputs/arc/2020-04-27T15:41:52.288988/'
+    pickledFile = 'arc_aic=1.0_arity=3_ET=28800_t_zero=28800_it=1_MF=10_noConsolidation=True_pc=30.0_RW=False_solver=ocaml_STM=True_L=1.0_TRR=default_K=2_topkNotMAP=False_rec=False.pickle'
+    result, firstFrontier, allFrontiers, frontierOverTime, topDownGrammar, preConsolidationGrammar, resumeRecognizer, learnedProductions = getTrainFrontier(homeDirectory + resumeDirectory + pickledFile, 0)
 
-    def convertFrontiersOverTimeToJson(frontiersOverTime):
-        frontiersOverTimeJson = {}
-        numFrontiers = len(list(frontiersOverTime.values())[0])
-        # print('{} frontiers per task'.format(numFrontiers))
-        for task,frontiers in frontiersOverTime.items():
-            # print('frontiers: ', frontiers)
-            frontiersOverTimeJson[task.name] = {i:str(frontier.entries[0].program) + '\n' + str(frontier.entries[0].logPosterior) for i,frontier in enumerate(frontiers) if len(frontier.entries) > 0}
-        return frontiersOverTimeJson
-
-    def getProgramUses(program, request, grammar):
-        ls = grammar.closedLikelihoodSummary(request, program)
-        def uses(summary):
-            if hasattr(summary, 'uses'): 
-                return torch.tensor([ float(int(p in summary.uses))
-                                      for p in grammar.primitives])
-            assert hasattr(summary, 'noParent')
-            u = uses(summary.noParent) + uses(summary.variableParent)
-            for ss in summary.library.values():
-                for s in ss:
-                    u += uses(s)
-            return u
-        u = uses(ls)
-        # u[u > 1.] = 1.
-        usesIdx = torch.nonzero(u).squeeze().tolist()
-        if isinstance(usesIdx, int):
-            usesIdx = [usesIdx]
-        return usesIdx
-
-    def parseHandwritten(taskName):
-        # if taskName in ["007bbfb7.json", "ea786f4a.json"]:
-        #     return None
-        # else:
-        print(taskName)
-        program = Program.parse(manuallySolvedTasks[taskName])
-        return program
-
-    frontiersOverTime = convertFrontiersOverTimeToJson(frontierOverTime)
-
-    grammarJson = topDownGrammar.jsonWithTypes()
-    print(grammarJson)
-    productions = []
-    
-    toReturn = {}
-
-    for task in frontierOverTime.keys():
-        taskFrontiers = frontierOverTime[task]
-        manuallySolved = str(task.name) in list(manuallySolvedTasks.keys())
-
-        humanSolution = None
-        if manuallySolved:
-            humanProgram = parseHandwritten(str(task.name))
-            usesIdx = getProgramUses(humanProgram, arrow(tgridin, tgridout), topDownGrammar)
-            humanSolution = (len(usesIdx), usesIdx)
-
-        taskData = {"manuallySolved": manuallySolved, "humanSolution": humanSolution, "programsOverTime": []}
-        toReturn[str(task.name)] = taskData
-
-        for frontier in taskFrontiers:
-            if len(frontier.entries) > 0:
-                bestProgram = frontier.bestPosterior.program
-                usesIdx = getProgramUses(bestProgram, arrow(tgridin, tgridout), topDownGrammar)
-                taskData["programsOverTime"].append((len(usesIdx), usesIdx))
-
-    for task in toReturn.keys():
-        if toReturn[task]["manuallySolved"]:
-            pass
-            # print(task, toReturn[task])
-
-    print(len(grammarJson['productions']))
-    print(len(topDownGrammar.primitives))
-
-    for i,p in enumerate([str(p) for p in topDownGrammar.primitives]):
-        print(i, p)
-
-    with open(resumePath + resumeDirectory + 'grammarPrimitivesList.p', 'wb') as f:
-        pickle.dump([str(p) for p in topDownGrammar.primitives], f)
-
-    with open(resumePath + resumeDirectory + 'discoveredPrograms.p', 'wb') as f:
-        pickle.dump(toReturn, f)
-
-    json.dump(grammarJson, open('grammar.json', 'w'))
-
-    # with open(resumePath + resumeDirectory + 'frontiersOverTime.json', 'w') as fp:
-    #     json.dump(frontiersOverTime, fp)
-
-    # with open(resumePath + resumeDirectory + 'ecResults.json', 'w') as fp:
-    #     json.dump({'learnedProductions':learnedProductions, 'frontiersOverTime':frontiersOverTime}, fp)
-
-    # print(topDownGrammar)
+    print(topDownGrammar)
+    print("-----------------------------------------------------")
     # print(firstFrontier)
 
-    # # Tasks I'm not solving
-    # # evaluateGrammars(firstFrontier, manuallySolvedTasks, grammar1=preConsolidationGrammar.insideOutside(firstFrontier, 30, iterations=1))
-    # # evaluateGrammars(firstFrontier, manuallySolvedTasks, grammar1=preConsolidationGrammar.insideOutside(firstFrontier, 1))
-
-    # # How does contextual model do?
-    # # evaluateGrammars(firstFrontier, manuallySolvedTasks, grammar1=topDownGrammar, recognizer2=resumeRecognizer)
-
-    # parent2UpdateProduction = {
-    #     # (Primitive('blocks_to_original_grid', arrow(tblocks, tbool, tbool, tgridout),  None), 0): 'map_tbs',
-    #     # (Primitive("map_tbs", arrow(ttbs, arrow(tblock, tblock, tblock), tbool, tblocks), None),1): 'move_until_touches_block',
-
-    #     (Primitive('blocks_to_original_grid', arrow(tblocks, tbool, tbool, tgridout),  None), 0): 'map_blocks',
-    #     # (Primitive("map_blocks", arrow(tblocks, arrow(tblock, tblock), tblocks), None),1): 'fill_color',
-    #     (Primitive('fill_color', arrow(tblock, tcolor, tblock), None), 1): 'blue',
-    #     # (Primitive("filter_blocks", arrow(tblocks, arrow(tblock, tbool), tblocks), None),1): 'touches_any_boundary',
-
-    #     # (Primitive('blocks_to_original_grid', arrow(tblocks, tbool, tbool, tgridout),  None), 0): 'map_blocks',
-    #     # (Primitive("map_tiles", arrow(ttiles, arrow(ttile, tblock), tblocks), None),1): 'extend_towards_until',
-    #     # (Primitive("make_colorpair", arrow(tcolor, tcolor, tcolorpair), None), 1): 'invisible',
-
-    #     # (Primitive('fill_color', arrow(tblock, tcolor, tblock), None), 1): 'teal',
-    #     # (Primitive("map_blocks", arrow(tblocks, arrow(tblock, tblock), tblocks), None),1): 'fill_snakewise',
-    #     # (Primitive("filter_template_block", arrow(tblocks, arrow(tblock, tbool), ttbs), None),0):'find_blocks_by_inferred_b',
-    #     # (Primitive("filter_template_block", arrow(tblocks, arrow(tblock, tbool), ttbs), None),1):'has_min_tiles',
-    #     # (Primitive("filter", arrow(tblocks, arrow(tblock, tblock), tblocks), None),0): 'extend_towards_until'
-    # }
-    # preConsolidationGrammarInsideOut = preConsolidationGrammar.insideOutside(firstFrontier,1)
-    # contextualGrammar = ContextualGrammar.fromGrammar(preConsolidationGrammarInsideOut)
-    # newContextualGrammar = upweightConditionalProductions(parent2UpdateProduction, 100, contextualGrammar)
-    # evaluateGrammars(firstFrontier, manuallySolvedTasks, grammar1=preConsolidationGrammarInsideOut, grammar2=newContextualGrammar)
-
-    # # recognitionModel = RecognitionModel(, baseGrammar)
-    # # expandedFrontier = expandedFrontier()
-    # # for frontier in expandedFrontiers:
-    # #     task = frontier.task
-    # #     print('Task: {}'.format(task.name))
-    # #     print(ArcCNN().featuresOfTask(task))
-    # # timeout = 1200
-    # # path = "recognitionModels/{}_trainTasks={}_timeout={}".format(datetime.datetime.now(), len(expandedFrontiers), timeout)
-    # # trainedRecognizer = sleep_recognition(None, baseGrammar, [], [], [], expandedFrontiers, featureExtractor=ArcCNN, activation='tanh', CPUs=1, timeout=timeout, helmholtzFrontiers=[], helmholtzRatio=0, solver='ocaml', enumerationTimeout=0, skipEnumeration=True)
-    # # with open(path,'wb') as handle:
-    # #     dill.dump(trainedRecognizer, handle)
-    # #     print('Stored recognizer at: {}'.format(path))
-
-    # # # def getTaskProgram(taskName):
-
-    # # #     key = taskName.split('_')[1]
-    # # #     return taskToProgram[key]
-
-    # # # taskToProgram = {frontier.task.name:getTaskProgram(frontier) for frontier in expandedFrontier}
-
-    # # # nnTrainTasks = [frontier.task for frontier in expandedFrontier]
-    # # # for task,program in manuallySolvedTasks.items():
-    # # #     if task not in taskToProgram:
-    # # #         taskToProgram[task] = Program.parse(manuallySolvedTasks[task])
+    featureExtractor = ArcCNN()
+    recognizer = RecognitionModel(featureExtractor, topDownGrammar)
+    request = arrow(tgridin, tgridout)
+    sample = recognizer.sampleHelmholtz([request], statusUpdate='.', seed=1)
+    print(sample)
 
 
-    # # trainedRecognizerPath = 'recognitionModels/2020-04-26 15:05:28.972185_trainTasks=2343_timeout=1200'
-    # # with open(trainedRecognizerPath, 'rb') as handle:
-    # #     trainedRecognizer = dill.load(handle)
-    # # # print('{} Train Tasks'.format(len(nnTrainTasks)))
-    # # # scoreTasks(trainedRecognizer, nnTrainTasks, taskToProgram, True)
-    # # # print('\n {} Test Tasks'.format(len(nnTestTasks)))
-    # # # scoreTasks(trainedRecognizer, nnTestTasks, taskToProgram, True)
+    #     print(featureExtractor.featuresOfTask(task))
+    # timeout = 1200
+    # path = "recognitionModels/{}_trainTasks={}_timeout={}".format(datetime.datetime.now(), len(firstFrontier), timeout)
+    
+    # trainedRecognizer = sleep_recognition(None, baseGrammar, [], [], [], firstFrontier, featureExtractor=ArcCNN, activation='tanh', CPUs=1, timeout=timeout, helmholtzFrontiers=[], helmholtzRatio=0, solver='ocaml', enumerationTimeout=0, skipEnumeration=True)
+    
+    # with open(path,'wb') as handle:
+    #     dill.dump(trainedRecognizer, handle)
+    #     print('Stored recognizer at: {}'.format(path))
+
+
+    # trainedRecognizerPath = 'recognitionModels/2020-04-26 15:05:28.972185_trainTasks=2343_timeout=1200'
+    # with open(trainedRecognizerPath, 'rb') as handle:
+    #     trainedRecognizer = dill.load(handle)
 
     # explorationCompression(baseGrammar, trainTasks, testingTasks=testTasks, **args)
