@@ -333,11 +333,11 @@ class Grid(RectangleBlock):
         rows = [' '.join(row) for row in temp.tolist()]
         return '\n'.join(rows)
 
-    # def __repr__(self):
-    #     temp = {}
-    #     for yPos,xPos in self.points:
-    #         temp["{},{}".format(yPos, xPos)] = self.points[(yPos,xPos)]
-    #     return {'grid':temp}
+    def toJson(self):
+        temp = {}
+        for yPos,xPos in self.points:
+            temp["{},{}".format(yPos, xPos)] = self.points[(yPos,xPos)]
+        return {'grid':temp}
 
     def fromPoints(self, points):
         return Grid(points=points, originalGrid=self.originalGrid)
@@ -640,10 +640,12 @@ def leafPrimitives():
         Primitive("pink", tcolor, _pink),
         Primitive("orange", tcolor, _orange),
         Primitive("teal", tcolor, _teal),
-        Primitive("maroon", tcolor, _maroon)]
+        Primitive("maroon", tcolor, _maroon)
+        ]
 
 
 def basePrimitives():
+
     return [
 
 ##### tblocks #####
@@ -793,7 +795,7 @@ def basePrimitives():
 
 ##### tcolorpair #####
 
-    Primitive("make_colorpair", arrow(tcolor, tcolor, tcolorpair), None),
+    Primitive("make_colorpair", arrow(tcolor, tcolor, tcolorpair), None)
 
 # ##### tintcolorpair #####
 

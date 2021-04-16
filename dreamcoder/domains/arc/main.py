@@ -13,12 +13,13 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from dreamcoder.dreaming import helmholtzEnumeration
 from dreamcoder.dreamcoder import explorationCompression, sleep_recognition
 from dreamcoder.utilities import eprint, flatten, testTrainSplit, lse, runWithTimeout
 from dreamcoder.grammar import Grammar, ContextualGrammar
 from dreamcoder.task import Task
 from dreamcoder.type import Context, arrow, tbool, tlist, tint, t0, UnificationFailure
-from dreamcoder.recognition import RecognitionModel
+from dreamcoder.recognition import RecognitionModel, DummyFeatureExtractor
 from dreamcoder.program import Program
 from dreamcoder.domains.arc.utilsPostProcessing import *
 from dreamcoder.domains.arc.arcPrimitives import *
@@ -118,9 +119,14 @@ def retrieveARCJSONTask(filename, directory):
 
 
 def list_options(parser):
-    parser.add_argument("--random-seed", type=int, default=17)
-    parser.add_argument("--train-few", default=False, action="store_true")
+    # parser.add_argument("--random-seed", type=int, default=17)
+    # parser.add_argument("--train-few", default=False, action="store_true")
     parser.add_argument("--firstTimeEnumerationTimeout", type=int, default=3600)
+    parser.add_argument("--featureExtractor", choices=[
+        "dummy",
+        "ArCNN",
+        "ArcCnnEmbed"
+        ])
 
     # parser.add_argument("-i", type=int, default=10)
 
@@ -302,11 +308,22 @@ def main(args):
     print("-----------------------------------------------------")
     # print(firstFrontier)
 
-    featureExtractor = ArcCNN()
-    recognizer = RecognitionModel(featureExtractor, topDownGrammar)
+    timeout = 10.0
+    featureExtractor = {
+        "dummy": DummyFeatureExtractor,
+    }[args.pop("featureExtractor")]
+
+    # recognizer = RecognitionModel(featureExtractor, topDownGrammar)
     request = arrow(tgridin, tgridout)
-    sample = recognizer.sampleHelmholtz([request], statusUpdate='.', seed=1)
-    print(sample)
+    # inputs = [inputGrid[0].toJson() for task in trainTasks for inputGrid, _ in task.examples]
+    # print(inputs)    
+
+    # helmholtzEnumeration(baseGrammar, request, inputs, timeout, _=None,
+                         # special="arc", evaluationTimeout=None)
+    # sample = recognizer.sampleHelmholtz([request], statusUpdate='.', seed=1)
+
+
+    # print(sample)
 
 
     #     print(featureExtractor.featuresOfTask(task))
@@ -324,4 +341,4 @@ def main(args):
     # with open(trainedRecognizerPath, 'rb') as handle:
     #     trainedRecognizer = dill.load(handle)
 
-    # explorationCompression(baseGrammar, trainTasks, testingTasks=testTasks, **args)
+    explorationCompression(baseGrammar, trainTasks, featureExtractor=featureExtractor, testingTasks=[], **args)
