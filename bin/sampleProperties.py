@@ -16,6 +16,7 @@ from dreamcoder.domains.list.taskProperties import handWrittenProperties, tinput
 from dreamcoder.enumeration import *
 from dreamcoder.grammar import Grammar
 from dreamcoder.likelihoodModel import PropertySignatureHeuristicModel, PropertyHeuristicModel
+from dreamcoder.program import Program
 from dreamcoder.type import *
 from dreamcoder.utilities import tuplify
 
@@ -46,8 +47,8 @@ if __name__ == "__main__":
             "josh_3.1",
             "josh_final",
             "Lucas-old"])
-    parser.add_argument("--useConjunction", action="store_true", default=False)
-    parser.add_argument("--addZeroToNinePrims", action="store_true", default=False)
+    parser.add_argument("--propUseConjunction", action="store_true", default=False)
+    parser.add_argument("--propAddZeroToNinePrims", action="store_true", default=False)
     parser.add_argument("--propertySamplingMethod", default="unique_task_signature", choices=[
         "per_task_discrimination",
         "unique_task_signature"
@@ -73,7 +74,7 @@ if __name__ == "__main__":
         tinputToList = Primitive("tinput_to_tlist", arrow(tinput, tlist(tint)), lambda x: x)
         propertyPrimitives = propertyPrimitives + [tinputToList, toutputToList]
 
-    if args.addZeroToNinePrims:
+    if args.propAddZeroToNinePrims:
         for i in range(10):
             if str(i) not in [primitive.name for primitive in propertyPrimitives]:
                 propertyPrimitives.append(Primitive(str(i), tint, i))
@@ -81,7 +82,7 @@ if __name__ == "__main__":
         zeroToNinePrimitives = set([str(i) for i in range(10)])
         propertyPrimitives = [p for p in propertyPrimitives if p.name not in zeroToNinePrimitives]
 
-    if args.useConjunction:
+    if args.propUseConjunction:
         propertyPrimitives.append(Primitive("and", arrow(tbool, tbool, tbool), lambda a: lambda b: a and b))
 
     tasks = {
@@ -117,22 +118,43 @@ if __name__ == "__main__":
     dslPrimitives = nameToPrimitives["josh_3"]
     dslGrammar = Grammar.fromProductions([(0.0, p) for p in dslPrimitives])
 
+    def scoreProgram(p, request, recognizer=None, grammar=None):
+
+        if recognizer is not None:
+            grammar = recognizer.grammarOfTask(task).untorch()
+
+        ll = grammar.logLikelihood(request, p)
+        return ll
+
+    properties = [
+        "(lambda (lambda (eq? (car (tinput_to_tlist $1)) (car (toutput_to_tlist $0)))))",
+        "(lambda (lambda (eq? (fix1 (toutput_to_tlist $0) (lambda (lambda (if (empty? $0) 0 (+n9 ($1 (cdr $0)) 1))))) 1)))"
+
+    ]
+
+    print(propertyGrammar)
+
+    request = arrow(tinput, toutput, tbool)
+    for p in properties:
+        ll = scoreProgram(Program.parse(p), request, grammar=propertyGrammar)
+        print(ll)
+
     # print(dslGrammar)
     # featureExtractor = PropertySignatureExtractor(tasks=tasks, testingTasks=[], H=64, embedSize=16, useEmbeddings=True, helmholtzTimeout=0.001, helmholtzEvaluationTimeout=0.001,
     #         cuda=False, doSampling=True, args=args, propertyGrammar=propertyGrammar,  dslGrammar=dslGrammar)
 
 
-    frontierEntries = sampleProperties(args, propertyGrammar, tasks)
-    print("Enumerated {} properties".format(len(frontierEntries)))
+    # frontierEntries = sampleProperties(args, propertyGrammar, tasks)
+    # print("Enumerated {} properties".format(len(frontierEntries)))
 
-    likelihoodModel = PropertySignatureHeuristicModel(tasks=tasks)
-    for frontierEntry in frontierEntries:
-        # print("p: {} (logprior: {})".format(frontierEntry.program, frontierEntry.logPrior))
-        _, score = likelihoodModel.score(frontierEntry.program, tasks[0])
+    # likelihoodModel = PropertySignatureHeuristicModel(tasks=tasks)
+    # for frontierEntry in frontierEntries:
+    #     # print("p: {} (logprior: {})".format(frontierEntry.program, frontierEntry.logPrior))
+    #     _, score = likelihoodModel.score(frontierEntry.program, tasks[0])
 
-    print("{} properties after filtering".format(len(likelihoodModel.properties)))
-    for prop, propertyValues in likelihoodModel.properties:
-        print(prop)
-        print(propertyValues)
+    # print("{} properties after filtering".format(len(likelihoodModel.properties)))
+    # for prop, propertyValues in likelihoodModel.properties:
+    #     print(prop)
+    #     print(propertyValues)
 
 

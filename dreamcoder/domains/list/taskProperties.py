@@ -22,7 +22,7 @@ def _inputSuffixOfOutput(inputList, outputList):
 tinput = baseType("input")
 toutput = baseType("output")
 
-def handWrittenProperties():
+def handWrittenProperties(grouped=False):
 	"""
 	A list of properties to be used by PropertySignatureExtractor to create property signatures of tasks.
 	These properties were hand written by solving the training tasks from the list domain official 
@@ -90,7 +90,10 @@ def handWrittenProperties():
 			lambda inputList: lambda outputList: lambda j: lambda i: None if (j >= len(inputList) or i >= len(outputList)) else inputList[j] == outputList[i])
 	]
 
-	return noParamProperties + kParamProperties + inputIdxParamProperties + outputIdxParamProperties + inputIdxOutputIdxParamProperties
+	if grouped:
+		return [noParamProperties, kParamProperties, inputIdxParamProperties, outputIdxParamProperties, inputIdxOutputIdxParamProperties]
+	else:
+		return noParamProperties + kParamProperties + inputIdxParamProperties + outputIdxParamProperties + inputIdxOutputIdxParamProperties
 
 
 def handWrittenPropertyFuncs(handWrittenPropertyPrimitives, kMin, kMax, 
@@ -100,28 +103,31 @@ def handWrittenPropertyFuncs(handWrittenPropertyPrimitives, kMin, kMax,
 
 	noParamProperties = handWrittenPropertyPrimitives[0]
 	for prop in noParamProperties:
-		propertyFuncs.append(prop.value)
+		propertyFuncs.append((prop.name, prop.value, None))
 
 	kParamProperties = handWrittenPropertyPrimitives[1]
 	for prop in kParamProperties:
 		for k in range(kMin, kMax+1):
-			propertyFuncs.append(prop.value(k))
+			propertyFuncs.append((prop.name.replace("_k", "_{}".format(k)), prop.value(k), None))
 
 	inputIdxParamProperties = handWrittenPropertyPrimitives[2]
 	for prop in inputIdxParamProperties:
 		for idx in range(inputIdxMax+1):
-			propertyFuncs.append(prop.value(idx))
+			propertyFuncs.append((prop.name.replace("idx_i", "idx_{}".format(idx)), prop.value(idx), None))
 
 	outputIdxParamProperties = handWrittenPropertyPrimitives[3]
 	for prop in outputIdxParamProperties:
 		for idx in range(outputIdxMax+1):
-			propertyFuncs.append(prop.value(idx))
+			propertyFuncs.append((prop.name.replace("_n", "_{}".format(idx)), prop.value(idx), None))
 
 	inputIdxOutputIdxParamProperties = handWrittenPropertyPrimitives[4]
 	for prop in inputIdxOutputIdxParamProperties:
 		for inputIdx in range(inputIdxMax+1):
 			for outputIdx in range(outputIdxMax+1):
-				propertyFuncs.append(prop.value(outputIdx)(inputIdx))
+				propertyFuncs.append((
+					prop.name.replace("idx_j", "idx_{}".format(inputIdx)).replace("idx_i", "idx_{}".format(outputIdx)), 
+					prop.value(outputIdx)(inputIdx), 
+					None))
 
 	return propertyFuncs
 

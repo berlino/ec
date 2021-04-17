@@ -45,7 +45,7 @@ class PropertySignatureHeuristicModel:
         self.tasks = tasks
         self.taskPropertyDict = {}
         self.properties = []
-        self.taskPropertyValueToInt = {"allFalse":0, "allTrue":1, "mixed":2}
+        self.taskPropertyValueToInt = {"allTrue":1, "mixed":0}
 
     def _getTaskPropertyValue(self, program, task):
         
@@ -62,7 +62,7 @@ class PropertySignatureHeuristicModel:
         try:
             exampleValues = [task.predict(f,x) for x,_ in task.examples]
             if all([value is False for value in exampleValues]):
-                taskPropertyValue = "allFalse"
+                taskPropertyValue = "mixed"
             elif all([value is True for value in exampleValues]):
                 taskPropertyValue = "allTrue"
 
@@ -81,16 +81,16 @@ class PropertySignatureHeuristicModel:
             raise Exception("You must provide all tasks to score function")
         
         numTasks = len(self.tasks)
-        propertyValues = np.zeros((numTasks,))
+        propertyValues = []
 
-        for i,task in enumerate(self.tasks):
+        for task in self.tasks:
             
             taskPropertyValue = self._getTaskPropertyValue(program, task)
             # if there is error evaluating the program, discard it
             if taskPropertyValue is False:
-                return False, 0.0
+                propertyValues.append(self.taskPropertyValueToInt["mixed"])
             else:
-                propertyValues[i] = self.taskPropertyValueToInt[taskPropertyValue]
+                propertyValues.append(self.taskPropertyValueToInt[taskPropertyValue])
         
         key = str(propertyValues)
         noAddCondition = (key in self.taskPropertyDict) or (all([val == "mixed" for val in propertyValues]))

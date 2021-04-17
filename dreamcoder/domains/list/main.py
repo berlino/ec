@@ -186,7 +186,7 @@ try:
 
             return tokenized
 
-        def __init__(self, tasks, testingTasks=[], cuda=False, propertyGrammar=None):
+        def __init__(self, tasks, testingTasks=[], cuda=False, grammar=None, featureExtractorArgs=None):
             self.lexicon = set(flatten((t.examples for t in tasks + testingTasks), abort=lambda x: isinstance(
                 x, str))).union({"LIST_START", "LIST_END", "?"})
 
@@ -224,20 +224,22 @@ class CombinedExtractor(nn.Module):
         helmholtzTimeout=0.25,
         # What should be the timeout for running a Helmholtz program?
         helmholtzEvaluationTimeout=0.01,
-        propArgs=None,
-        propertyGrammar=None):
+        grammar=None,
+        featureExtractorArgs=None):
         super(CombinedExtractor, self).__init__()
 
         self.propSigExtractor = PropertySignatureExtractor(tasks=tasks, testingTasks=testingTasks, H=H, embedSize=embedSize, useEmbeddings=useEmbeddings, helmholtzTimeout=helmholtzTimeout, helmholtzEvaluationTimeout=helmholtzEvaluationTimeout,
-            cuda=cuda, propArgs=propArgs, propertyGrammar=propertyGrammar)
-        self.learnedFeatureExtractor = LearnedFeatureExtractor(tasks=tasks, testingTasks=testingTasks, cuda=cuda)
+            cuda=cuda, grammar=grammar, featureExtractorArgs=featureExtractorArgs)
+        self.learnedFeatureExtractor = LearnedFeatureExtractor(tasks=tasks, testingTasks=testingTasks, cuda=cuda, grammar=grammar, featureExtractorArgs=featureExtractorArgs)
 
         # self.propSigExtractor = PropertySignatureExtractor
         # self.learnedFeatureExtractor = LearnedFeatureExtractor
 
-        self.outputDimensionality = 2 * H
+        self.outputDimensionality = H
         self.recomputeTasks = True
         self.parallelTaskOfProgram = True
+
+        self.linear = nn.Linear(2*H, H)
 
     def forward(self, v, v2=None):
         pass
@@ -248,7 +250,7 @@ class CombinedExtractor(nn.Module):
         propSigExtractorVector = self.propSigExtractor.featuresOfTask(t)
 
         if learnedFeatureExtractorVector is not None and propSigExtractorVector is not None:
-            return torch.cat((learnedFeatureExtractorVector, propSigExtractorVector))
+            return self.linear(torch.cat((learnedFeatureExtractorVector, propSigExtractorVector)))
         else:
             return None
 
@@ -288,7 +290,16 @@ def list_options(parser):
     # parser.add_argument("--iterations", type=int, default=10)
     # parser.add_argument("--useDSL", action="store_true", default=False)
     parser.add_argument("--split", action="store_true", default=False)
-    parser.add_argument("--primitives", default="property_prims", choices=[
+    parser.add_argument("--primitives",  default="property_prims", choices=[
+        "josh_1",
+        "josh_2",
+        "josh_3",
+        "josh_3.1",
+        "josh_final",
+        "property_prims",
+        "list_prims"])
+    parser.add_argument("--propSamplingGrammar", default="same", choices=[
+        "same"
         "josh_1",
         "josh_2",
         "josh_3",
@@ -327,6 +338,7 @@ def list_options(parser):
         ])
     parser.add_argument("--propDreamTasks", action="store_true", default=False)
     parser.add_argument("--propUseHandWrittenProperties", action="store_true", default=False)
+
 
 def main(args):
     """
@@ -417,7 +429,7 @@ def main(args):
     # eprint("Removed", sum(isIdentityTask(t) for t in tasks), "tasks that were just the identity function")
     # tasks = [t for t in tasks if not isIdentityTask(t) ]
 
-    prims = {"base": basePrimitives,
+    primLibraries = {"base": basePrimitives,
              "McCarthy": McCarthyPrimitives,
              "common": bootstrapTarget_extra,
              "noLength": no_length,
@@ -429,7 +441,9 @@ def main(args):
              "josh_final": josh_primitives("final"),
              "property_prims": handWrittenProperties(),
              "list_prims": bootstrapTarget_extra()
-    }[args.pop("primitives")]
+    }
+
+    prims = primLibraries[args.pop("primitives")]
 
     haveLength = not args.pop("noLength")
     haveMap = not args.pop("noMap")
@@ -437,6 +451,19 @@ def main(args):
     eprint(f"Including map as a primitive? {haveMap}")
     eprint(f"Including length as a primitive? {haveLength}")
     eprint(f"Including unfold as a primitive? {haveUnfold}")
+
+    if "josh" in dataset:
+        tasks = [t for t in tasks if int(t.name[:3]) < 81 and "_1" in t.name]
+    tasks = [t for t in tasks if (t.request == arrow(tlist(tint), tlist(tint)) and isinstance(t.examples[0][1],list) and isinstance(t.examples[0][0][0],list))]
+
+    # for t in tasks:
+    #     t.request = arrow(tinput, toutput)
+
+    if tasks[0].request == tinput and "tinput_to_tlist" not in [p.name for p in prims]:
+        toutputToList = Primitive("toutput_to_tlist", arrow(toutput, tlist(tint)), lambda x: x)
+        tinputToList = Primitive("tinput_to_tlist", arrow(tinput, tlist(tint)), lambda x: x)
+        prims = prims + [toutputToList, tinputToList]
+
     baseGrammar = Grammar.uniform([p
                                    for p in prims
                                    if (p.name != "map" or haveMap) and \
@@ -452,39 +479,45 @@ def main(args):
         "combined": CombinedExtractor
         }[extractor_name]
 
-    
+
+
+    hidden = args.pop("hidden")
+    propCPUs = args.pop("propCPUs")
+    propSolver = args.pop("propSolver")
+    propSamplingTimeout = args.pop("propSamplingTimeout")
+    propUseConjunction = args.pop("propUseConjunction")
+    propAddZeroToNinePrims = args.pop("propAddZeroToNinePrims")
+    propSamplingMethod = args.pop("propSamplingMethod")
+    propDreamTasks = args.pop("propDreamTasks")
+    propUseHandWrittenProperties = args.pop("propUseHandWrittenProperties")
+    propSamplingGrammar = args.pop("propSamplingGrammar")
+
     if extractor_name == "learned":
-        
-        featureExtractorArgs = {"hidden": args.pop("hidden")}
-
-    elif extractor_name == "prop_sig":
-
-        args.pop("hidden")
+        featureExtractorArgs = {"hidden":hidden}
+    elif extractor_name == "prop_sig" or extractor_name == "combined":
         featureExtractorArgs = {
-        "propCPUs": args.pop("propCPUs"),
-        "propSolver": args.pop("propSolver"),
-        "propSamplingTimeout": args.pop("propSamplingTimeout"),
-        "propUseConjunction": args.pop("propUseConjunction"),
-        "propAddZeroToNinePrims": args.pop("propAddZeroToNinePrims"),
-        "propSamplingMethod": args.pop("propSamplingMethod"),
-        "propDreamTasks": args.pop("propDreamTasks"),
-        "propUseHandWrittenProperties": args.pop("propUseHandWrittenProperties")
+            "propCPUs": propCPUs,
+            "propSolver": propSolver,
+            "propSamplingTimeout": propSamplingTimeout,
+            "propUseConjunction": propUseConjunction,
+            "propAddZeroToNinePrims": propAddZeroToNinePrims,
+            "propSamplingMethod": propSamplingMethod,
+            "propDreamTasks": propDreamTasks,
+            "propUseHandWrittenProperties": propUseHandWrittenProperties,
+            "propSamplingGrammar": propSamplingGrammar,
+            "primLibraries": primLibraries
         }
 
     timestamp = datetime.datetime.now().isoformat()
-    outputDirectory = "kevinExperimentOutputs/list/%s"%timestamp
+    outputDirectory = "experimentOutputs/jrule/%s"%timestamp
+
     os.system("mkdir -p %s"%outputDirectory)
     
     args.update({
         "featureExtractor": extractor,
-        "outputPrefix": "%s/list"%outputDirectory,
+        "outputPrefix": "%s/jrule"%outputDirectory,
         "evaluationTimeout": 0.0005,
     })
-    
-
-    if "josh" in dataset:
-        tasks = [t for t in tasks if int(t.name[:3]) < 81 and "_1" in t.name]
-    tasks = [t for t in tasks if (t.request == arrow(tlist(tint), tlist(tint)) and isinstance(t.examples[0][1],list) and isinstance(t.examples[0][0][0],list))]
 
     eprint("Got {} list tasks".format(len(tasks)))
     split = args.pop("split")

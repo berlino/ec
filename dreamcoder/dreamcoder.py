@@ -184,7 +184,8 @@ def ecIterator(grammar, tasks,
                doshaping=False, 
                dopruning=False,
                skiptesting=False,
-               featureExtractorArgs={}
+               featureExtractorArgs={},
+               epochs=9999
             ):
 
     if enumerationTimeout is None:
@@ -402,17 +403,17 @@ def ecIterator(grammar, tasks,
                                    enumerationTimeout=testingTimeout, evaluationTimeout=evaluationTimeout)            
         # If we have to also enumerate Helmholtz frontiers,
         # do this extra sneaky in the background
-        if useRecognitionModel and biasOptimal and helmholtzRatio > 0 and \
-           all( str(p) != "REAL" for p in grammar.primitives ): # real numbers don't support this
-            # the DSL is fixed, so the dreams are also fixed. don't recompute them.
-            if useDSL or 'helmholtzFrontiers' not in locals():
-                helmholtzFrontiers = backgroundHelmholtzEnumeration(tasks, grammar, enumerationTimeout,
-                                                                    evaluationTimeout=evaluationTimeout,
-                                                                    special=featureExtractor.special)
-            else:
-                print("Reusing dreams from previous iteration.")
-        else:
-            helmholtzFrontiers = lambda: []
+        # if useRecognitionModel and biasOptimal and helmholtzRatio > 0 and \
+        #    all( str(p) != "REAL" for p in grammar.primitives ): # real numbers don't support this
+        #     # the DSL is fixed, so the dreams are also fixed. don't recompute them.
+        #     if useDSL or 'helmholtzFrontiers' not in locals():
+        #         helmholtzFrontiers = backgroundHelmholtzEnumeration(tasks, grammar, enumerationTimeout,
+        #                                                             evaluationTimeout=evaluationTimeout,
+        #                                                             special=featureExtractor.special)
+        #     else:
+        #         print("Reusing dreams from previous iteration.")
+        # else:
+        helmholtzFrontiers = lambda: []
 
         reportMemory()
 
@@ -471,7 +472,8 @@ def ecIterator(grammar, tasks,
                                enumerationTimeout=enumerationTimeout,
                                helmholtzRatio=thisRatio, helmholtzFrontiers=helmholtzFrontiers(),
                                auxiliaryLoss=auxiliaryLoss, cuda=cuda, CPUs=CPUs, solver=solver,
-                               recognitionSteps=recognitionSteps, maximumFrontier=maximumFrontier, featureExtractorArgs=featureExtractorArgs)
+                               recognitionSteps=recognitionSteps, maximumFrontier=maximumFrontier, 
+                               featureExtractorArgs=featureExtractorArgs, epochs=epochs)
 
             showHitMatrix(tasksHitTopDown, tasksHitBottomUp, wakingTaskBatch)
             
@@ -590,7 +592,7 @@ def sleep_recognition(result, grammar, taskBatch, tasks, testingTasks, allFronti
                       previousRecognitionModel=None, recognitionSteps=None,
                       timeout=None, enumerationTimeout=None, evaluationTimeout=None,
                       helmholtzRatio=None, helmholtzFrontiers=None, maximumFrontier=None,
-                      auxiliaryLoss=None, cuda=None, CPUs=None, solver=None, featureExtractorArgs=None):
+                      auxiliaryLoss=None, cuda=None, CPUs=None, solver=None, featureExtractorArgs=None, epochs=9999):
     eprint("Using an ensemble size of %d. Note that we will only store and test on the best recognition model." % ensembleSize)
 
     featureExtractorObjects = [featureExtractor(tasks, grammar=grammar, testingTasks=testingTasks, cuda=cuda, featureExtractorArgs=featureExtractorArgs) for i in range(ensembleSize)]
@@ -614,7 +616,8 @@ def sleep_recognition(result, grammar, taskBatch, tasks, testingTasks, allFronti
                                                                          steps=recognitionSteps,
                                                                          helmholtzRatio=helmholtzRatio,
                                                                          auxLoss=auxiliaryLoss,
-                                                                         vectorized=True),
+                                                                         vectorized=True,
+                                                                         epochs=epochs),
                                      recognizers,
                                      seedRandom=True)
     eprint(f"Currently using this much memory: {getThisMemoryUsage()}")
@@ -998,6 +1001,10 @@ def commandlineArguments(_=None,
         default=False,
         action="store_true")
 
+    parser.add_argument("--epochs",
+                        default=9999,
+                        help="Number of epochs to train the recognition model. Can be specified instead of recognition steps / train time.",
+                        type=int)
 
     parser.set_defaults(useRecognitionModel=useRecognitionModel,
                         useDSL=True,

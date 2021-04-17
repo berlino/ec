@@ -1,6 +1,10 @@
 import dill
 
-from dreamcoder.type import arrow, tlist, tint, t0, UnificationFailure
+from dreamcoder.domains.list.listPrimitives import basePrimitives, primitives, McCarthyPrimitives, bootstrapTarget_extra, no_length, josh_primitives
+from dreamcoder.domains.list.taskProperties import handWrittenProperties, tinput, toutput
+from dreamcoder.grammar import Context, Grammar
+from dreamcoder.program import *
+from dreamcoder.type import *
 from dreamcoder.utilities import eprint
 
 def resume_from_path(resume):
@@ -49,6 +53,8 @@ def getTrainFrontier(resumePath, n):
 
 
 def scoreProgram(p, recognizer=None, grammar=None, task=None):
+    if p is None:
+        return -100
 
     if recognizer is not None:
         grammar = recognizer.grammarOfTask(task).untorch()
@@ -84,6 +90,81 @@ def evaluateGrammars(frontiersOverTime, tasks, grammar1=None, grammar2=None, rec
 
     return
 
+def evaluateRecognizers(grammar, ecResults, recognizerNames=None, iteration=-1):
+
+    if recognizerNames is None:
+        recognizerNames = [str(i) for i in range(len(ecResults))]
+
+    tasks = list(ecResults[0].frontiersOverTime.keys())
+    
+    for task in tasks:
+
+        print("----------------------------------------------------------------------------------------------------------------------------------")
+        print("\n\nTask {}".format(task))
+        for i in range(min(len(task.examples), 10)):
+            print("{} -> {}".format(task.examples[i][0][0], task.examples[i][1]))
+        print("----------------------------------------------------------------------------------------------------------------------------------")
+        programs = []
+        for i,ecResult in enumerate(ecResults):
+            bestFrontier = ecResult.frontiersOverTime[task][iteration].topK(1)
+            if len(bestFrontier) > 0:
+                program = bestFrontier.entries[0].program
+            else:
+                program = None
+            programs.append(program)
+        
+        if all([p is None for p in programs]):
+            continue
+        else:
+            bestProgram = max([(program,scoreProgram(program, ecResult.recognitionModel, grammar=grammar, task=task)) for program in programs],
+                key=lambda x: x[1])[0]
+
+            bestPriorProgram, logPrior = max([(program,scoreProgram(program, None, grammar=grammar, task=task)) for program in programs],
+                key=lambda x: x[1])
+
+            print("Best Program LogPrior: {} -> {}".format(bestPriorProgram, logPrior))
+            print("----------------------------------------------------------------------------------------------------------------------------------")
+            for i,p in enumerate(programs):
+                logPosterior = scoreProgram(bestProgram if p is None else p, ecResults[i].recognitionModel, grammar=grammar, task=task)
+                logPosteriorStr = str(logPosterior) if p is not None else "bestProgramLogPosterior: {}".format(logPosterior)
+                print("{}: {} ({})".format(recognizerNames[i], p, logPosteriorStr))
+
+    return
+
+def evaluateRecognizersForTask(grammar, ecResults, recognizerNames=None, taskToInvestigate=None, request=None, productionToInvestigate=None, printGrammar=False):
+
+    print("\nGrammars\n--------------------------------------------------------------------------------------------------------------------------")
+
+    if recognizerNames is None:
+        recognizerNames = [str(i) for i in range(len(ecResults))]
+
+    tasks = list(ecResults[0].frontiersOverTime.keys())
+    task = [t for t in tasks if t.name == taskToInvestigate][0]
+
+    grammars = []
+    for i, ecResult in enumerate(ecResults):
+        grammar = ecResult.recognitionModel.grammarOfTask(task).untorch()
+        grammars.append(grammar)
+
+        if request is not None:
+            table = grammar.buildCandidates(request, Context.EMPTY, [], normalize=True, returnTable=True, returnProbabilities=True, mustBeLeaf=False)
+            table = {key.name:value for key,value in table.items()}
+            print("\nRequest: {}, Recognizer: {}".format(request, recognizerNames[i]))
+            if productionToInvestigate is not None:
+                print("p({}): {}".format(productionToInvestigate, table[productionToInvestigate][0]))
+            else:
+                print(table)
+
+    if printGrammar:
+        print("\n")
+        for i,el in enumerate(grammar.productions):
+            _,_,production = el
+
+            toDisplay = "{}: {:.2f} (logPrior) ".format(production, float(grammar.productions[i][0]))
+            for j,grammar in enumerate(grammars):
+                toDisplay += "| {:.2f} ({}) ".format(float(grammar.productions[i][0]), recognizerNames[j])
+            print(toDisplay)
+
 # def trainRecognitionModel(featureExtractor, expandedFrontiers, timeout):
 
 # timeout = 1200
@@ -111,25 +192,57 @@ def viewResults():
     # # pickledFile = 'list_arity=3_BO=False_CO=False_ES=1_ET=10_HR=0.5_it=20_MF=10_noConsolidation=True_RT=180_RR=False_RW=False_solver=ocaml_STM=True_TRR=default_K=2_topkNotMAP=False_DSL=False.pickle'
     # result, resumeGrammar, _ = resume_from_path(resumePath + resumeDirectory + pickledFile)
 
-    baselinePickleFile = "kevinExperimentOutputs/list/2021-03-24T15:17:34.141045/list_arity=3_BO=False_CO=False_ES=1_ET=10_HR=0.5_it=20_MF=10_noConsolidation=True_RS=5000_RT=3600_RR=False_RW=False_solver=ocaml_STM=True_TRR=default_K=2_topkNotMAP=False_DSL=False.pickle"
+    baselinePickleFile = "experimentOutputs/jrule/2021-04-16T19:26:16.859630/jrule_arity=3_BO=False_CO=False_dp=False_doshaping=False_ES=1_ET=5_epochs=9999_HR=1.0_it=1_MF=10_parallelTest=False_RT=3600_RR=False_RW=False_st=False_STM=True_TRR=default_K=2_topkNotMAP=False_tset=S12_DSL=False.pickle"
     baselineResult, resumeGrammar, _ = resume_from_path(baselinePickleFile)
 
-    baselinePlusPropSigPickleFile = "kevinExperimentOutputs/list/2021-04-02T19:22:26.195148/list_arity=3_BO=False_CO=False_ES=1_ET=10_HR=0.5_it=20_MF=10_noConsolidation=True_RS=5000_RT=3600_RR=False_RW=False_solver=ocaml_STM=True_TRR=default_K=2_topkNotMAP=False_DSL=False.pickle"
-    baselinePlusPropSigResult, _, _ = resume_from_path(baselinePlusPropSigPickleFile)
+    baselinePlusPropSigPickleFile = "experimentOutputs/jrule/2021-04-16T01:38:48.194736/jrule_arity=3_BO=False_CO=False_dp=False_doshaping=False_ES=1_ET=600_HR=1.0_it=1_MF=10_parallelTest=False_RS=5000_RT=3600_RR=False_RW=False_st=False_STM=True_TRR=default_K=2_topkNotMAP=False_tset=S12_DSL=False.pickle"
+    baselinePlusPropSigResult, resumeGrammar, _ = resume_from_path(baselinePlusPropSigPickleFile)
 
-    propSigOnlyPickleFile = "kevinExperimentOutputs/list/2021-04-02T18:49:05.106095/list_arity=3_BO=False_CO=False_ES=1_ET=10_HR=0.5_it=20_MF=10_noConsolidation=True_RS=5000_RT=3600_RR=False_RW=False_solver=ocaml_STM=True_TRR=default_K=2_topkNotMAP=False_DSL=False.pickle"
+    propSigOnlyPickleFile = "experimentOutputs/jrule/2021-04-16T01:33:54.134337/jrule_arity=3_BO=False_CO=False_dp=False_doshaping=False_ES=1_ET=600_HR=1.0_it=1_MF=10_parallelTest=False_RS=5000_RT=3600_RR=False_RW=False_st=False_STM=True_TRR=default_K=2_topkNotMAP=False_tset=S12_DSL=False.pickle"
     propSigOnlyResult, resumeGrammar, _ = resume_from_path(propSigOnlyPickleFile)
 
-    print(baselineResult.recognitionModel)
-    print(propSigOnlyResult.recognitionModel)
+    recognizerNames = ['learned', 'combined', 'prop_sig']
+    # evaluateRecognizers(resumeGrammar, [baselineResult, baselinePlusPropSigResult, propSigOnlyResult], recognizerNames)
+    # evaluateRecognizersForTask(resumeGrammar, [baselineResult, baselinePlusPropSigResult, propSigOnlyResult], recognizerNames, taskToInvestigate="058_1", request=tlist(t0), productionToInvestigate="cdr", printGrammar=True)
 
-    # # train tasks likelihood
-    print("Train Tasks")
-    evaluateGrammars(propSigOnlyResult.frontiersOverTime, propSigOnlyResult.taskSolutions.keys(), grammar1=resumeGrammar, grammar2=resumeGrammar, recognizer1=baselineResult.recognitionModel, recognizer2=baselinePlusPropSigResult.recognitionModel)
+    # print(propSigOnlyResult.recognitionModel.generativeModel)
 
-    # # test tasks likelihood
-    print("Test Tasks")
-    evaluateGrammars(propSigOnlyResult.frontiersOverTime, propSigOnlyResult.getTestingTasks(), grammar1=resumeGrammar, grammar2=resumeGrammar,  recognizer1=baselineResult.recognitionModel, recognizer2=baselinePlusPropSigResult.recognitionModel)
+    request = arrow(tlist(tint), tlist(tint))
 
-    # How does contextual model do?
-    # evaluateGrammars(firstFrontier, manuallySolvedTasks, grammar1=topDownGrammar, recognizer2=resumeRecognizer)
+    numSamples = 100
+
+    samples = propSigOnlyResult.recognitionModel.sampleManyHelmholtz(requests=[request], N=numSamples, CPUs=1)
+    for frontier in samples:
+        print("Task:{}\nProgram: {}\n".format("\n".join(["{} -> {}".format(i[0],o) for i,o in frontier.task.examples]), frontier.entries[0].program))
+
+
+    # prims = bootstrapTarget_extra(useInts=True)
+    # grammar = Grammar.uniform(prims)
+    # print(grammar)
+    # request = arrow(tlist(tint), tlist(tint))
+    # print("Sampling with request: {}".format(request))
+
+    # for i in range(numSamples):
+    #     sample = grammar.sample(request=request)
+    #     print("Program: {}".format(sample))
+
+    # print("--------------------------------------------------------------------------------------------------")
+
+    # toutputToList = Primitive("tlist_to_toutput", arrow(tlist(tint), toutput), lambda x: x)
+    # tinputToList = Primitive("tinput_to_tlist", arrow(tinput, tlist(tint)), lambda x: x)
+    # prims = prims + [toutputToList, tinputToList]
+    # grammar = Grammar.fromProductions([(3.0, p) if p.name == "tinput_to_tlist" else (1.0, p) for p in prims])
+    # print(grammar)
+    # request = arrow(tinput, toutput)
+    # print("Sampling with request: {}".format(request))
+
+    # for i in range(numSamples):
+    #     sample = grammar.sample(request=request)
+    #     print("Program: {}".format(sample))
+
+    return
+
+
+
+
+

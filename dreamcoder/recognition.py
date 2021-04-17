@@ -849,8 +849,9 @@ class RecognitionModel(nn.Module):
 
     def train(self, frontiers, _=None, steps=None, lr=0.001, topK=5, CPUs=1,
               timeout=None, evaluationTimeout=0.001,
-              helmholtzFrontiers=[], helmholtzRatio=0., helmholtzBatch=500,
-              biasOptimal=None, defaultRequest=None, auxLoss=False, vectorized=True):
+              helmholtzFrontiers=[], helmholtzRatio=0., helmholtzBatch=1000,
+              biasOptimal=None, defaultRequest=None, auxLoss=False, vectorized=True,
+              epochs=99999):
         """
         helmholtzRatio: What fraction of the training data should be forward samples from the generative model?
         helmholtzFrontiers: Frontiers from programs enumerated from generative model (optional)
@@ -967,17 +968,16 @@ class RecognitionModel(nn.Module):
                     [hf.request
                      for hf in helmholtzFrontiers[helmholtzIndex[0]:helmholtzIndex[0] + helmholtzBatch] ])
             else:
-                newTasks = [hf.calculateTask() 
-                            for hf in helmholtzFrontiers[helmholtzIndex[0]:helmholtzIndex[0] + helmholtzBatch]]
+                # newTasks = [hf.calculateTask() 
+                #             for hf in helmholtzFrontiers[helmholtzIndex[0]:helmholtzIndex[0] + helmholtzBatch]]
 
-                """
                 # catwong: Disabled for ensemble training.
                 newTasks = \
                            parallelMap(updateCPUs,
                                        lambda f: f.calculateTask(),
                                        helmholtzFrontiers[helmholtzIndex[0]:helmholtzIndex[0] + helmholtzBatch],
                                        seedRandom=True)
-                """
+
             badIndices = []
             endingIndex = min(helmholtzIndex[0] + helmholtzBatch, len(helmholtzFrontiers))
             for i in range(helmholtzIndex[0], endingIndex):
@@ -1012,7 +1012,7 @@ class RecognitionModel(nn.Module):
         losses, descriptionLengths, realLosses, dreamLosses, realMDL, dreamMDL = [], [], [], [], [], []
         classificationLosses = []
         totalGradientSteps = 0
-        epochs = 9999999
+
         for i in range(1, epochs + 1):
             if timeout and time.time() - start > timeout:
                 break
@@ -1061,7 +1061,7 @@ class RecognitionModel(nn.Module):
                     if totalGradientSteps > steps:
                         break # Stop iterating, then print epoch and loss, then break to finish.
                         
-            if (i == 1 or i % 10 == 0) and losses:
+            if (i == 1 or i % 250 == 0) and losses:
                 eprint("(ID=%d): " % self.id, "Epoch", i, "Loss", mean(losses))
                 if realLosses and dreamLosses:
                     eprint("(ID=%d): " % self.id, "\t\t(real loss): ", mean(realLosses), "\t(dream loss):", mean(dreamLosses))
@@ -1079,7 +1079,8 @@ class RecognitionModel(nn.Module):
         self.trained=True
         return self
 
-    def sampleHelmholtz(self, requests, statusUpdate=None, seed=None):
+    def sampleHelmholtz(self, requests, statusUpdate=None, differentOutputs=True, filterIdentityTask=True, seed=None):
+
         if seed is not None:
             random.seed(seed)
         request = random.choice(requests)
@@ -1087,7 +1088,18 @@ class RecognitionModel(nn.Module):
         program = self.generativeModel.sample(request, maximumDepth=6, maxAttempts=100)
         if program is None:
             return None
+
         task = self.featureExtractor.taskOfProgram(program, request)
+        if task is None:
+            return None
+        else:
+            if differentOutputs:
+                if all([o == task.examples[0][1] for i,o in task.examples]):
+                    return None
+            if filterIdentityTask:
+                if all([i[0] == o for i,o in task.examples]):
+                    return None
+
 
         if statusUpdate is not None:
             flushEverything()
@@ -1111,17 +1123,17 @@ class RecognitionModel(nn.Module):
         startingSeed = random.random()
 
         # Sequentially for ensemble training.
-        samples = [self.sampleHelmholtz(requests,
-                                           statusUpdate='.' if n % frequency == 0 else None,
-                                           seed=startingSeed + n) for n in range(N)]
+        # samples = [self.sampleHelmholtz(requests,
+        #                                    statusUpdate='.' if n % frequency == 0 else None,
+        #                                    seed=startingSeed + n) for n in range(N)]
 
         # (cathywong) Disabled for ensemble training. 
-        # samples = parallelMap(
-        #     1,
-        #     lambda n: self.sampleHelmholtz(requests,
-        #                                    statusUpdate='.' if n % frequency == 0 else None,
-        #                                    seed=startingSeed + n),
-        #     range(N))
+        samples = parallelMap(
+            1,
+            lambda n: self.sampleHelmholtz(requests,
+                                           statusUpdate='.' if n % frequency == 0 else None,
+                                           seed=startingSeed + n),
+            range(N))
         eprint()
         flushEverything()
         samples = [z for z in samples if z is not None]
