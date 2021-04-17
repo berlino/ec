@@ -299,24 +299,25 @@ def main(args):
     # # v = arcNN.featuresOfTask(nnTrainTask[0])
     # # print(v)
 
-    print("homeDirectory: {}".format(homeDirectory))
-    resumeDirectory = '/experimentOutputs/arc/2020-04-27T15:41:52.288988/'
-    pickledFile = 'arc_aic=1.0_arity=3_ET=28800_t_zero=28800_it=1_MF=10_noConsolidation=True_pc=30.0_RW=False_solver=ocaml_STM=True_L=1.0_TRR=default_K=2_topkNotMAP=False_rec=False.pickle'
-    result, firstFrontier, allFrontiers, frontierOverTime, topDownGrammar, preConsolidationGrammar, resumeRecognizer, learnedProductions = getTrainFrontier(homeDirectory + resumeDirectory + pickledFile, 0)
+    # print("homeDirectory: {}".format(homeDirectory))
+    # resumeDirectory = '/experimentOutputs/arc/2020-04-27T15:41:52.288988/'
+    # pickledFile = 'arc_aic=1.0_arity=3_ET=28800_t_zero=28800_it=1_MF=10_noConsolidation=True_pc=30.0_RW=False_solver=ocaml_STM=True_L=1.0_TRR=default_K=2_topkNotMAP=False_rec=False.pickle'
+    # result, firstFrontier, allFrontiers, frontierOverTime, topDownGrammar, preConsolidationGrammar, resumeRecognizer, learnedProductions = getTrainFrontier(homeDirectory + resumeDirectory + pickledFile, 0)
 
-    print(topDownGrammar)
-    print("-----------------------------------------------------")
+    # print(topDownGrammar)
+    # print("-----------------------------------------------------")
 
-    for i,frontier in enumerate(firstFrontier):
-        print(i, frontier.topK(1).entries[0].program)
+    # print(result.parameters)
+    # for i,frontier in enumerate(firstFrontier):
+    #     print(i, frontier.topK(1).entries[0].program)
 
     # timeout = 10.0
-    # featureExtractor = {
-    #     "dummy": DummyFeatureExtractor,
-    # }[args.pop("featureExtractor")]
+    featureExtractor = {
+        "dummy": DummyFeatureExtractor,
+    }[args.pop("featureExtractor")]
 
     # recognizer = RecognitionModel(featureExtractor, topDownGrammar)
-    request = arrow(tgridin, tgridout)
+    # request = arrow(tgridin, tgridout)
     # inputs = [inputGrid[0].toJson() for task in trainTasks for inputGrid, _ in task.examples]
     # print(inputs)    
 
@@ -343,4 +344,4 @@ def main(args):
     # with open(trainedRecognizerPath, 'rb') as handle:
     #     trainedRecognizer = dill.load(handle)
 
-    # explorationCompression(baseGrammar, trainTasks, featureExtractor=featureExtractor, testingTasks=[], **args)
+    explorationCompression(baseGrammar, trainTasks, featureExtractor=featureExtractor, testingTasks=[], **args)

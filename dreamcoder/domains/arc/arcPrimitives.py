@@ -665,7 +665,7 @@ def basePrimitives():
     # Primitive('sortBlocks',arrow(tblocks, arrow(tblock, tint), tblocks), _sortBlocks),
 
     # arrow(tblocks, ttbs)
-    Primitive("filter_template_block", arrow(tblocks, arrow(tblock, tbool), ttbs), None),
+    # Primitive("filter_template_block", arrow(tblocks, arrow(tblock, tbool), ttbs), None),
 
 ##### tblock ######
 
@@ -676,7 +676,7 @@ def basePrimitives():
     Primitive('duplicate', arrow(tblock, tdirection, tint, tblock), None),
     Primitive('grow', arrow(tblock, tint, tblock), _grow),
     Primitive('fill_color', arrow(tblock, tcolor, tblock), _fill),
-    Primitive('fill_snakewise', arrow(tblock, tcolorpair, tblock), None),
+    # Primitive('fill_snakewise', arrow(tblock, tcolorpair, tblock), None),
     Primitive('replace_color', arrow(tblock, tcolor, tcolor, tblock), _replaceColors),
     Primitive('remove_black_b', arrow(tblock, tblock), None),
     Primitive('remove_color', arrow(tblock, tcolor, tblock), None),
@@ -718,7 +718,7 @@ def basePrimitives():
     Primitive("get_block_center", arrow(tblock, ttile), None),
 
     # arrow(tblock, tblocks)
-    Primitive("map_for_directions", arrow(tblock, tdirections, arrow(t0, tdirection, tblock), tblocks), None),
+    # Primitive("map_for_directions", arrow(tblock, tdirections, arrow(t0, tdirection, tblock), tblocks), None),
 
 ##### tgridin #####
 
@@ -731,7 +731,7 @@ def basePrimitives():
     Primitive('grid_to_block', arrow(tgridin, tblock), lambda grid: grid),
     
     # arrow(tgridin, tsplitblocks)
-    Primitive('split_grid', arrow(tgridin, tbool, tsplitblocks), None),
+    # Primitive('split_grid', arrow(tgridin, tbool, tsplitblocks), None),
 
     # arrow(tgridin, ttiles)
     Primitive('find_tiles_by_black_b', arrow(tgridin, ttiles), None),
@@ -747,12 +747,12 @@ def basePrimitives():
     # arrow(ttile, tblock)
     Primitive('tile_to_block', arrow(ttile, tblock), None),
     Primitive('extend_towards_until', arrow(ttile, tdirection, arrow(ttile, tbool), tblock), None),
-    Primitive('extend_towards_until_edge', arrow(ttile, tdirection, tblock), None),
-    Primitive('extend_until_touches_block', arrow(ttile, tblock, tbool, tblock), None),
+    # Primitive('extend_towards_until_edge', arrow(ttile, tdirection, tblock), None),
+    # Primitive('extend_until_touches_block', arrow(ttile, tblock, tbool, tblock), None),
     Primitive('move_towards_until', arrow(ttile, tdirection, arrow(ttile, tbool), tblock), None),
-    Primitive('move_towards_until_edge', arrow(ttile, tdirection, tblock), None),
-    Primitive('move_until_touches_block', arrow(ttile, tblock, tbool, tblock), None),
-    Primitive('move_until_overlaps_block', arrow(ttile, tblock, tbool, tblock), None),
+    # Primitive('move_towards_until_edge', arrow(ttile, tdirection, tblock), None),
+    # Primitive('move_until_touches_block', arrow(ttile, tblock, tbool, tblock), None),
+    # Primitive('move_until_overlaps_block', arrow(ttile, tblock, tbool, tblock), None),
 
     # arrow(ttile, tcolor)
     Primitive('get_tile_color', arrow(ttile, tcolor), None),
@@ -769,21 +769,21 @@ def basePrimitives():
 ##### tsplitblocks #####
 
     # arrow(tsplitblocks -> tgridout)
-    Primitive('overlap_split_blocks', arrow(tsplitblocks, arrow(tcolor, tcolor, tcolor), tgridout), None),
+    # Primitive('overlap_split_blocks', arrow(tsplitblocks, arrow(tcolor, tcolor, tcolor), tgridout), None),
     
     # arrow(tsplitblocks -> tblocks)
-    Primitive('splitblocks_to_blocks', arrow(tsplitblocks, tblocks), None),
+    # Primitive('splitblocks_to_blocks', arrow(tsplitblocks, tblocks), None),
 
 ##### tcolor #####
 
     # arrow(tcolor, tcolor)
-    Primitive('color_logical', arrow(tcolor, tcolor, tcolor, tlogical, tcolor), None),
+    # Primitive('color_logical', arrow(tcolor, tcolor, tcolor, tlogical, tcolor), None),
 
 ##### tlogical #####
 
-    Primitive("land", tlogical, None),
-    Primitive("lor", tlogical, None),
-    Primitive("lxor", tlogical, None),
+    # Primitive("land", tlogical, None),
+    # Primitive("lor", tlogical, None),
+    # Primitive("lxor", tlogical, None),
 
 
 #### tbool #####
@@ -791,11 +791,11 @@ def basePrimitives():
     Primitive("negate_boolean", arrow(tbool, tbool), None),
 
 #### ttbs ####
-    Primitive("map_tbs", arrow(ttbs, arrow(tblock, tblock, tblock), tbool, tblocks), None),
+    # Primitive("map_tbs", arrow(ttbs, arrow(tblock, tblock, tblock), tbool, tblocks), None),
 
 ##### tcolorpair #####
 
-    Primitive("make_colorpair", arrow(tcolor, tcolor, tcolorpair), None)
+    # Primitive("make_colorpair", arrow(tcolor, tcolor, tcolorpair), None)
 
 # ##### tintcolorpair #####
 
