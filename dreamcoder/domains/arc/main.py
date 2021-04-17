@@ -306,12 +306,14 @@ def main(args):
 
     print(topDownGrammar)
     print("-----------------------------------------------------")
-    # print(firstFrontier)
 
-    timeout = 10.0
-    featureExtractor = {
-        "dummy": DummyFeatureExtractor,
-    }[args.pop("featureExtractor")]
+    for i,frontier in enumerate(firstFrontier):
+        print(i, frontier.topK(1).entries[0].program)
+
+    # timeout = 10.0
+    # featureExtractor = {
+    #     "dummy": DummyFeatureExtractor,
+    # }[args.pop("featureExtractor")]
 
     # recognizer = RecognitionModel(featureExtractor, topDownGrammar)
     request = arrow(tgridin, tgridout)
@@ -341,4 +343,4 @@ def main(args):
     # with open(trainedRecognizerPath, 'rb') as handle:
     #     trainedRecognizer = dill.load(handle)
 
-    explorationCompression(baseGrammar, trainTasks, featureExtractor=featureExtractor, testingTasks=[], **args)
+    # explorationCompression(baseGrammar, trainTasks, featureExtractor=featureExtractor, testingTasks=[], **args)
