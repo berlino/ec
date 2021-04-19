@@ -11,11 +11,11 @@
 *~
 __pycache__
 _build
-experimentOutputs
 jobs
 data/geom/**/*.png
 rust_compressor/target
 *.cost
+experimentOutputs
 compressionMessages/
 container.img
 launchers/
