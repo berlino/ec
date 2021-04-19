@@ -332,7 +332,7 @@ def main(args):
 
     import os
 
-    directory = "/".join(os.path.abspath(__file__).split("/")[:-4]) + "/arc-data/data/"
+    directory = "/".join(os.path.abspath(__file__).split("/")[:-4]) + "/arc_data/data/"
 
     if single_train_task:
         # trainTasks = retrieveARCJSONTasks(directory, ["913fb3ed.json", "72ca375d.json","f25fbde4.json","fcb5c309.json","ce4f8723.json","0520fde7.json","c9e6f938.json","97999447.json","5521c0d9.json","007bbfb7.json","d037b0a7.json","5117e062.json","4347f46a.json","50cb2852.json","88a10436.json","a5313dff"])
@@ -404,7 +404,6 @@ def main(args):
     frontiersOverTime = convertFrontiersOverTimeToJson(frontierOverTime)
 
     grammarJson = topDownGrammar.jsonWithTypes()
-    print(grammarJson)
     productions = []
     
     toReturn = {}
@@ -433,19 +432,20 @@ def main(args):
             pass
             # print(task, toReturn[task])
 
-    print(len(grammarJson['productions']))
-    print(len(topDownGrammar.primitives))
+    for i, productions in enumerate(grammarJson['productions']):
+        print("{}: {},".format(productions['expression'], productions['type']))
+
 
     for i,p in enumerate([str(p) for p in topDownGrammar.primitives]):
         print(i, p)
 
-    with open(resumePath + resumeDirectory + 'grammarPrimitivesList.p', 'wb') as f:
-        pickle.dump([str(p) for p in topDownGrammar.primitives], f)
+    # with open(resumePath + resumeDirectory + 'grammarPrimitivesList.p', 'wb') as f:
+    #     pickle.dump([str(p) for p in topDownGrammar.primitives], f)
 
-    with open(resumePath + resumeDirectory + 'discoveredPrograms.p', 'wb') as f:
-        pickle.dump(toReturn, f)
+    # with open(resumePath + resumeDirectory + 'discoveredPrograms.p', 'wb') as f:
+    #     pickle.dump(toReturn, f)
 
-    json.dump(grammarJson, open('grammar.json', 'w'))
+    # json.dump(grammarJson, open('grammar.json', 'w'))
 
     # with open(resumePath + resumeDirectory + 'frontiersOverTime.json', 'w') as fp:
     #     json.dump(frontiersOverTime, fp)

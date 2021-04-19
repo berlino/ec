@@ -882,7 +882,7 @@ manuallySolvedTasks = {
 
 if __name__ == "__main__":
 
-    directory = '/'.join(os.path.abspath(__file__).split('/')[:-4]) + '/arc-data/data/training'
+    directory = '/'.join(os.path.abspath(__file__).split('/')[:-4]) + '/arc_data/data/training'
     train,test = getTask('f8a8fe49.json', directory)
 
     generatedTasks = generateFromFrontier(train, 73)
