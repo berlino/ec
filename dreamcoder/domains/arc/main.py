@@ -120,7 +120,7 @@ def retrieveARCJSONTask(filename, directory):
 
 def list_options(parser):
     # parser.add_argument("--random-seed", type=int, default=17)
-    # parser.add_argument("--train-few", default=False, action="store_true")
+    parser.add_argument("--singleTask", default=False, action="store_true")
     parser.add_argument("--firstTimeEnumerationTimeout", type=int, default=3600)
     parser.add_argument("--featureExtractor", choices=[
         "dummy",
@@ -315,6 +315,9 @@ def main(args):
     featureExtractor = {
         "dummy": DummyFeatureExtractor,
     }[args.pop("featureExtractor")]
+
+    if args.pop("singleTask"):
+        trainTasks = [trainTasks[0]]
 
     # recognizer = RecognitionModel(featureExtractor, topDownGrammar)
     # request = arrow(tgridin, tgridout)
