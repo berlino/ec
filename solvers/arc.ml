@@ -941,7 +941,7 @@ let test_example assoc_list p to_print =
 
 let test_task file_name ex p to_print =
   printf "\n ----------------------------- Task: %s --------------------------- \n" file_name;
-  let fullpath = String.concat ["/Users/theo/Development/program_induction/ec/arc-data/data/training/"; file_name] in
+  let fullpath = String.concat ["/Users/theo/Development/program_induction/ec/arc_data/data/training/"; file_name] in
   let open Yojson.Basic.Util in
   let open Yojson.Basic in
   let json = from_file fullpath in
@@ -956,7 +956,7 @@ let test_task file_name ex p to_print =
 
 
 let test_all_tasks ex p = 
-  let dir = "/Users/theo/Development/program_induction/ec/arc-data/data/training/" in
+  let dir = "/Users/theo/Development/program_induction/ec/arc_data/data/training/" in
   let children = Array.to_list (Sys.readdir dir) in 
   List.iter children (fun filename -> 
     let start_time = Unix.gettimeofday () in

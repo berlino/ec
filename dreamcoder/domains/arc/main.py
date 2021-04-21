@@ -280,6 +280,7 @@ def main(args):
     homeDirectory = "/".join(os.path.abspath(__file__).split("/")[:-4])
     dataDirectory = homeDirectory + "/arc-data/data/"
 
+
     trainTasks = retrieveARCJSONTasks(dataDirectory + 'training', None)
     holdoutTasks = retrieveARCJSONTasks(dataDirectory + 'evaluation')
 
@@ -299,6 +300,92 @@ def main(args):
     # # v = arcNN.featuresOfTask(nnTrainTask[0])
     # # print(v)
 
+    resumePath = '/Users/theo/Development/program_induction/ec/experimentOutputs/arc/'
+    resumeDirectory = '2020-05-10T14:49:21.186479/'
+    pickledFile = 'arc_aic=1.0_arity=3_BO=True_CO=True_ES=1_ET=1200_t_zero=28800_HR=0.0_it=6_MF=10_noConsolidation=False_pc=1.0_RT=1800_RR=False_RW=False_solver=ocaml_STM=True_L=1.0_TRR=unsolved_K=2_topkNotMAP=False_graph=True.pickle'
+    result, firstFrontier, allFrontiers, frontierOverTime, topDownGrammar, preConsolidationGrammar, resumeRecognizer, learnedProductions = getTrainFrontier(resumePath + resumeDirectory + pickledFile, 0)
+
+    def convertFrontiersOverTimeToJson(frontiersOverTime):
+        frontiersOverTimeJson = {}
+        numFrontiers = len(list(frontiersOverTime.values())[0])
+        # print('{} frontiers per task'.format(numFrontiers))
+        for task,frontiers in frontiersOverTime.items():
+            # print('frontiers: ', frontiers)
+            frontiersOverTimeJson[task.name] = {i:str(frontier.entries[0].program) + '\n' + str(frontier.entries[0].logPosterior) for i,frontier in enumerate(frontiers) if len(frontier.entries) > 0}
+        return frontiersOverTimeJson
+
+    def getProgramUses(program, request, grammar):
+        ls = grammar.closedLikelihoodSummary(request, program)
+        def uses(summary):
+            if hasattr(summary, 'uses'): 
+                return torch.tensor([ float(int(p in summary.uses))
+                                      for p in grammar.primitives])
+            assert hasattr(summary, 'noParent')
+            u = uses(summary.noParent) + uses(summary.variableParent)
+            for ss in summary.library.values():
+                for s in ss:
+                    u += uses(s)
+            return u
+        u = uses(ls)
+        # u[u > 1.] = 1.
+        usesIdx = torch.nonzero(u).squeeze().tolist()
+        if isinstance(usesIdx, int):
+            usesIdx = [usesIdx]
+        return usesIdx
+
+    def parseHandwritten(taskName):
+        # if taskName in ["007bbfb7.json", "ea786f4a.json"]:
+        #     return None
+        # else:
+        print(taskName)
+        program = Program.parse(manuallySolvedTasks[taskName])
+        return program
+
+    frontiersOverTime = convertFrontiersOverTimeToJson(frontierOverTime)
+
+    grammarJson = topDownGrammar.jsonWithTypes()
+    productions = []
+    
+    toReturn = {}
+
+    for task in frontierOverTime.keys():
+        taskFrontiers = frontierOverTime[task]
+        manuallySolved = str(task.name) in list(manuallySolvedTasks.keys())
+
+        humanSolution = None
+        if manuallySolved:
+            humanProgram = parseHandwritten(str(task.name))
+            usesIdx = getProgramUses(humanProgram, arrow(tgridin, tgridout), topDownGrammar)
+            humanSolution = (len(usesIdx), usesIdx)
+
+        taskData = {"manuallySolved": manuallySolved, "humanSolution": humanSolution, "programsOverTime": []}
+        toReturn[str(task.name)] = taskData
+
+        for frontier in taskFrontiers:
+            if len(frontier.entries) > 0:
+                bestProgram = frontier.bestPosterior.program
+                usesIdx = getProgramUses(bestProgram, arrow(tgridin, tgridout), topDownGrammar)
+                taskData["programsOverTime"].append((len(usesIdx), usesIdx))
+
+    for task in toReturn.keys():
+        if toReturn[task]["manuallySolved"]:
+            pass
+            # print(task, toReturn[task])
+
+    for i, productions in enumerate(grammarJson['productions']):
+        print("{}: {},".format(productions['expression'], productions['type']))
+
+
+    for i,p in enumerate([str(p) for p in topDownGrammar.primitives]):
+        print(i, p)
+
+    # with open(resumePath + resumeDirectory + 'grammarPrimitivesList.p', 'wb') as f:
+    #     pickle.dump([str(p) for p in topDownGrammar.primitives], f)
+
+    # with open(resumePath + resumeDirectory + 'discoveredPrograms.p', 'wb') as f:
+    #     pickle.dump(toReturn, f)
+
+    # json.dump(grammarJson, open('grammar.json', 'w'))
     # print("homeDirectory: {}".format(homeDirectory))
     # resumeDirectory = '/experimentOutputs/arc/2020-04-27T15:41:52.288988/'
     # pickledFile = 'arc_aic=1.0_arity=3_ET=28800_t_zero=28800_it=1_MF=10_noConsolidation=True_pc=30.0_RW=False_solver=ocaml_STM=True_L=1.0_TRR=default_K=2_topkNotMAP=False_rec=False.pickle'
