@@ -278,7 +278,7 @@ def main(args):
     import os
 
     homeDirectory = "/".join(os.path.abspath(__file__).split("/")[:-4])
-    dataDirectory = homeDirectory + "/arc-data/data/"
+    dataDirectory = homeDirectory + "/arc_data/data/"
 
 
     trainTasks = retrieveARCJSONTasks(dataDirectory + 'training', None)
@@ -300,10 +300,10 @@ def main(args):
     # # v = arcNN.featuresOfTask(nnTrainTask[0])
     # # print(v)
 
-    resumePath = '/Users/theo/Development/program_induction/ec/experimentOutputs/arc/'
-    resumeDirectory = '2020-05-10T14:49:21.186479/'
-    pickledFile = 'arc_aic=1.0_arity=3_BO=True_CO=True_ES=1_ET=1200_t_zero=28800_HR=0.0_it=6_MF=10_noConsolidation=False_pc=1.0_RT=1800_RR=False_RW=False_solver=ocaml_STM=True_L=1.0_TRR=unsolved_K=2_topkNotMAP=False_graph=True.pickle'
-    result, firstFrontier, allFrontiers, frontierOverTime, topDownGrammar, preConsolidationGrammar, resumeRecognizer, learnedProductions = getTrainFrontier(resumePath + resumeDirectory + pickledFile, 0)
+    # resumePath = '/Users/theo/Development/program_induction/ec/experimentOutputs/arc/'
+    # resumeDirectory = '2020-05-10T14:49:21.186479/'
+    # pickledFile = 'arc_aic=1.0_arity=3_BO=True_CO=True_ES=1_ET=1200_t_zero=28800_HR=0.0_it=6_MF=10_noConsolidation=False_pc=1.0_RT=1800_RR=False_RW=False_solver=ocaml_STM=True_L=1.0_TRR=unsolved_K=2_topkNotMAP=False_graph=True.pickle'
+    # result, firstFrontier, allFrontiers, frontierOverTime, topDownGrammar, preConsolidationGrammar, resumeRecognizer, learnedProductions = getTrainFrontier(resumePath + resumeDirectory + pickledFile, 0)
 
     def convertFrontiersOverTimeToJson(frontiersOverTime):
         frontiersOverTimeJson = {}
@@ -341,43 +341,43 @@ def main(args):
         program = Program.parse(manuallySolvedTasks[taskName])
         return program
 
-    frontiersOverTime = convertFrontiersOverTimeToJson(frontierOverTime)
+    # frontiersOverTime = convertFrontiersOverTimeToJson(frontierOverTime)
 
-    grammarJson = topDownGrammar.jsonWithTypes()
-    productions = []
+    # grammarJson = topDownGrammar.jsonWithTypes()
+    # productions = []
     
-    toReturn = {}
+    # toReturn = {}
 
-    for task in frontierOverTime.keys():
-        taskFrontiers = frontierOverTime[task]
-        manuallySolved = str(task.name) in list(manuallySolvedTasks.keys())
+    # for task in frontierOverTime.keys():
+    #     taskFrontiers = frontierOverTime[task]
+    #     manuallySolved = str(task.name) in list(manuallySolvedTasks.keys())
 
-        humanSolution = None
-        if manuallySolved:
-            humanProgram = parseHandwritten(str(task.name))
-            usesIdx = getProgramUses(humanProgram, arrow(tgridin, tgridout), topDownGrammar)
-            humanSolution = (len(usesIdx), usesIdx)
+    #     humanSolution = None
+    #     if manuallySolved:
+    #         humanProgram = parseHandwritten(str(task.name))
+    #         usesIdx = getProgramUses(humanProgram, arrow(tgridin, tgridout), topDownGrammar)
+    #         humanSolution = (len(usesIdx), usesIdx)
 
-        taskData = {"manuallySolved": manuallySolved, "humanSolution": humanSolution, "programsOverTime": []}
-        toReturn[str(task.name)] = taskData
+    #     taskData = {"manuallySolved": manuallySolved, "humanSolution": humanSolution, "programsOverTime": []}
+    #     toReturn[str(task.name)] = taskData
 
-        for frontier in taskFrontiers:
-            if len(frontier.entries) > 0:
-                bestProgram = frontier.bestPosterior.program
-                usesIdx = getProgramUses(bestProgram, arrow(tgridin, tgridout), topDownGrammar)
-                taskData["programsOverTime"].append((len(usesIdx), usesIdx))
+    #     for frontier in taskFrontiers:
+    #         if len(frontier.entries) > 0:
+    #             bestProgram = frontier.bestPosterior.program
+    #             usesIdx = getProgramUses(bestProgram, arrow(tgridin, tgridout), topDownGrammar)
+    #             taskData["programsOverTime"].append((len(usesIdx), usesIdx))
 
-    for task in toReturn.keys():
-        if toReturn[task]["manuallySolved"]:
-            pass
-            # print(task, toReturn[task])
+    # for task in toReturn.keys():
+    #     if toReturn[task]["manuallySolved"]:
+    #         pass
+    #         # print(task, toReturn[task])
 
-    for i, productions in enumerate(grammarJson['productions']):
-        print("{}: {},".format(productions['expression'], productions['type']))
+    # for i, productions in enumerate(grammarJson['productions']):
+    #     print("{}: {},".format(productions['expression'], productions['type']))
 
 
-    for i,p in enumerate([str(p) for p in topDownGrammar.primitives]):
-        print(i, p)
+    # for i,p in enumerate([str(p) for p in topDownGrammar.primitives]):
+    #     print(i, p)
 
     # with open(resumePath + resumeDirectory + 'grammarPrimitivesList.p', 'wb') as f:
     #     pickle.dump([str(p) for p in topDownGrammar.primitives], f)
