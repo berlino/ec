@@ -919,6 +919,27 @@ def diffuseImagesOutward(imageCoordinates, labelCoordinates, d,
         constrainRadii()
     return d
 
+
+class EarlyStopping:
+    def __init__(self, patience=10, n_epochs_stop=10, init_best_val_loss=1000, margin_percentage=0.001):
+        self.patience = patience
+        self.n_epochs_stop = n_epochs_stop
+        self.num_epochs_no_improvement = 0
+        self.best_val_loss = init_best_val_loss
+
+    def should_stop(self, epoch, val_loss):
+        if val_loss < self.best_val_loss:
+            self.num_epochs_no_improvement = 0
+            self.best_val_loss = val_loss
+            return False
+        else:
+            if epoch > self.patience:
+                self.num_epochs_no_improvement += 1
+        if self.num_epochs_no_improvement >= self.n_epochs_stop:
+            print("Early Stopping: Best model test loss {} did not improve after {} epochs".format(self.best_val_loss, self.n_epochs_stop))
+            return True
+
+
 if __name__ == "__main__":
     def f(n):
         if n == 0: return None

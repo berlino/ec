@@ -327,6 +327,7 @@ def list_options(parser):
 
 
     # Arguments relating to properties
+    parser.add_argument("--singleTask", action="store_true", default=False)
     parser.add_argument("--propCPUs", type=int, default=numberOfCPUs())
     parser.add_argument("--propSolver",default="ocaml",type=str)
     parser.add_argument("--propSamplingTimeout",default=600,type=float)
@@ -548,5 +549,9 @@ def main(args):
     else:
         train = tasks
         test = []
+
+    singleTask = args.pop("singleTask")
+    if singleTask:
+        train = [train[0]]
 
     explorationCompression(baseGrammar, train, testingTasks=test, featureExtractorArgs=featureExtractorArgs, **args)

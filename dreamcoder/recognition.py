@@ -11,6 +11,7 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 from torch.nn.utils.rnn import pack_padded_sequence
 
+import copy
 import numpy as np
 # luke
 import json
@@ -851,7 +852,7 @@ class RecognitionModel(nn.Module):
               timeout=None, evaluationTimeout=0.001,
               helmholtzFrontiers=[], helmholtzRatio=0., helmholtzBatch=1000,
               biasOptimal=None, defaultRequest=None, auxLoss=False, vectorized=True,
-              epochs=99999):
+              epochs=99999, earlyStopping=True):
         """
         helmholtzRatio: What fraction of the training data should be forward samples from the generative model?
         helmholtzFrontiers: Frontiers from programs enumerated from generative model (optional)
@@ -1013,7 +1014,12 @@ class RecognitionModel(nn.Module):
         classificationLosses = []
         totalGradientSteps = 0
 
+
+        holdoutFrontiers = copy.deepcopy([getHelmholtz() for i in range(1000)])
+        ep = EarlyStopping(patience=1, n_epochs_stop=10, init_best_val_loss=100.0)
+
         for i in range(1, epochs + 1):
+
             if timeout and time.time() - start > timeout:
                 break
 
@@ -1062,7 +1068,28 @@ class RecognitionModel(nn.Module):
                         break # Stop iterating, then print epoch and loss, then break to finish.
                         
             if (i == 1 or i % 250 == 0) and losses:
-                eprint("(ID=%d): " % self.id, "Epoch", i, "Loss", mean(losses))
+
+                # calculate hold out losses
+                holdoutLosses, holdoutClassificationLosses, holdoutDescriptionLengths = [], [], []
+                for frontier in holdoutFrontiers:
+                    loss, classificationLoss = self.frontierBiasOptimal(frontier, auxiliary=auxLoss, vectorized=vectorized) if biasOptimal \
+                    else self.frontierKL(frontier, auxiliary=auxLoss, vectorized=vectorized)
+                    if loss is None:
+                        continue
+                    holdoutLosses.append(loss.data.item())
+                    holdoutClassificationLosses.append(classificationLoss.data.item())
+                    holdoutDescriptionLengths.append(min(-e.logPrior for e in frontier))
+
+                if ep.should_stop(i, mean(holdoutLosses)):
+                    break
+
+                eprint("\n(ID=%d): " % self.id, "\t Evaluated on ", len(holdoutFrontiers), "holdout frontiers")
+                eprint("(ID=%d): " % self.id, "\tHoldout Mean Classification Loss", mean(holdoutClassificationLosses))
+                eprint("(ID=%d): " % self.id, "\tHoldout Mean MDL Loss", mean(holdoutLosses))
+                eprint("(ID=%d): " % self.id, "\tvs Holdout Mean MDL (w/o neural net)", mean(holdoutDescriptionLengths))
+
+
+                eprint("\n(ID=%d): " % self.id, "Epoch", i, "Loss", mean(losses))
                 if realLosses and dreamLosses:
                     eprint("(ID=%d): " % self.id, "\t\t(real loss): ", mean(realLosses), "\t(dream loss):", mean(dreamLosses))
                 eprint("(ID=%d): " % self.id, "\tvs MDL (w/o neural net)", mean(descriptionLengths))
@@ -1129,7 +1156,7 @@ class RecognitionModel(nn.Module):
 
         # (cathywong) Disabled for ensemble training. 
         samples = parallelMap(
-            1,
+            CPUs,
             lambda n: self.sampleHelmholtz(requests,
                                            statusUpdate='.' if n % frequency == 0 else None,
                                            seed=startingSeed + n),

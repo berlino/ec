@@ -185,7 +185,7 @@ def ecIterator(grammar, tasks,
                dopruning=False,
                skiptesting=False,
                featureExtractorArgs={},
-               epochs=9999
+               epochs=99999
             ):
 
     if enumerationTimeout is None:
@@ -592,7 +592,7 @@ def sleep_recognition(result, grammar, taskBatch, tasks, testingTasks, allFronti
                       previousRecognitionModel=None, recognitionSteps=None,
                       timeout=None, enumerationTimeout=None, evaluationTimeout=None,
                       helmholtzRatio=None, helmholtzFrontiers=None, maximumFrontier=None,
-                      auxiliaryLoss=None, cuda=None, CPUs=None, solver=None, featureExtractorArgs=None, epochs=9999):
+                      auxiliaryLoss=None, cuda=None, CPUs=None, solver=None, featureExtractorArgs=None, epochs=None):
     eprint("Using an ensemble size of %d. Note that we will only store and test on the best recognition model." % ensembleSize)
 
     featureExtractorObjects = [featureExtractor(tasks, grammar=grammar, testingTasks=testingTasks, cuda=cuda, featureExtractorArgs=featureExtractorArgs) for i in range(ensembleSize)]
@@ -1002,7 +1002,7 @@ def commandlineArguments(_=None,
         action="store_true")
 
     parser.add_argument("--epochs",
-                        default=9999,
+                        default=99999,
                         help="Number of epochs to train the recognition model. Can be specified instead of recognition steps / train time.",
                         type=int)
 

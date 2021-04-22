@@ -19,4 +19,5 @@ if __name__ == '__main__':
         extras=list_options)
 
     main(args)
+    # test()
     # viewResults()
