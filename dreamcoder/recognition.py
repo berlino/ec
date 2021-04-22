@@ -678,6 +678,8 @@ class RecognitionModel(nn.Module):
         if previousRecognitionModel:
             self._MLP.load_state_dict(previousRecognitionModel._MLP.state_dict())
             self.featureExtractor.load_state_dict(previousRecognitionModel.featureExtractor.state_dict())
+
+        print(self)
             
     def auxiliaryLoss(self, frontier, features):
         # Compute a vector of uses
@@ -810,7 +812,8 @@ class RecognitionModel(nn.Module):
             g = self(features)
             return - entry.program.logLikelihood(g), al
         else:
-            features = self._MLP(features).expand(1, features.size(-1))
+            mlpOutput = self._MLP(features)
+            features = mlpOutput.expand(1, mlpOutput.size(-1))
             ll = self.grammarBuilder.batchedLogLikelihoods(features, [entry.program]).view(-1)
             return -ll, al
             
