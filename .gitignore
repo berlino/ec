@@ -25,6 +25,8 @@ rust_compressor/target
 *.cost
 compressionMessages/
 container.img
+dev-container.img
+evolution
 launchers/
 data/*
 !data/puddleworld/
