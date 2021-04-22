@@ -290,6 +290,10 @@ def ecIterator(grammar, tasks,
         resume = len(result.grammars) - 1
         eprint("Loaded checkpoint from", path)
         grammar = result.grammars[-1] if result.grammars else grammar
+
+        allFrontiers = [frontier for (task,frontier) in result.allFrontiers.items() if len(frontier.entries) > 0]
+        grammar = grammar.insideOutside(allFrontiers, 30, iterations=1)
+        print("resume grammar\n",grammar)
     else:  # Start from scratch
         #for graphing of testing tasks
         numTestingTasks = len(testingTasks) if len(testingTasks) != 0 else None
@@ -549,6 +553,7 @@ def default_wake_generative(grammar, tasks,
                     CPUs=None,
                     solver=None,
                     evaluationTimeout=None):
+
     topDownFrontiers, times = multicoreEnumeration(grammar, tasks, 
                                                    maximumFrontier=maximumFrontier,
                                                    enumerationTimeout=enumerationTimeout,
