@@ -122,11 +122,9 @@ def list_options(parser):
     # parser.add_argument("--random-seed", type=int, default=17)
     parser.add_argument("--singleTask", default=False, action="store_true")
     parser.add_argument("--firstTimeEnumerationTimeout", type=int, default=3600)
-    parser.add_argument("--featureExtractor", choices=[
-        "dummy",
+    parser.add_argument("--featureExtractor", default="dummy", choices=[
         "ArCNN",
-        "ArcCnnEmbed"
-        ])
+        "dummy"])
 
     # parser.add_argument("-i", type=int, default=10)
 
@@ -288,7 +286,7 @@ def main(args):
     # print("base Grammar {}".format(baseGrammar))
 
     timestamp = datetime.datetime.now().isoformat()
-    outputDirectory = "experimentOutputs/arc/%s" % timestamp
+    outputDirectory = "ec/experimentOutputs/arc/%s" % timestamp
     os.system("mkdir -p %s" % outputDirectory)
 
     args.update(
@@ -300,10 +298,6 @@ def main(args):
     # # v = arcNN.featuresOfTask(nnTrainTask[0])
     # # print(v)
 
-    # resumePath = '/Users/theo/Development/program_induction/ec/experimentOutputs/arc/'
-    # resumeDirectory = '2020-05-10T14:49:21.186479/'
-    # pickledFile = 'arc_aic=1.0_arity=3_BO=True_CO=True_ES=1_ET=1200_t_zero=28800_HR=0.0_it=6_MF=10_noConsolidation=False_pc=1.0_RT=1800_RR=False_RW=False_solver=ocaml_STM=True_L=1.0_TRR=unsolved_K=2_topkNotMAP=False_graph=True.pickle'
-    # result, firstFrontier, allFrontiers, frontierOverTime, topDownGrammar, preConsolidationGrammar, resumeRecognizer, learnedProductions = getTrainFrontier(resumePath + resumeDirectory + pickledFile, 0)
 
     def convertFrontiersOverTimeToJson(frontiersOverTime):
         frontiersOverTimeJson = {}
@@ -386,13 +380,15 @@ def main(args):
     #     pickle.dump(toReturn, f)
 
     # json.dump(grammarJson, open('grammar.json', 'w'))
-    # print("homeDirectory: {}".format(homeDirectory))
-    # resumeDirectory = '/experimentOutputs/arc/2020-04-27T15:41:52.288988/'
-    # pickledFile = 'arc_aic=1.0_arity=3_ET=28800_t_zero=28800_it=1_MF=10_noConsolidation=True_pc=30.0_RW=False_solver=ocaml_STM=True_L=1.0_TRR=default_K=2_topkNotMAP=False_rec=False.pickle'
-    # result, firstFrontier, allFrontiers, frontierOverTime, topDownGrammar, preConsolidationGrammar, resumeRecognizer, learnedProductions = getTrainFrontier(homeDirectory + resumeDirectory + pickledFile, 0)
+    print("homeDirectory: {}".format(homeDirectory))
+    resumeDirectory = "/experimentOutputs/arc/2021-04-20T23:35:15.171726/"
+    pickledFile = "arc_aic=1.0_arity=0_ET=10_t_zero=28800_it=1_MF=10_noConsolidation=True_pc=1.0_RW=False_solver=ocaml_STM=True_L=1.0_TRR=default_K=2_topkNotMAP=False_rec=False_graph=True.pickle"
+    result, firstFrontier, allFrontiers, frontierOverTime, topDownGrammar, preConsolidationGrammar, resumeRecognizer, learnedProductions = getTrainFrontier(homeDirectory + resumeDirectory + pickledFile, 0)
 
-    # print(topDownGrammar)
-    # print("-----------------------------------------------------")
+    # print(fittedGrammar)
+    # evaluateGrammars(allFrontiers, manuallySolvedTasks=None, grammar1=topDownGrammar, grammar2=fittedGrammar, recognizer1=None, recognizer2=None)
+
+    # print(resumeRecognizer.featureExtractor.featuresOfTask("t"))
 
     # print(result.parameters)
     # for i,frontier in enumerate(firstFrontier):
@@ -401,6 +397,7 @@ def main(args):
     # timeout = 10.0
     featureExtractor = {
         "dummy": DummyFeatureExtractor,
+        "None": None
     }[args.pop("featureExtractor")]
 
     if args.pop("singleTask"):
