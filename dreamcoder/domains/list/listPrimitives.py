@@ -62,6 +62,14 @@ def _subtraction(x): return lambda y: x - y
 def _multiplication(x): return lambda y: x * y
 
 
+def _division(x): 
+    def g(y):
+        if y == 0:
+            raise ValueError
+        return x / y
+    return g
+
+
 def _negate(x): return -x
 
 
@@ -109,6 +117,10 @@ def _fold(l): return lambda x0: lambda f: reduce(
     lambda a, x: f(x)(a), l[::-1], x0)
 
 
+def _foldi(l): return lambda x0: lambda f: reduce(
+    lambda a, t: f(t[0])(a)(t[1]), enumerate(l[::-1]), x0)
+
+
 def _eq(x): return lambda y: x == y
 
 
@@ -124,10 +136,19 @@ def _d1(x): return x - 1
 def _mod(x): return lambda y: x % y
 
 
+def _isEven(x): return x % 2 == 0
+
+
+def _isOdd(x): return x % 2 == 1
+
+
 def _not(x): return not x
 
 
 def _gt(x): return lambda y: x > y
+
+
+def _lt(x): return lambda y: x < y
 
 
 def _index(j): return lambda l: l[j]
@@ -195,6 +216,17 @@ def _appendmap(f): lambda xs: [y for x in xs for y in f(x)]
 
 
 def _filter(f): return lambda l: list(filter(f, l))
+
+
+def _filteri(f):
+    def g(l):
+        ans = []
+        for i,x in enumerate(l):
+            if not f(i)(x):
+                ans.append(x)
+        return ans
+    return g
+
 
 
 def _any(f): return lambda l: any(f(x) for x in l)
@@ -300,7 +332,6 @@ def primitives():
                 tlist(t0),
                 t1),
             _reducei),
-
         Primitive("true", tbool, True),
         Primitive("not", arrow(tbool, tbool), _not),
         Primitive("and", arrow(tbool, tbool, tbool), _and),
@@ -318,7 +349,7 @@ def primitives():
         Primitive("is-square", arrow(tint, tbool), _isSquare),
 
         # these are achievable with above primitives, but unlikely
-        #Primitive("flatten", arrow(tlist(tlist(t0)), tlist(t0)), _flatten),
+        # Primitive("flatten", arrow(tlist(tlist(t0)), tlist(t0)), _flatten),
         # (lambda (reduce (lambda (lambda (++ $1 $0))) empty $0))
         Primitive("sum", arrow(tlist(tint), tint), sum),
         # (lambda (lambda (reduce (lambda (lambda (+ $0 $1))) 0 $0)))
@@ -332,7 +363,7 @@ def primitives():
         # (lambda (lambda (reducei (lambda (lambda (lambda (if (eq? $1 $4) $0 0)))) 0 $0)))
         Primitive("filter", arrow(arrow(t0, tbool), tlist(t0), tlist(t0)), _filter),
         # (lambda (lambda (reduce (lambda (lambda (++ $1 (if ($3 $0) (singleton $0) empty)))) empty $0)))
-        #Primitive("replace", arrow(arrow(tint, t0, tbool), tlist(t0), tlist(t0), tlist(t0)), _replace),
+        # Primitive("replace", arrow(arrow(tint, t0, tbool), tlist(t0), tlist(t0), tlist(t0)), _replace),
         # (FLATTEN (lambda (lambda (lambda (mapi (lambda (lambda (if ($4 $1 $0) $3 (singleton $1)))) $0)))))
         Primitive("slice", arrow(tint, tint, tlist(t0), tlist(t0)), _slice),
         # (lambda (lambda (lambda (reducei (lambda (lambda (lambda (++ $2 (if (and (or (gt? $1 $5) (eq? $1 $5)) (not (or (gt? $4 $1) (eq? $1 $4)))) (singleton $0) empty))))) empty $0))))
@@ -472,6 +503,242 @@ def josh_primitives(w):
             Primitive("gt?", arrow(tint,tint,tbool), _gt),
             primitiveRecursion1
         ] + [Primitive(str(j), tint, j) for j in range(100)])
+
+
+# list repeating x n times
+def _repeat(x): return lambda n: [x for i in range(n)]
+
+# list of numbers from i to j, inclusive, counting by n
+def _rangeGeneral(i): 
+    def g(j):
+        if j < i:
+            raise ValueError
+        def f(n):
+            if n > 100:
+                raise ValueError
+            return list(range(i,j+1,n))
+        return f
+    return g
+
+# insert x at index i in xs
+def _insert(x):
+    def g(i):
+        def f(xs):
+            return xs[:i] + [x] + xs[i:]
+        return f
+    return g
+
+# append x to xs
+def _append(xs):
+    def g(x):
+        return xs + [x]
+    return g
+
+# concatenate xs and ys
+def _concat(xs): return lambda ys: xs + ys
+
+# insert ys into xs, beginning at index i
+def _splice(ys):
+    def g(i):
+        def f(xs):
+            return xs[:i] + ys + xs[i:]
+        return f
+    return g
+
+# replace element at index i in xs with x
+def _replaceEl(i):
+    def g(x):
+        def f(xs):
+            return xs[:i] + [x] + xs[i+1:]
+        return f
+    return g
+
+# swap elements at indices i and j in xs
+def _swap(i):
+    def g(j):
+        def f(xs):
+            xsCopy = xs[::]
+            temp = xsCopy[i]
+            xsCopy[i] = xsCopy[j]
+            xsCopy[j] = temp
+            return xsCopy
+        return f
+    return g
+
+# remove element at index i from xs (returns cs if x not in xs)
+def _cutIdx(i): 
+    def g(xs):
+        if i >= len(xs):
+            return xs
+        elif i == len(xs)-1:
+            return xs[:i]
+        else:
+            return xs[:i] + xs[i+1:]
+    return g
+
+# remove first occurence of x from xs (returns xs if x not in xs)
+def _cutVal(x):
+    def g(xs):
+        xsCopy = xs[::]
+        if x not in xsCopy:
+            return xsCopy
+        else:
+            xsCopy.remove(x)
+        return xsCopy
+    return g
+
+
+# remove all occurences of x from xs (returns xs if x not in xs)
+def _cutVals(x): return lambda xs: [el for el in xs if el != x]
+
+# remove first n elements from xs
+def _drop(n):
+    def g(xs):
+        if n > len(xs)-1:
+            return []
+        else:
+            return xs[n:]
+    return g
+
+# remove last n elements from xs
+def _droplast(n):
+    def g(xs):
+        if n > len(xs)-1:
+            return []
+        else:
+            return xs[:len(xs)-n]
+    return g
+
+# remove elements at indices i to j, inclusive from xs
+def _cutSlice(i):
+    def g(j):
+        def f(xs):
+            if j < i:
+                raise ValueError
+            elif j > len(xs):
+                return xs[:i]
+            else:
+                return xs[:i] + xs[j+1:]
+        return f
+    return g
+
+# take first n elements from xs
+def _take(n):
+    def g(xs):
+        if n > len(xs)-1:
+            return xs
+        else:
+            return xs[:n]
+    return g
+
+# take last n elements from xs
+def _takelast(n):
+    def g(xs):
+        if n > len(xs)-1:
+            return xs
+        else:
+            return xs[len(xs)-n:]
+    return g
+
+# count number of elements of xs for which f(x) is true
+def _count(f):
+    def g(xs):
+        numElements = 0
+        for el in xs:
+            if f(el):
+                numElements += 1
+        return numElements
+    return g
+
+# return indices of xs for which p is true
+def _findAll(f):
+    def g(xs):
+        indices = []
+        for i,el in enumerate(xs):
+            if f(el):
+                indices.append(i)
+        return indices
+    return g
+
+# group elements, x, of xs based on the key (f x)
+def _group(f):
+    def g(xs):
+        groups = {}
+        for x in xs:
+            key = f(x)
+            groups[key] = groups.get(key, []) + [x]
+        return list(groups.values())
+    return g
+
+# product of elements in xs
+def _product(l): return reduce(lambda a, x: a * x, l, 1)
+
+def josh_rich_primitives(maxInt):
+    return [
+        Primitive(str(j), tint, j) for j in range(maxInt)
+    ] + [
+        Primitive("true", tbool, True),
+        Primitive("false", tbool, False),
+        Primitive("empty", tlist(t0), []),
+        Primitive("+", arrow(tint, tint, tint), _addition),
+        Primitive("-", arrow(tint, tint, tint), _subtraction),
+        Primitive("*", arrow(tint, tint, tint), _multiplication),
+        Primitive("/", arrow(tint, tint, tint), _division),
+        Primitive("mod", arrow(tint, tint, tint), _mod),
+        Primitive("gt?", arrow(tint, tint, tbool), _gt),
+        Primitive("lt?", arrow(tint, tint, tbool), _lt),
+        Primitive("is-even", arrow(tint, tbool), _isEven),
+        Primitive("is-odd", arrow(tint, tbool), _isOdd),
+        Primitive("and", arrow(tbool, tbool, tbool), _and),
+        Primitive("or", arrow(tbool, tbool, tbool), _or),
+        Primitive("not", arrow(tbool, tbool), _not),
+        Primitive("if", arrow(tbool, t0, t0, t0), _if),
+        Primitive("eq?", arrow(t0, t0, tbool), _eq),
+        Primitive("singleton", arrow(t0, tlist(t0)), _single),
+        Primitive("repeat", arrow(t0, tint, tlist(t0)), _repeat),
+        Primitive("range", arrow(tint, tint, tint, tlist(tint)), _rangeGeneral),
+        Primitive("append", arrow(tlist(t0), t0, tlist(t0)), _append),
+        Primitive("cons", arrow(t0, tlist(t0), tlist(t0)), _cons),
+        Primitive("insert", arrow(t0, tint, tlist(t0), tlist(t0)), _insert),
+        Primitive("++", arrow(tlist(t0), tlist(t0), tlist(t0)), _concat),
+        Primitive("splice", arrow(tlist(t0), tint, tlist(t0), tlist(t0)), _splice),
+        Primitive("first", arrow(tlist(t0), t0), lambda xs: xs[0]),
+        Primitive("second", arrow(tlist(t0), t0), lambda xs: xs[1]),
+        Primitive("third", arrow(tlist(t0), t0), lambda xs: xs[2]),
+        Primitive("last", arrow(tlist(t0), t0), lambda xs: xs[-1]),
+        Primitive("index", arrow(tint, tlist(t0), t0), _index),
+        Primitive("replaceEl", arrow(tint, t0, tlist(t0), tlist(t0)), _replaceEl),
+        Primitive("swap", arrow(tint, tint, tlist(t0), tlist(t0))),
+        Primitive("cut_idx", arrow(tint, tlist(t0)), _cutIdx),
+        Primitive("cut_val", arrow(t0, tlist(t0)), _cutVal),
+        Primitive("cut_vals", arrow(t0, tlist(t0)), _cutVals),
+        Primitive("drop", arrow(tint, tlist(t0), tlist(t0)), _drop),
+        Primitive("droplast", arrow(tint, tlist(t0), tlist(t0)), _droplast),
+        Primitive("cut_slice", arrow(tint, tint, tlist(t0)), _cutSlice),
+        Primitive("take", arrow(tint, tlist(t0), tlist(t0)), _take),
+        Primitive("takelast", arrow(tint, tlist(t0), tlist(t0)), _takelast),
+        Primitive("slice", arrow(tint, tint, tlist(t0), tlist(t0)), _slice),
+        Primitive("fold", arrow(tlist(t0), t1, arrow(t0, t1, t1), t1), _fold),
+        Primitive("foldi", arrow(tlist(t0), t1, arrow(tint, t0, t1, t1), t1), _foldi),
+        Primitive("filter", arrow(arrow(t0, tbool), tlist(t0), tlist(t0)), _filter),
+        Primitive("filteri", arrow(arrow(tint, t0, tbool), tlist(t0), tlist(t0)), _filteri),
+        Primitive("count", arrow(arrow(t0, tbool), tlist(t0), tint), _count),
+        Primitive("find", arrow(arrow(t0, tbool), tlist(t0), tlist(tint)), _findAll),
+        Primitive("map", arrow(arrow(t0, t1), tlist(t0), tlist(t1)), _map),
+        Primitive("mapi", arrow(arrow(tint, t0, t1), tlist(t0), tlist(t1)), _mapi),
+        Primitive("group", arrow(arrow(t0, t1), tlist(t0), tlist(tlist(t0))), _group),
+        Primitive("is_in", arrow(tlist(t0), t0, tbool), lambda l: lambda x: x in l),
+        Primitive("length", arrow(tlist(t0), tint), len),
+        Primitive("max", arrow(tlist(tint), tint), max),
+        Primitive("min", arrow(tlist(tint), tint), min),
+        Primitive("product", arrow(tlist(tint), tint), _product),
+        Primitive("sum", arrow(tlist(tint), tint), sum),
+        Primitive("unique", arrow(tlist(t0), tlist(t0)), lambda l: list(set(l))),
+        Primitive("sort", arrow(tlist(tint), tlist(tint)), sorted),
+        Primitive("reverse", arrow(tlist(t0), tlist(t0)), _reverse),
+        Primitive("flatten", arrow(tlist(tlist(t0)), tlist(t0)), _flatten),
+        Primitive("zip", arrow(tlist(t0), tlist(t1), arrow(t0, t1, t2), tlist(t2)), _zip)
+    ]
         
 
 def McCarthyPrimitives():
@@ -497,152 +764,221 @@ def McCarthyPrimitives():
         Primitive("-", arrow(tint, tint, tint), _subtraction),
     ] + [Primitive(str(j), tint, j) for j in range(2)]
 
+def getPrimitive(primitiveList, primitiveName):
+    return [prim for prim in primitiveList if prim.name == primitiveName]
+
+def test_josh_rich_primitives():
+
+    assert _repeat(4)(6) == [4,4,4,4,4,4]
+
+    assert _rangeGeneral(1)(10)(2) == [1,3,5,7,9]
+    assert _rangeGeneral(3)(12)(3) == [3,6,9,12]
+
+    assert _insert(5)(2)([1,2,3]) == [1,2,5,3]
+
+
+    assert _append([1,2,3])(6) == [1,2,3,6]
+
+    assert _concat([])([]) == []
+    assert _concat([5,6])([1]) == [5,6,1]
+
+    assert _splice([1,2])(1)([9,7,8]) == [9,1,2,7,8]
+
+    assert _index(2)([5,6,7]) == 7
+
+    assert _replaceEl(1)(3)([5,6,7]) == [5,3,7]
+
+    assert _swap(1)(2)([5,6,7]) == [5,7,6]
+
+    assert _cutIdx(2)([5,6,7]) == [5,6]
+
+    assert _cutVal(2)([5,6,2,7,2]) == [5,6,7,2]
+    assert _cutVal(3)([1,2]) == [1,2]
+
+    assert _cutVals(2)([5,6,2,7,2]) == [5,6,7]
+    assert _cutVals(3)([1,2]) == [1,2]
+
+    assert _drop(3)([1,2,3,4]) == [4]
+    assert _drop(2)([1,2]) == []
+    assert _drop(2)([1]) == []
+
+    assert _droplast(3)([1,2,3,4]) == [1]
+    assert _droplast(2)([1,2]) == []
+    assert _droplast(2)([1]) == []
+
+    assert _take(3)([1,2,3,4]) == [1,2,3]
+    assert _take(10)([1,2,3,4]) == [1,2,3,4]
+
+    assert _takelast(3)([1,2,3,4]) == [2,3,4]
+    assert _takelast(10)([1,2,3,4]) == [1,2,3,4]
+
+    assert _cutSlice(1)(3)([5,6,7,8,9]) == [5,9]
+    assert _cutSlice(2)(9)([1,2,3,4]) == [1,2]
+    assert _cutSlice(0)(5)([1,2]) == []
+
+    # add the elements of the odd indices
+    assert _foldi([7,2,3,4])(0)(lambda idx: lambda x: lambda a: a + x if (idx % 2 == 1) else a == 6)
+
+    # remove the even index elements from list
+    assert _filteri(lambda idx: lambda x: idx%2 == 0)([7,3,5,10]) == [3,10]
+
+    assert _count(lambda x: x % 2 == 0)([3,7,5,2,4]) == 2
+
+    assert _findAll(lambda x: x % 2 == 0)([3,7,5,2,4]) == [3,4]
+
+    groups = _group(lambda x: x % 3)([1,2,3,4,5,6,7,8])
+    assert sorted(groups, key=lambda group: group[0]) == [[1,4,7], [2,5,8], [3,6]]
+
+    assert _product([5,6,7]) == 210
 
 if __name__ == "__main__":
-    bootstrapTarget()
-    g = Grammar.uniform(McCarthyPrimitives())
-    # with open("/home/ellisk/om/ec/experimentOutputs/list_aic=1.0_arity=3_ET=1800_expandFrontier=2.0_it=4_likelihoodModel=all-or-nothing_MF=5_baseline=False_pc=10.0_L=1.0_K=5_rec=False.pickle", "rb") as handle:
-    #     b = pickle.load(handle).grammars[-1]
-    # print b
+    pass
 
-    p = Program.parse(
-        "(lambda (lambda (lambda (if (empty? $0) empty (cons (+ (car $1) (car $0)) ($2 (cdr $1) (cdr $0)))))))")
-    t = arrow(tlist(tint), tlist(tint), tlist(tint))  # ,tlist(tbool))
-    print(g.logLikelihood(arrow(t, t), p))
-    assert False
-    print(b.logLikelihood(arrow(t, t), p))
 
+    # bootstrapTarget()
+    # g = Grammar.uniform(McCarthyPrimitives())
+    # # with open("/home/ellisk/om/ec/experimentOutputs/list_aic=1.0_arity=3_ET=1800_expandFrontier=2.0_it=4_likelihoodModel=all-or-nothing_MF=5_baseline=False_pc=10.0_L=1.0_K=5_rec=False.pickle", "rb") as handle:
+    # #     b = pickle.load(handle).grammars[-1]
+    # # print b
+
+    # p = Program.parse(
+    #     "(lambda (lambda (lambda (if (empty? $0) empty (cons (+ (car $1) (car $0)) ($2 (cdr $1) (cdr $0)))))))")
+    # t = arrow(tlist(tint), tlist(tint), tlist(tint))  # ,tlist(tbool))
+    # print(g.logLikelihood(arrow(t, t), p))
+    # assert False
+    # print(b.logLikelihood(arrow(t, t), p))
+
+    # # p = Program.parse("""(lambda (lambda
+    # # (unfold 0
+    # # (lambda (+ (index $0 $2) (index $0 $1)))
+    # # (lambda (1+ $0))
+    # # (lambda (eq? $0 (length $1))))))
+    # # """)
     # p = Program.parse("""(lambda (lambda
-    # (unfold 0
-    # (lambda (+ (index $0 $2) (index $0 $1)))
-    # (lambda (1+ $0))
-    # (lambda (eq? $0 (length $1))))))
-    # """)
-    p = Program.parse("""(lambda (lambda
-    (map (lambda (+ (index $0 $2) (index $0 $1))) (range (length $0))  )))""")
-    # .replace("unfold", "#(lambda (lambda (lambda (lambda (fix1 $0 (lambda (lambda (#(lambda (lambda (lambda (if $0 empty (cons $1 $2))))) ($1 ($3 $0)) ($4 $0) ($5 $0)))))))))").\
-    # replace("length", "#(lambda (fix1 $0 (lambda (lambda (if (empty? $0) 0 (+ ($1 (cdr $0)) 1))))))").\
-    # replace("forloop", "(#(lambda (lambda (lambda (lambda (fix1 $0 (lambda (lambda (#(lambda (lambda (lambda (if $0 empty (cons $1 $2))))) ($1 ($3 $0)) ($4 $0) ($5 $0))))))))) (lambda (#(eq? 0) $0)) $0 (lambda (#(lambda (- $0 1)) $0)))").\
-    # replace("inc","#(lambda (+ $0 1))").\
-    # replace("drop","#(lambda (lambda (fix2 $0 $1 (lambda (lambda (lambda (if
-    # (#(eq? 0) $1) $0 (cdr ($2 (- $1 1) $0)))))))))"))
-    print(p)
-    print(g.logLikelihood(t, p))
-    assert False
+    # (map (lambda (+ (index $0 $2) (index $0 $1))) (range (length $0))  )))""")
+    # # .replace("unfold", "#(lambda (lambda (lambda (lambda (fix1 $0 (lambda (lambda (#(lambda (lambda (lambda (if $0 empty (cons $1 $2))))) ($1 ($3 $0)) ($4 $0) ($5 $0)))))))))").\
+    # # replace("length", "#(lambda (fix1 $0 (lambda (lambda (if (empty? $0) 0 (+ ($1 (cdr $0)) 1))))))").\
+    # # replace("forloop", "(#(lambda (lambda (lambda (lambda (fix1 $0 (lambda (lambda (#(lambda (lambda (lambda (if $0 empty (cons $1 $2))))) ($1 ($3 $0)) ($4 $0) ($5 $0))))))))) (lambda (#(eq? 0) $0)) $0 (lambda (#(lambda (- $0 1)) $0)))").\
+    # # replace("inc","#(lambda (+ $0 1))").\
+    # # replace("drop","#(lambda (lambda (fix2 $0 $1 (lambda (lambda (lambda (if
+    # # (#(eq? 0) $1) $0 (cdr ($2 (- $1 1) $0)))))))))"))
+    # print(p)
+    # print(g.logLikelihood(t, p))
+    # assert False
 
-    print("??")
-    p = Program.parse(
-        "#(lambda (#(lambda (lambda (lambda (fix1 $0 (lambda (lambda (if (empty? $0) $3 ($4 (car $0) ($1 (cdr $0)))))))))) (lambda $1) 1))")
-    for j in range(10):
-        l = list(range(j))
-        print(l, p.evaluate([])(lambda x: x * 2)(l))
-        print()
-    print()
+    # print("??")
+    # p = Program.parse(
+    #     "#(lambda (#(lambda (lambda (lambda (fix1 $0 (lambda (lambda (if (empty? $0) $3 ($4 (car $0) ($1 (cdr $0)))))))))) (lambda $1) 1))")
+    # for j in range(10):
+    #     l = list(range(j))
+    #     print(l, p.evaluate([])(lambda x: x * 2)(l))
+    #     print()
+    # print()
 
-    print("multiply")
-    p = Program.parse(
-        "(lambda (lambda (lambda (if (eq? $0 0) 0 (+ $1 ($2 $1 (- $0 1)))))))")
-    print(g.logLikelihood(arrow(arrow(tint, tint, tint), tint, tint, tint), p))
-    print()
+    # print("multiply")
+    # p = Program.parse(
+    #     "(lambda (lambda (lambda (if (eq? $0 0) 0 (+ $1 ($2 $1 (- $0 1)))))))")
+    # print(g.logLikelihood(arrow(arrow(tint, tint, tint), tint, tint, tint), p))
+    # print()
 
-    print("take until 0")
-    p = Program.parse("(lambda (lambda (if (eq? $1 0) empty (cons $1 $0))))")
-    print(g.logLikelihood(arrow(tint, tlist(tint), tlist(tint)), p))
-    print()
+    # print("take until 0")
+    # p = Program.parse("(lambda (lambda (if (eq? $1 0) empty (cons $1 $0))))")
+    # print(g.logLikelihood(arrow(tint, tlist(tint), tlist(tint)), p))
+    # print()
 
-    print("countdown primitive")
-    p = Program.parse(
-        "(lambda (lambda (if (eq? $0 0) empty (cons (+ $0 1) ($1 (- $0 1))))))")
-    print(
-        g.logLikelihood(
-            arrow(
-                arrow(
-                    tint, tlist(tint)), arrow(
-                    tint, tlist(tint))), p))
-    print(_fix(9)(p.evaluate([])))
-    print("countdown w/ better primitives")
-    p = Program.parse(
-        "(lambda (lambda (if (eq0 $0) empty (cons (+1 $0) ($1 (-1 $0))))))")
-    print(
-        g.logLikelihood(
-            arrow(
-                arrow(
-                    tint, tlist(tint)), arrow(
-                    tint, tlist(tint))), p))
+    # print("countdown primitive")
+    # p = Program.parse(
+    #     "(lambda (lambda (if (eq? $0 0) empty (cons (+ $0 1) ($1 (- $0 1))))))")
+    # print(
+    #     g.logLikelihood(
+    #         arrow(
+    #             arrow(
+    #                 tint, tlist(tint)), arrow(
+    #                 tint, tlist(tint))), p))
+    # print(_fix(9)(p.evaluate([])))
+    # print("countdown w/ better primitives")
+    # p = Program.parse(
+    #     "(lambda (lambda (if (eq0 $0) empty (cons (+1 $0) ($1 (-1 $0))))))")
+    # print(
+    #     g.logLikelihood(
+    #         arrow(
+    #             arrow(
+    #                 tint, tlist(tint)), arrow(
+    #                 tint, tlist(tint))), p))
 
-    print()
+    # print()
 
-    print("prepend zeros")
-    p = Program.parse(
-        "(lambda (lambda (lambda (if (eq? $1 0) $0 (cons 0 ($2 (- $1 1) $0))))))")
-    print(
-        g.logLikelihood(
-            arrow(
-                arrow(
-                    tint,
-                    tlist(tint),
-                    tlist(tint)),
-                tint,
-                tlist(tint),
-                tlist(tint)),
-            p))
-    print()
-    assert False
+    # print("prepend zeros")
+    # p = Program.parse(
+    #     "(lambda (lambda (lambda (if (eq? $1 0) $0 (cons 0 ($2 (- $1 1) $0))))))")
+    # print(
+    #     g.logLikelihood(
+    #         arrow(
+    #             arrow(
+    #                 tint,
+    #                 tlist(tint),
+    #                 tlist(tint)),
+    #             tint,
+    #             tlist(tint),
+    #             tlist(tint)),
+    #         p))
+    # print()
+    # assert False
 
-    p = Program.parse(
-        "(lambda (fix1 $0 (lambda (lambda (if (empty? $0) 0 (+ 1 ($1 (cdr $0))))))))")
-    print(p.evaluate([])(list(range(17))))
-    print(g.logLikelihood(arrow(tlist(tbool), tint), p))
+    # p = Program.parse(
+    #     "(lambda (fix1 $0 (lambda (lambda (if (empty? $0) 0 (+ 1 ($1 (cdr $0))))))))")
+    # print(p.evaluate([])(list(range(17))))
+    # print(g.logLikelihood(arrow(tlist(tbool), tint), p))
 
-    p = Program.parse(
-        "(lambda (lambda (if (empty? $0) 0 (+ 1 ($1 (cdr $0))))))")
-    print(
-        g.logLikelihood(
-            arrow(
-                arrow(
-                    tlist(tbool), tint), arrow(
-                    tlist(tbool), tint)), p))
+    # p = Program.parse(
+    #     "(lambda (lambda (if (empty? $0) 0 (+ 1 ($1 (cdr $0))))))")
+    # print(
+    #     g.logLikelihood(
+    #         arrow(
+    #             arrow(
+    #                 tlist(tbool), tint), arrow(
+    #                 tlist(tbool), tint)), p))
 
-    p = Program.parse(
-        "(lambda (fix1 $0 (lambda (lambda (if (empty? $0) 0 (+ (car $0) ($1 (cdr $0))))))))")
+    # p = Program.parse(
+    #     "(lambda (fix1 $0 (lambda (lambda (if (empty? $0) 0 (+ (car $0) ($1 (cdr $0))))))))")
 
-    print(p.evaluate([])(list(range(4))))
-    print(g.logLikelihood(arrow(tlist(tint), tint), p))
+    # print(p.evaluate([])(list(range(4))))
+    # print(g.logLikelihood(arrow(tlist(tint), tint), p))
 
-    p = Program.parse(
-        "(lambda (lambda (if (empty? $0) 0 (+ (car $0) ($1 (cdr $0))))))")
-    print(p)
-    print(
-        g.logLikelihood(
-            arrow(
-                arrow(
-                    tlist(tint),
-                    tint),
-                tlist(tint),
-                tint),
-            p))
+    # p = Program.parse(
+    #     "(lambda (lambda (if (empty? $0) 0 (+ (car $0) ($1 (cdr $0))))))")
+    # print(p)
+    # print(
+    #     g.logLikelihood(
+    #         arrow(
+    #             arrow(
+    #                 tlist(tint),
+    #                 tint),
+    #             tlist(tint),
+    #             tint),
+    #         p))
 
-    print("take")
-    p = Program.parse(
-        "(lambda (lambda (lambda (if (eq? $1 0) empty (cons (car $0) ($2 (- $1 1) (cdr $0)))))))")
-    print(p)
-    print(
-        g.logLikelihood(
-            arrow(
-                arrow(
-                    tint,
-                    tlist(tint),
-                    tlist(tint)),
-                tint,
-                tlist(tint),
-                tlist(tint)),
-            p))
-    assert False
+    # print("take")
+    # p = Program.parse(
+    #     "(lambda (lambda (lambda (if (eq? $1 0) empty (cons (car $0) ($2 (- $1 1) (cdr $0)))))))")
+    # print(p)
+    # print(
+    #     g.logLikelihood(
+    #         arrow(
+    #             arrow(
+    #                 tint,
+    #                 tlist(tint),
+    #                 tlist(tint)),
+    #             tint,
+    #             tlist(tint),
+    #             tlist(tint)),
+    #         p))
+    # assert False
 
-    print(p.evaluate([])(list(range(4))))
-    print(g.logLikelihood(arrow(tlist(tint), tlist(tint)), p))
+    # print(p.evaluate([])(list(range(4))))
+    # print(g.logLikelihood(arrow(tlist(tint), tlist(tint)), p))
 
-    p = Program.parse(
-        """(lambda (fix (lambda (lambda (match $0 0 (lambda (lambda (+ $1 ($3 $0))))))) $0))""")
-    print(p.evaluate([])(list(range(4))))
-    print(g.logLikelihood(arrow(tlist(tint), tint), p))
+    # p = Program.parse(
+    #     """(lambda (fix (lambda (lambda (match $0 0 (lambda (lambda (+ $1 ($3 $0))))))) $0))""")
+    # print(p.evaluate([])(list(range(4))))
+    # print(g.logLikelihood(arrow(tlist(tint), tint), p))
