@@ -1,5 +1,6 @@
 from dreamcoder.domains.list.listPrimitives import bootstrapTarget_extra
 from dreamcoder.domains.list.taskProperties import handWrittenProperties, handWrittenPropertyFuncs, tinput, toutput
+from dreamcoder.domains.list.makeListTasks import joshTasks
 from dreamcoder.dreaming import backgroundHelmholtzEnumeration
 from dreamcoder.enumeration import multicoreEnumeration
 from dreamcoder.grammar import Grammar
@@ -165,7 +166,6 @@ class PropertySignatureExtractor(nn.Module):
 
     def _getProperties(self):
 
-        self.propertyGrammar = self._getPropertyGrammar()
         if self.featureExtractorArgs["propUseHandWrittenProperties"] is True:
 
             print(self.argumentsWithType.keys())
@@ -179,6 +179,7 @@ class PropertySignatureExtractor(nn.Module):
             return properties
 
         else:
+            self.propertyGrammar = self._getPropertyGrammar()
             if self.featureExtractorArgs["propDreamTasks"]:
                 dreamtTasks = sellf._getHelmholtzTasks(1000)
                 properties = sampleProperties(self.featureExtractorArgs, self.propertyGrammar, dreamtTasks)
@@ -211,7 +212,7 @@ class PropertySignatureExtractor(nn.Module):
         output = v.view(-1)
         return output
 
-    def featuresOfTask(self, t):
+    def featuresOfTask(self, t, propertiesToOverwrite={}):
 
         def getPropertyValue(propertyName, propertyFunc, t):
             """
@@ -225,9 +226,9 @@ class PropertySignatureExtractor(nn.Module):
                 0 corresponds to False, 1 corresponds to True and 2 corresponds to Mixed
             """
 
-            mixed = 2 if self.embedSize > 1 else 0
+            mixed = 2
             allTrue = 1
-            allFalse = 0 if self.embedSize > 1 else -1
+            allFalse = 0
 
             specBooleanValues = []
             for example in t.examples:
@@ -237,12 +238,18 @@ class PropertySignatureExtractor(nn.Module):
                         exampleOutput = [exampleOutput]
                     if not isinstance(exampleInput, list):
                         exampleInput = [exampleInput]
-                    booleanValue = propertyFunc(exampleOutput)(exampleInput)
+
+                    booleanValue = propertyFunc(exampleInput)(exampleOutput)
+                    # if propertyName == "output_idx_0_equals_input_idx_6":
+                    #     print("{} -> {}".format(exampleInput, exampleOutput))
+                    #     print(booleanValue)
+
                 except Exception as e:
-                    # print("Failed to apply property: {}".format(propertyName))
-                    # print("{} -> {}".format(exampleInput, exampleOutput))
-                    # print(e)
-                    # print("------------------------------------------------")
+                    # if propertyName == "output_idx_0_equals_input_idx_6":
+                    #     print("Failed to apply property: {}".format(propertyName))
+                    #     print("{} -> {}".format(exampleInput, exampleOutput))
+                    #     print(e)
+                    #     print("------------------------------------------------")
                     booleanValue = None
 
                 # property can't be applied to this io example and so property for the whole spec is Mixed (2)
@@ -259,11 +266,17 @@ class PropertySignatureExtractor(nn.Module):
 
         propertyValues = []
         for propertyName, propertyProgram, _ in self.properties:
+            # if propertyName in propertiesToOverwrite:
+            #     propertyValue = propertiesToOverwrite[propertyName]
+            # else:
             propertyValue = getPropertyValue(propertyName, propertyProgram, t)
             propertyValues.append(propertyValue)
         
         booleanPropSig = torch.LongTensor(propertyValues)
         self.test = booleanPropSig
+
+        # for i,el in enumerate(self.properties):
+        #     print("{}: {}".format(el[0], booleanPropSig[i]))
 
         if self.useEmbeddings:
             embeddedPropSig = self.embedding(booleanPropSig).flatten()
@@ -369,8 +382,81 @@ def sampleProperties(args, g, tasks):
     return None
 
 
+def testPropertySignatureExtractorHandwritten():
+
+    def getTask(name, tasks):
+        return [t for t in tasks if t.name == name][0]
+
+
+    featureExtractorArgs = {
+        "propCPUs": None,
+        "propSolver": None,
+        "propSamplingTimeout": None,
+        "propUseConjunction": None,
+        "propAddZeroToNinePrims": None,
+        "propSamplingMethod": None,
+        "propDreamTasks": None,
+        "propUseHandWrittenProperties": True,
+        "propSamplingGrammar": None,
+        "primLibraries": None
+    }
+
+    tasks = joshTasks("3")
+    extractor = PropertySignatureExtractor(tasks=tasks, useEmbeddings=False, featureExtractorArgs=featureExtractorArgs)
+    propertyNames = [el[0] for el in extractor.properties]
+    
+    task = getTask("005_1", tasks)
+    extractor.featuresOfTask(task)
+    v = extractor.test
+    
+    assert v[propertyNames.index("output_list_length_1")] == 1
+    assert v[propertyNames.index("output_els_in_input")] == 1
+    assert v[propertyNames.index("input_els_in_output")] == 2
+    assert v[propertyNames.index("output_shorter_than_input")] == 1
+    assert v[propertyNames.index("output_idx_0_equals_input_idx_3")] == 2
+
+    task = getTask("003_1", tasks)
+    extractor.featuresOfTask(task)
+    v = extractor.test
+
+    assert v[propertyNames.index("output_list_length_1")] == 1
+    assert v[propertyNames.index("output_shorter_than_input")] == 1
+    assert v[propertyNames.index("output_idx_0_equals_input_idx_6")] == 1
+    assert v[propertyNames.index("output_idx_0_equals_input_idx_0")] == 2
+
+    task = getTask("008_1", tasks)
+    extractor.featuresOfTask(task)
+    v = extractor.test
+
+    assert v[propertyNames.index("output_list_length_1")] == 0
+    assert v[propertyNames.index("output_list_length_6")] == 1
+    assert v[propertyNames.index("output_shorter_than_input")] == 1
+    assert v[propertyNames.index("output_idx_0_equals_input_idx_0")] == 1
+    assert v[propertyNames.index("output_idx_1_equals_input_idx_1")] == 1
+    assert v[propertyNames.index("output_idx_2_equals_input_idx_2")] == 1
+    assert v[propertyNames.index("output_idx_3_equals_input_idx_3")] == 1
+    assert v[propertyNames.index("output_idx_4_equals_input_idx_4")] == 1
+    assert v[propertyNames.index("output_idx_5_equals_input_idx_5")] == 1
+    assert v[propertyNames.index("output_idx_6_equals_input_idx_6")] == 2
+    assert v[propertyNames.index("output_contains_input_idx_0")] == 1
+    assert v[propertyNames.index("output_contains_input_idx_8")] == 2
+
+    task = getTask("041_1", tasks)
+    extractor.featuresOfTask(task)
+    v = extractor.test
+
+    assert v[propertyNames.index("output_contains_9")] == 1
+    assert v[propertyNames.index("output_contains_8")] == 0
+    assert v[propertyNames.index("all_output_els_mod_3_equals_0")] == 1
+    assert v[propertyNames.index("all_output_els_mod_9_equals_0")] == 1
+    assert v[propertyNames.index("all_output_els_mod_4_equals_0")] == 0
+    assert v[propertyNames.index("all_output_els_lt_10")] == 1
+    assert v[propertyNames.index("all_output_els_lt_3")] == 0
+
+
 if __name__ == "__main__":
     pass
+    
 
 
 

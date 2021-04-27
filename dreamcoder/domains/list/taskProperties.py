@@ -39,11 +39,11 @@ def handWrittenProperties(grouped=False):
 
 
 	noParamProperties = [
-		Primitive("output_subset_of_input", arrow(tinput, toutput, tbool), 
-			lambda inputList: lambda outputList: set(outputList).issubset(set(inputList))),
+		Primitive("output_els_in_input", arrow(tinput, toutput, tbool), 
+			lambda inputList: lambda outputList: all([el in inputList for el in outputList])),
 
-		Primitive("input_subset_of_output", arrow(tinput, toutput, tbool), 
-			lambda inputList: lambda outputList: set(inputList).issubset(set(outputList))),
+		Primitive("input_els_in_output", arrow(tinput, toutput, tbool), 
+			lambda inputList: lambda outputList: all([el in outputList for el in inputList])),
 
 		Primitive("output_same_length_as_input", arrow(tinput, toutput, tbool), 
 			lambda inputList: lambda outputList: len(inputList) == len(outputList)),
@@ -65,29 +65,42 @@ def handWrittenProperties(grouped=False):
 		]
 
 	kParamProperties = [
-		Primitive("all_output_els_mod_k_equals_0", arrow(tinput, toutput, tint, tbool), 
-			lambda inputList: lambda outputList: lambda k: all([el % k == 0 for el in outputList]) if k > 0 else None),
+		Primitive("all_output_els_mod_k_equals_0", arrow(tint, tinput, toutput, tbool), 
+			 lambda k: lambda inputList: lambda outputList: all([el % k == 0 for el in outputList]) if k > 0 else None),
 		
 		Primitive("all_output_els_lt_k", arrow(tinput, toutput, tint, tbool), 
-			 lambda inputList: lambda outputList: lambda k: all([el < k for el in outputList])),
+			 lambda k: lambda inputList: lambda outputList: all([el < k for el in outputList])),
 
 		Primitive("output_contains_k", arrow(tinput, toutput, tint, tbool),
-			 lambda inputList: lambda outputList: lambda k: k in outputList),
+			 lambda k: lambda inputList: lambda outputList: k in outputList),
 	]
 
 	inputIdxParamProperties = [
-		Primitive("output_contains_input_idx_i", arrow(tinput, toutput, tint, tbool),
-			lambda inputList: lambda outputList: lambda i: None if i >= len(inputList) else inputList[i] in outputList),
+		Primitive("output_contains_input_idx_i", arrow(tint, tinput, toutput, tbool),
+			lambda i: lambda inputList: lambda outputList: None if i >= len(inputList) else inputList[i] in outputList),
 	]
 
 	outputIdxParamProperties = [
-		Primitive("output_list_length_n", arrow(tinput, toutput, tint, tbool), 
-			lambda inputList: lambda outputList: lambda n: len(outputList) == n)
+		Primitive("output_list_length_n", arrow(tint, tinput, toutput, tbool), 
+			lambda n: lambda inputList: lambda outputList: len(outputList) == n)
 	]
 
+	def output_idx_i_equals_input_idx_j(i):
+		def g(j):
+			def f(inputList):
+				def h(outputList):
+					if (j >= len(inputList) or i >= len(outputList)):
+						return None
+					else: 
+						# print(j, i)
+						# print(inputList[j], outputList[i])
+						return (inputList[j] == outputList[i])
+				return h
+			return f
+		return g
+
 	inputIdxOutputIdxParamProperties = [
-		Primitive("output_idx_i_equals_input_idx_j", arrow(tinput, toutput, tint, tint, tbool),
-			lambda inputList: lambda outputList: lambda j: lambda i: None if (j >= len(inputList) or i >= len(outputList)) else inputList[j] == outputList[i])
+		Primitive("output_idx_i_equals_input_idx_j", arrow(tint, tint, tinput, toutput, tbool), output_idx_i_equals_input_idx_j)
 	]
 
 	if grouped:
@@ -98,7 +111,7 @@ def handWrittenProperties(grouped=False):
 
 def handWrittenPropertyFuncs(handWrittenPropertyPrimitives, kMin, kMax, 
 	inputIdxMax, outputIdxMax):
-
+	
 	propertyFuncs = []
 
 	noParamProperties = handWrittenPropertyPrimitives[0]
@@ -126,7 +139,7 @@ def handWrittenPropertyFuncs(handWrittenPropertyPrimitives, kMin, kMax,
 			for outputIdx in range(outputIdxMax+1):
 				propertyFuncs.append((
 					prop.name.replace("idx_j", "idx_{}".format(inputIdx)).replace("idx_i", "idx_{}".format(outputIdx)), 
-					prop.value(outputIdx)(inputIdx), 
+					prop.value(outputIdx)(inputIdx),
 					None))
 
 	return propertyFuncs
