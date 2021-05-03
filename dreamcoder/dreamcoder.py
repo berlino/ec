@@ -93,7 +93,8 @@ class ECResult():
                      "topkNotMAP": "tknm",
                      "rewriteTaskMetrics": "RW",
                      'taskBatchSize': 'batch',
-                     "firstTimeEnumerationTimeout": 't_zero'}
+                     "firstTimeEnumerationTimeout": 't_zero',
+                     "unigramEnumerationTimeout": "UET"}
 
     @staticmethod
     def abbreviate(parameter): return ECResult.abbreviations.get(parameter, parameter)
@@ -175,7 +176,8 @@ def ecIterator(grammar, tasks,
                rewriteTaskMetrics=True,
                auxiliaryLoss=False,
                custom_wake_generative=None,
-               firstTimeEnumerationTimeout=3600):
+               firstTimeEnumerationTimeout=1,
+               unigramEnumerationTimeout=3600):
 
     if enumerationTimeout is None:
         eprint(
@@ -290,10 +292,6 @@ def ecIterator(grammar, tasks,
         resume = len(result.grammars) - 1
         eprint("Loaded checkpoint from", path)
         grammar = result.grammars[-1] if result.grammars else grammar
-
-        allFrontiers = [frontier for (task,frontier) in result.allFrontiers.items() if len(frontier.entries) > 0]
-        grammar = grammar.insideOutside(allFrontiers, 30, iterations=1)
-        print("resume grammar\n",grammar)
     else:  # Start from scratch
         #for graphing of testing tasks
         numTestingTasks = len(testingTasks) if len(testingTasks) != 0 else None
@@ -410,7 +408,7 @@ def ecIterator(grammar, tasks,
             topDownFrontiers, times = wake_generative(grammar, wakingTaskBatch,
                                                       solver=solver,
                                                       maximumFrontier=maximumFrontier,
-                                                      enumerationTimeout=firstTimeEnumerationTimeout if j == 0 else enumerationTimeout,
+                                                      enumerationTimeout=unigramEnumerationTimeout,
                                                       CPUs=CPUs,
                                                       evaluationTimeout=evaluationTimeout)
             result.trainSearchTime = {t: tm for t, tm in times.items() if tm is not None}
