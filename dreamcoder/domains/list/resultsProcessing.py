@@ -7,6 +7,8 @@ from dreamcoder.program import *
 from dreamcoder.type import *
 from dreamcoder.utilities import eprint
 
+import torch
+
 def resume_from_path(resume):
     try:
         resume = int(resume)
@@ -57,8 +59,14 @@ def scoreProgram(p, recognizer=None, grammar=None, task=None):
         return -100
 
     if recognizer is not None:
-        grammar = recognizer.grammarOfTask(task).untorch()
-
+        grammar = recognizer.grammarOfTask(task)
+        if hasattr(recognizer, "lrModel"):
+            if recognizer.lrModel:
+                pass
+            else:
+                grammar = grammar.untorch()
+        else:
+            grammar = grammar.untorch()
     ll = grammar.logLikelihood(task.request, p)
     return ll
 
@@ -90,6 +98,7 @@ def evaluateGrammars(frontiersOverTime, tasks, grammar1=None, grammar2=None, rec
 
     return
 
+
 def evaluateRecognizers(grammar, ecResults, recognizerNames=None, iteration=-1):
 
     if recognizerNames is None:
@@ -97,15 +106,18 @@ def evaluateRecognizers(grammar, ecResults, recognizerNames=None, iteration=-1):
 
     tasks = list(ecResults[0].frontiersOverTime.keys())
     
+    meanLogPosteriors = [0.0 for i in range(len(ecResults))]
+    numTasksSolved = 0.0
+
     for task in tasks:
 
-        print("----------------------------------------------------------------------------------------------------------------------------------")
-        print("\n\nTask {}".format(task))
-        for i in range(min(len(task.examples), 10)):
-            print("{} -> {}".format(task.examples[i][0][0], task.examples[i][1]))
-        print("----------------------------------------------------------------------------------------------------------------------------------")
         programs = []
         for i,ecResult in enumerate(ecResults):
+
+            # # backwards compatibility hack for RecognitionModels saved before code for LR was added
+            # if not hasattr(ecResult.recognitionModel, "lrModel"):
+            #     ecResult.recognitionModel.lrModel = False
+
             bestFrontier = ecResult.frontiersOverTime[task][iteration].topK(1)
             if len(bestFrontier) > 0:
                 program = bestFrontier.entries[0].program
@@ -113,9 +125,17 @@ def evaluateRecognizers(grammar, ecResults, recognizerNames=None, iteration=-1):
                 program = None
             programs.append(program)
         
+        print("----------------------------------------------------------------------------------------------------------------------------------")
+        print("\n\nTask {}".format(task))
+        for i in range(min(len(task.examples), 10)):
+            print("{} -> {}".format(task.examples[i][0][0], task.examples[i][1]))
+        print("----------------------------------------------------------------------------------------------------------------------------------")
+
         if all([p is None for p in programs]):
             continue
         else:
+
+            numTasksSolved += 1
             bestProgram = max([(program,scoreProgram(program, ecResult.recognitionModel, grammar=grammar, task=task)) for program in programs],
                 key=lambda x: x[1])[0]
 
@@ -124,14 +144,27 @@ def evaluateRecognizers(grammar, ecResults, recognizerNames=None, iteration=-1):
 
             print("Best Program LogPrior: {} -> {}".format(bestPriorProgram, logPrior))
             print("----------------------------------------------------------------------------------------------------------------------------------")
+            previousLogPosterior = 0.0
+
             for i,p in enumerate(programs):
                 logPosterior = scoreProgram(bestProgram if p is None else p, ecResults[i].recognitionModel, grammar=grammar, task=task)
+
+                # if logPosterior > previousLogPosterior:
+                #     print("{}: {}, {}: {}".format(recognizerNames[1], logPosterior, recognizerNames[0], previousLogPosterior))
+                meanLogPosteriors[i] += logPosterior
                 logPosteriorStr = str(logPosterior) if p is not None else "bestProgramLogPosterior: {}".format(logPosterior)
+                previousLogPosterior = logPosterior
                 print("{}: {} ({})".format(recognizerNames[i], p, logPosteriorStr))
+
+
+
+
+    for i, name in enumerate(recognizerNames):
+        print("{} mean LogPosterior: {}".format(recognizerNames[i], meanLogPosteriors[i] / numTasksSolved))
 
     return
 
-def evaluateRecognizersForTask(grammar, ecResults, recognizerNames=None, taskToInvestigate=None, request=None, productionToInvestigate=None, printGrammar=False):
+def evaluateRecognizersForTask(baseGrammar, ecResults, recognizerNames=None, taskToInvestigate=None, request=None, productionToInvestigate=None, printGrammar=False):
 
     print("\nGrammars\n--------------------------------------------------------------------------------------------------------------------------")
 
@@ -155,14 +188,20 @@ def evaluateRecognizersForTask(grammar, ecResults, recognizerNames=None, taskToI
             else:
                 print(table)
 
+    priorTable = baseGrammar.buildCandidates(request, Context.EMPTY, [], normalize=True, returnTable=True, returnProbabilities=True, mustBeLeaf=False)
+    priorTable = {key.name:value for key,value in priorTable.items()}
+    if productionToInvestigate is not None:
+        print("\nPrior prob for Request: {}".format(request))
+        print("p({}): {}".format(productionToInvestigate, priorTable[productionToInvestigate][0]))
+
     if printGrammar:
         print("\n")
-        for i,el in enumerate(grammar.productions):
+        for i,el in enumerate(baseGrammar.productions):
             _,_,production = el
 
-            toDisplay = "{}: {:.2f} (logPrior) ".format(production, float(grammar.productions[i][0]))
-            for j,grammar in enumerate(grammars):
-                toDisplay += "| {:.2f} ({}) ".format(float(grammar.productions[i][0]), recognizerNames[j])
+            toDisplay = "{}: {:.2f} (logPrior) ".format(production, float(baseGrammar.productions[i][0]))
+            for j,g in enumerate(grammars):
+                toDisplay += "| {:.2f} ({}) ".format(float(g.productions[i][0]), recognizerNames[j])
             print(toDisplay)
 
 # def trainRecognitionModel(featureExtractor, expandedFrontiers, timeout):
@@ -184,36 +223,54 @@ def evaluateRecognizersForTask(grammar, ecResults, recognizerNames=None, taskToI
 # print('\n {} Test Tasks'.format(len(nnTestTasks)))
 # scoreTasks(trainedRecognizer, nnTestTasks, taskToProgram, True)
 
+
+
+
+
 def viewResults():
-    # resumePath = 'kevinExperimentOutputs/list/'
-    # resumeDirectory = '2019-03-21T15:55:48.767818/'
-    # # resumeDirectory = '2021-03-23T18:37:24.574360/'
-    # pickledFile = 'list_aic=1.0_arity=3_aux=True_BO=True_CO=True_ES=1_ET=720_HR=0.5_it=19_MF=5_pc=30.0_RS=5000_RT=3600_RR=False_RW=False_STM=True_L=1.5_batch=10_TRR=randomShuffle_K=2_topkNotMAP=False.pickle'
-    # # pickledFile = 'list_arity=3_BO=False_CO=False_ES=1_ET=10_HR=0.5_it=20_MF=10_noConsolidation=True_RT=180_RR=False_RW=False_solver=ocaml_STM=True_TRR=default_K=2_topkNotMAP=False_DSL=False.pickle'
-    # result, resumeGrammar, _ = resume_from_path(resumePath + resumeDirectory + pickledFile)
 
-    baselinePickleFile = "experimentOutputs/jrule/2021-04-16T19:26:16.859630/jrule_arity=3_BO=False_CO=False_dp=False_doshaping=False_ES=1_ET=5_epochs=9999_HR=1.0_it=1_MF=10_parallelTest=False_RT=3600_RR=False_RW=False_st=False_STM=True_TRR=default_K=2_topkNotMAP=False_tset=S12_DSL=False.pickle"
-    baselineResult, resumeGrammar, _ = resume_from_path(baselinePickleFile)
+    pickleFile = "experimentOutputs/jrule/2021-04-29T00:06:25.721563/jrule_arity=3_BO=False_CO=False_dp=False_doshaping=False_ES=1_ET=600_epochs=99999_HR=1.0_it=1_MF=10_parallelTest=False_RT=7200_RR=False_RW=False_st=False_STM=True_TRR=default_K=2_topkNotMAP=False_tset=S12_DSL=False.pickle"
+    result1, resumeGrammar, _ = resume_from_path(pickleFile)
 
-    baselinePlusPropSigPickleFile = "experimentOutputs/jrule/2021-04-16T01:38:48.194736/jrule_arity=3_BO=False_CO=False_dp=False_doshaping=False_ES=1_ET=600_HR=1.0_it=1_MF=10_parallelTest=False_RS=5000_RT=3600_RR=False_RW=False_st=False_STM=True_TRR=default_K=2_topkNotMAP=False_tset=S12_DSL=False.pickle"
-    baselinePlusPropSigResult, resumeGrammar, _ = resume_from_path(baselinePlusPropSigPickleFile)
+    pickleFile = "experimentOutputs/jrule/2021-04-27T20:49:31.738479/jrule_arity=3_BO=False_CO=False_dp=False_doshaping=False_ES=1_ET=600_epochs=99999_HR=1.0_it=1_MF=10_parallelTest=False_RT=7200_RR=False_RW=False_st=False_STM=True_TRR=default_K=2_topkNotMAP=False_tset=S12_DSL=False.pickle"
+    result2, resumeGrammar, _ = resume_from_path(pickleFile)
 
-    propSigOnlyPickleFile = "experimentOutputs/jrule/2021-04-16T01:33:54.134337/jrule_arity=3_BO=False_CO=False_dp=False_doshaping=False_ES=1_ET=600_HR=1.0_it=1_MF=10_parallelTest=False_RS=5000_RT=3600_RR=False_RW=False_st=False_STM=True_TRR=default_K=2_topkNotMAP=False_tset=S12_DSL=False.pickle"
-    propSigOnlyResult, resumeGrammar, _ = resume_from_path(propSigOnlyPickleFile)
+    # lrResult, resumeGrammar, _ = resume_from_path(baselinePickleFile)
+    # trainedRecognizerPath = 'recognitionModels/2021-04-30 12:41:23.713226_trainTasks=100'
+    # with open(trainedRecognizerPath, 'rb') as handle:
+    #     trainedRecognizer = dill.load(handle)
+    #     trainedRecognizer.lrModel = True
+    # lrResult.recognitionModel = trainedRecognizer
 
-    recognizerNames = ['learned', 'combined', 'prop_sig']
-    # evaluateRecognizers(resumeGrammar, [baselineResult, baselinePlusPropSigResult, propSigOnlyResult], recognizerNames)
-    # evaluateRecognizersForTask(resumeGrammar, [baselineResult, baselinePlusPropSigResult, propSigOnlyResult], recognizerNames, taskToInvestigate="058_1", request=tlist(t0), productionToInvestigate="cdr", printGrammar=True)
+    recognizerNames = ['rnn_encoded', 'combined']
+    evaluateRecognizers(resumeGrammar, [result1, result2], recognizerNames)
+
+    # requests = [tlist(tint), tint, tint, tint, tint, tlist(tint)]
+    # productions = ["map", "2", "3", "4", "index", "range"]
+    
+    # for i,prod in enumerate(productions):
+    #     evaluateRecognizersForTask(resumeGrammar, 
+    #                                [baselineResult_2, baselinePlusPropSigResult_2], 
+    #                                recognizerNames, 
+    #                                taskToInvestigate="005_1", 
+    #                                request=requests[i], 
+    #                                productionToInvestigate=prod, 
+    #                                printGrammar=False)
+
+
+
+
+    # print(extractor.embedding(torch.LongTensor([0,1,2,0])))
 
     # print(propSigOnlyResult.recognitionModel.generativeModel)
 
-    request = arrow(tlist(tint), tlist(tint))
+    # request = arrow(tlist(tint), tlist(tint))
 
-    numSamples = 100
+    # numSamples = 100
 
-    samples = propSigOnlyResult.recognitionModel.sampleManyHelmholtz(requests=[request], N=numSamples, CPUs=1)
-    for frontier in samples:
-        print("Task:{}\nProgram: {}\n".format("\n".join(["{} -> {}".format(i[0],o) for i,o in frontier.task.examples]), frontier.entries[0].program))
+    # samples = propSigOnlyResult.recognitionModel.sampleManyHelmholtz(requests=[request], N=numSamples, CPUs=1)
+    # for frontier in samples:
+    #     print("Task:{}\nProgram: {}\n".format("\n".join(["{} -> {}".format(i[0],o) for i,o in frontier.task.examples]), frontier.entries[0].program))
 
 
     # prims = bootstrapTarget_extra(useInts=True)

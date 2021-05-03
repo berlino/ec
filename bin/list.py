@@ -4,6 +4,8 @@ try:
 except ModuleNotFoundError:
     import bin.binutil  # alt import if called as module
 
+from dreamcoder.domains.list.propertySignatureExtractor import testPropertySignatureExtractorHandwritten
+from dreamcoder.domains.list.listPrimitives import test_josh_rich_primitives
 from dreamcoder.domains.list.main import main, list_options
 from dreamcoder.domains.list.resultsProcessing import viewResults
 from dreamcoder.dreamcoder import commandlineArguments
@@ -18,6 +20,7 @@ if __name__ == '__main__':
         CPUs=numberOfCPUs(),
         extras=list_options)
 
-    main(args)
-    # test()
     # viewResults()
+    main(args)
+    # testPropertySignatureExtractorHandwritten()
+    # test_josh_rich_primitives()

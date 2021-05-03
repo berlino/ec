@@ -66,7 +66,7 @@ def _division(x):
     def g(y):
         if y == 0:
             raise ValueError
-        return x / y
+        return x // y
     return g
 
 
@@ -540,12 +540,12 @@ def josh_primitives(w):
             Primitive("index", arrow(tint, tlist(t0), t0), _index),
             Primitive("replaceEl", arrow(tint, t0, tlist(t0), tlist(t0)), _replaceEl),
             Primitive("swap", arrow(tint, tint, tlist(t0), tlist(t0)), _swap),
-            Primitive("cut_idx", arrow(tint, tlist(t0)), _cutIdx),
-            Primitive("cut_val", arrow(t0, tlist(t0)), _cutVal),
-            Primitive("cut_vals", arrow(t0, tlist(t0)), _cutVals),
+            Primitive("cut_idx", arrow(tint, tlist(t0), tlist(t0)), _cutIdx),
+            Primitive("cut_val", arrow(t0, tlist(t0), tlist(t0)), _cutVal),
+            Primitive("cut_vals", arrow(t0, tlist(t0), tlist(t0)), _cutVals),
             Primitive("drop", arrow(tint, tlist(t0), tlist(t0)), _drop),
             Primitive("droplast", arrow(tint, tlist(t0), tlist(t0)), _droplast),
-            Primitive("cut_slice", arrow(tint, tint, tlist(t0)), _cutSlice),
+            Primitive("cut_slice", arrow(tint, tint, tlist(t0), tlist(t0)), _cutSlice),
             Primitive("take", arrow(tint, tlist(t0), tlist(t0)), _take),
             Primitive("takelast", arrow(tint, tlist(t0), tlist(t0)), _takelast),
             Primitive("slice", arrow(tint, tint, tlist(t0), tlist(t0)), _slice),

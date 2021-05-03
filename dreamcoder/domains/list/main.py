@@ -2,14 +2,17 @@ import random
 from collections import defaultdict
 import json
 import math
+import numpy as np
 import os
+import pandas as pd
 import torch.nn as nn
 import torch
 import datetime
+import dill
 
 from dreamcoder.dreamcoder import explorationCompression
-from dreamcoder.utilities import eprint, flatten, testTrainSplit, numberOfCPUs
-from dreamcoder.recognition import DummyFeatureExtractor
+from dreamcoder.utilities import eprint, flatten, testTrainSplit, numberOfCPUs, getThisMemoryUsage, getMemoryUsageFraction, howManyGigabytesOfMemory
+from dreamcoder.recognition import DummyFeatureExtractor, RecognitionModel
 from dreamcoder.grammar import Grammar
 from dreamcoder.task import Task
 from dreamcoder.type import Context, arrow, tbool, tlist, tint, t0, UnificationFailure
@@ -17,6 +20,7 @@ from dreamcoder.domains.list.listPrimitives import basePrimitives, primitives, M
 from dreamcoder.domains.list.makeListTasks import make_list_bootstrap_tasks, sortBootstrap, EASYLISTTASKS, joshTasks
 from dreamcoder.domains.list.propertySignatureExtractor import PropertySignatureExtractor, sampleProperties
 from dreamcoder.domains.list.taskProperties import handWrittenProperties, tinput, toutput
+from dreamcoder.domains.list.utilsProperties import *
 
 def retrieveJSONTasks(filename, features=False):
     """
@@ -219,7 +223,6 @@ class CombinedExtractor(nn.Module):
         cuda=False, 
         H=64, 
         embedSize=16,
-        useEmbeddings=True,
         # What should be the timeout for trying to construct Helmholtz tasks?
         helmholtzTimeout=0.25,
         # What should be the timeout for running a Helmholtz program?
@@ -228,7 +231,7 @@ class CombinedExtractor(nn.Module):
         featureExtractorArgs=None):
         super(CombinedExtractor, self).__init__()
 
-        self.propSigExtractor = PropertySignatureExtractor(tasks=tasks, testingTasks=testingTasks, H=H, embedSize=embedSize, useEmbeddings=useEmbeddings, helmholtzTimeout=helmholtzTimeout, helmholtzEvaluationTimeout=helmholtzEvaluationTimeout,
+        self.propSigExtractor = PropertySignatureExtractor(tasks=tasks, testingTasks=testingTasks, H=H, embedSize=embedSize, helmholtzTimeout=helmholtzTimeout, helmholtzEvaluationTimeout=helmholtzEvaluationTimeout,
             cuda=cuda, grammar=grammar, featureExtractorArgs=featureExtractorArgs)
         self.learnedFeatureExtractor = LearnedFeatureExtractor(tasks=tasks, testingTasks=testingTasks, cuda=cuda, grammar=grammar, featureExtractorArgs=featureExtractorArgs)
 
@@ -296,6 +299,7 @@ def list_options(parser):
         "josh_3",
         "josh_3.1",
         "josh_final",
+        "josh_rich",
         "property_prims",
         "list_prims"])
     parser.add_argument("--propSamplingGrammar", default="same", choices=[
@@ -305,6 +309,7 @@ def list_options(parser):
         "josh_3",
         "josh_3.1",
         "josh_final",
+        "josh_rich",
         "property_prims",
         "list_prims"])
     parser.add_argument(
@@ -333,12 +338,13 @@ def list_options(parser):
     parser.add_argument("--propSamplingTimeout",default=600,type=float)
     parser.add_argument("--propUseConjunction", action="store_true", default=False)
     parser.add_argument("--propAddZeroToNinePrims", action="store_true", default=False)
-    parser.add_argument("--propSamplingMethod", default="unique_task_signature", choices=[
+    parser.add_argument("--propScoringMethod", default="unique_task_signature", choices=[
         "per_task_discrimination",
         "unique_task_signature"
         ])
     parser.add_argument("--propDreamTasks", action="store_true", default=False)
     parser.add_argument("--propUseHandWrittenProperties", action="store_true", default=False)
+    parser.add_argument("--propNoEmbeddings", action="store_true", default=False)
 
 
 def main(args):
@@ -359,7 +365,7 @@ def main(args):
         "josh_2": lambda: joshTasks("2"),
         "josh_3": lambda: joshTasks("3"),
         "josh_3.1": lambda: joshTasks("3.1"),
-        "josh_final": lambda: joshTasks("final")
+        "josh_final": lambda: joshTasks("final"),
     }[dataset]()
 
     # maxTasks = args.pop("maxTasks")
@@ -440,6 +446,7 @@ def main(args):
              "josh_3": josh_primitives("3")[0],
              "josh_3.1": josh_primitives("3.1")[0],
              "josh_final": josh_primitives("final"),
+             "josh_rich": josh_primitives("rich_0_9"),
              "property_prims": handWrittenProperties(),
              "list_prims": bootstrapTarget_extra()
     }
@@ -488,10 +495,11 @@ def main(args):
     propSamplingTimeout = args.pop("propSamplingTimeout")
     propUseConjunction = args.pop("propUseConjunction")
     propAddZeroToNinePrims = args.pop("propAddZeroToNinePrims")
-    propSamplingMethod = args.pop("propSamplingMethod")
+    propScoringMethod = args.pop("propScoringMethod")
     propDreamTasks = args.pop("propDreamTasks")
     propUseHandWrittenProperties = args.pop("propUseHandWrittenProperties")
     propSamplingGrammar = args.pop("propSamplingGrammar")
+    propNoEmbeddings = args.pop("propNoEmbeddings")
 
     if extractor_name == "learned":
         featureExtractorArgs = {"hidden":hidden}
@@ -502,11 +510,12 @@ def main(args):
             "propSamplingTimeout": propSamplingTimeout,
             "propUseConjunction": propUseConjunction,
             "propAddZeroToNinePrims": propAddZeroToNinePrims,
-            "propSamplingMethod": propSamplingMethod,
+            "propScoringMethod": propScoringMethod,
             "propDreamTasks": propDreamTasks,
             "propUseHandWrittenProperties": propUseHandWrittenProperties,
             "propSamplingGrammar": propSamplingGrammar,
-            "primLibraries": primLibraries
+            "primLibraries": primLibraries,
+            "propNoEmbeddings": propNoEmbeddings
         }
 
     timestamp = datetime.datetime.now().isoformat()
@@ -554,4 +563,16 @@ def main(args):
     if singleTask:
         train = [train[0]]
 
-    explorationCompression(baseGrammar, train, testingTasks=test, featureExtractorArgs=featureExtractorArgs, **args)
+    analyzeSampledPrograms(extractor, train[50], baseGrammar, featureExtractorArgs)
+
+
+    # trainedRecognizer = recognitionModel.train(frontiers=[], helmholtzFrontiers=[], helmholtzRatio=1.0, CPUs=40, lrModel=True, timeout=1, defaultRequest=arrow(tlist(tint), tlist(tint)))
+
+    # path = "recognitionModels/{}_trainTasks={}".format(datetime.datetime.now(), len(helmholtzFrontiers))
+    
+    # with open(path, 'wb') as handle:
+    #     dill.dump(trainedRecognizer, handle)
+    #     print('Stored recognizer at: {}'.format(path))
+
+
+    # explorationCompression(baseGrammar, train, testingTasks=test, featureExtractorArgs=featureExtractorArgs, **args)

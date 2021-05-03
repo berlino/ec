@@ -116,22 +116,22 @@ def handWrittenPropertyFuncs(handWrittenPropertyPrimitives, kMin, kMax,
 
 	noParamProperties = handWrittenPropertyPrimitives[0]
 	for prop in noParamProperties:
-		propertyFuncs.append((prop.name, prop.value, None))
+		propertyFuncs.append((prop.name, prop.value))
 
 	kParamProperties = handWrittenPropertyPrimitives[1]
 	for prop in kParamProperties:
 		for k in range(kMin, kMax+1):
-			propertyFuncs.append((prop.name.replace("_k", "_{}".format(k)), prop.value(k), None))
+			propertyFuncs.append((prop.name.replace("_k", "_{}".format(k)), prop.value(k)))
 
 	inputIdxParamProperties = handWrittenPropertyPrimitives[2]
 	for prop in inputIdxParamProperties:
 		for idx in range(inputIdxMax+1):
-			propertyFuncs.append((prop.name.replace("idx_i", "idx_{}".format(idx)), prop.value(idx), None))
+			propertyFuncs.append((prop.name.replace("idx_i", "idx_{}".format(idx)), prop.value(idx)))
 
 	outputIdxParamProperties = handWrittenPropertyPrimitives[3]
 	for prop in outputIdxParamProperties:
 		for idx in range(outputIdxMax+1):
-			propertyFuncs.append((prop.name.replace("_n", "_{}".format(idx)), prop.value(idx), None))
+			propertyFuncs.append((prop.name.replace("_n", "_{}".format(idx)), prop.value(idx)))
 
 	inputIdxOutputIdxParamProperties = handWrittenPropertyPrimitives[4]
 	for prop in inputIdxOutputIdxParamProperties:
@@ -139,8 +139,7 @@ def handWrittenPropertyFuncs(handWrittenPropertyPrimitives, kMin, kMax,
 			for outputIdx in range(outputIdxMax+1):
 				propertyFuncs.append((
 					prop.name.replace("idx_j", "idx_{}".format(inputIdx)).replace("idx_i", "idx_{}".format(outputIdx)), 
-					prop.value(outputIdx)(inputIdx),
-					None))
+					prop.value(outputIdx)(inputIdx)))
 
 	return propertyFuncs
 

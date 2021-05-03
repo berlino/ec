@@ -177,7 +177,7 @@ def parallelMap(numberOfCPUs, f, *xs, chunksize=None, maxtasksperchild=None, mem
     if seedRandom:
         PARALLELBASESEED = random.random()
 
-    from multiprocessing import Pool
+    from pathos.multiprocessing import Pool
 
     # Randomize the order in case easier ones come earlier or later
     permutation = list(range(n))
@@ -938,6 +938,11 @@ class EarlyStopping:
         if self.num_epochs_no_improvement >= self.n_epochs_stop:
             print("Early Stopping: Best model test loss {} did not improve after {} epochs".format(self.best_val_loss, self.n_epochs_stop))
             return True
+
+def vprint(string, verbose):
+    if verbose:
+        print(string)
+        flushEverything()
 
 
 if __name__ == "__main__":

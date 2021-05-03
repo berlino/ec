@@ -45,24 +45,28 @@ class PropertySignatureHeuristicModel:
         self.tasks = tasks
         self.taskPropertyDict = {}
         self.properties = []
-        self.taskPropertyValueToInt = {"allTrue":1, "mixed":0}
+        self.taskPropertyValueToInt = {"allFalse":0, "allTrue":1, "mixed":0}
 
-    def _getTaskPropertyValue(self, program, task):
-        
-        taskPropertyValue = "mixed"
+
+    def _evaluateProgram(self, program):
         try:
             f = program.evaluate([])
         except IndexError:
             # free variable
-            return False
+            return None
         except Exception as e:
             eprint("Exception during evaluation:", e)
-            return False
+            return None
+        return f
 
+
+    def _getTaskPropertyValue(self, f, task):
+
+        taskPropertyValue = "mixed"
         try:
             exampleValues = [task.predict(f,x) for x,_ in task.examples]
             if all([value is False for value in exampleValues]):
-                taskPropertyValue = "mixed"
+                taskPropertyValue = "allFalse"
             elif all([value is True for value in exampleValues]):
                 taskPropertyValue = "allTrue"
 
@@ -73,9 +77,13 @@ class PropertySignatureHeuristicModel:
             # print("Task example output: {}".format(task.examples[0][0][1]))
             # print("Program: {}".format(program))
             taskPropertyValue = "mixed"
+
         return taskPropertyValue
 
-    def score(self, program, task):
+    def score(self, program, task, needToEvaluate=True, programName=None):
+        """
+        If needToEvaluate program is of type Program, else program is a python function
+        """
 
         if self.tasks is None:
             raise Exception("You must provide all tasks to score function")
@@ -83,23 +91,24 @@ class PropertySignatureHeuristicModel:
         numTasks = len(self.tasks)
         propertyValues = []
 
+        f = _evaluateProgram(program) if needToEvaluate else program
+        if f is None:
+            return False, 0.0
+
         for task in self.tasks:
             
-            taskPropertyValue = self._getTaskPropertyValue(program, task)
-            # if there is error evaluating the program, discard it
-            if taskPropertyValue is False:
-                propertyValues.append(self.taskPropertyValueToInt["mixed"])
-            else:
-                propertyValues.append(self.taskPropertyValueToInt[taskPropertyValue])
+            taskPropertyValue = self._getTaskPropertyValue(f, task)
+            propertyValues.append(self.taskPropertyValueToInt[taskPropertyValue])
         
         key = str(propertyValues)
         noAddCondition = (key in self.taskPropertyDict) or (all([val == "mixed" for val in propertyValues]))
+        numFitered = 0
+
         if noAddCondition:
             return False, 0.0
         else:
             self.taskPropertyDict[key] = propertyValues
-            self.properties.append((program, propertyValues))
-            print("Adding property to matrix. Now have {} total properties".format(len(self.properties)))
+            self.properties.append((programName, f, propertyValues))
             return True, 1.0
 
 

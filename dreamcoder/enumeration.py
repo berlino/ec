@@ -35,9 +35,9 @@ def multicoreEnumeration(g, tasks, _=None,
     assert solver in solvers, "You must specify a valid solver. options are ocaml, pypy, or python." 
 
     if solver == 'pypy' or solver == 'python':
-      likelihoodModel = likelihoodModel(tasks=allTasks)
+      # likelihoodModel = likelihoodModel(tasks=allTasks)
       # Use an all or nothing likelihood model.
-      # likelihoodModel = AllOrNothingLikelihoodModel(timeout=evaluationTimeout) 
+      likelihoodModel = AllOrNothingLikelihoodModel(timeout=evaluationTimeout) 
       
     solver = solvers[solver]
 

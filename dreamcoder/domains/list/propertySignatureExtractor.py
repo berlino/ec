@@ -27,7 +27,6 @@ class PropertySignatureExtractor(nn.Module):
         testingTasks=[], 
         cuda=False, 
         H=64,
-        useEmbeddings=True, 
         embedSize=16,
         # What should be the timeout for trying to construct Helmholtz tasks?
         helmholtzTimeout=0.25,
@@ -44,12 +43,12 @@ class PropertySignatureExtractor(nn.Module):
         self.CUDA = cuda
         self.recomputeTasks = True
         self.outputDimensionality = H
-        self.useEmbeddings = useEmbeddings
+        self.useEmbeddings = not featureExtractorArgs["propNoEmbeddings"]
         self.featureExtractorArgs = featureExtractorArgs
         self.grammar = grammar
 
         self.tasks = tasks
-        print()
+        print("useEmbeddings: {}".format(self.useEmbeddings))
 
         request = arrow(tinput, toutput, tbool)
         self.propertyTasks = []
@@ -100,11 +99,6 @@ class PropertySignatureExtractor(nn.Module):
             self.cuda()  # I think this should work?
 
         self.properties = self._getProperties()
-
-        for propName, propFunc, propSig in self.properties:
-            print("{}: {}".format(propName, propFunc))
-            if propSig is not None:
-                print("Tasks Sig: {}".format(propSig))
 
         self.linear = nn.Linear(len(self.properties) * self.embedSize, H)
         self.hidden = nn.Linear(H, H)
@@ -168,15 +162,12 @@ class PropertySignatureExtractor(nn.Module):
 
         if self.featureExtractorArgs["propUseHandWrittenProperties"] is True:
 
-            print(self.argumentsWithType.keys())
-
             self.maxTaskInt = min(20, max([k for xs in self.argumentsWithType[tlist(tint)] for k in xs]))
             self.maxInputListLength = max([len(xs) for xs in self.argumentsWithType[tlist(tint)]])
             self.maxOutputListLength = self.maxInputListLength
 
             groupedProperties = handWrittenProperties(grouped=True)
-            properties = handWrittenPropertyFuncs(groupedProperties, 0, self.maxTaskInt, self.maxInputListLength, self.maxOutputListLength)
-            return properties
+            programs = handWrittenPropertyFuncs(groupedProperties, 0, self.maxTaskInt, self.maxInputListLength, self.maxOutputListLength)
 
         else:
             self.propertyGrammar = self._getPropertyGrammar()
@@ -185,34 +176,39 @@ class PropertySignatureExtractor(nn.Module):
                 properties = sampleProperties(self.featureExtractorArgs, self.propertyGrammar, dreamtTasks)
             else:
                 frontierEntries = sampleProperties(self.featureExtractorArgs, self.propertyGrammar, self.propertyTasks)
-            programs = [frontierEntry.program for frontierEntry in frontierEntries]
+            programs = [(None, frontierEntry.program) for frontierEntry in frontierEntries]
         
             print("Enumerated {} property programs".format(len(programs)))
 
-            likelihoodModel = PropertySignatureHeuristicModel(tasks=self.propertyTasks)
-            for program in programs:
-                # print("p: {} (logprior: {})".format(frontierEntry.program, frontierEntry.logPrior))
-                
-                # the scoring is a function of all tasks which are already stored in likelihoodModel so
-                # what we pass in the second argument does not matter
-                _, score = likelihoodModel.score(program, self.propertyTasks[0])
-            print("{} properties after filtering".format(len(likelihoodModel.properties)))
-            for program, propertyValues in likelihoodModel.properties:
-                print(program)
-                print(propertyValues)
-                print('---------------------------------------------------')
+        likelihoodModel = PropertySignatureHeuristicModel(tasks=self.propertyTasks)
+        
+        for programName, program in programs:
+            # print("p: {} (logprior: {})".format(frontierEntry.program, frontierEntry.logPrior))
+            
+            # the scoring is a function of all tasks which are already stored in likelihoodModel so
+            # what we pass in the second argument does not matter
 
-            return [(str(program), program.evaluate([]), propertyValues) for program, propertyValues in likelihoodModel.properties]
+            needToEvaluate = False if self.featureExtractorArgs["propUseHandWrittenProperties"] else True
+            programName = programName if programName is not None else str(program)
+            likelihoodModel.score(program, self.propertyTasks[0], needToEvaluate, programName)
+
+        print("{} out of {} properties after filtering".format(len(likelihoodModel.properties), len(programs)))
+        # for program, f, propertyValues in likelihoodModel.properties:
+        #     print(program)
+        #     print(propertyValues)
+        #     print('---------------------------------------------------')
+
+        return likelihoodModel.properties[::]
 
 
     def forward(self, v, v2=None):
 
-        v = F.tanh(self.linear(v))
-        v = F.tanh(self.hidden(v))
+        v = torch.tanh(self.linear(v))
+        v = torch.tanh(self.hidden(v))
         output = v.view(-1)
         return output
 
-    def featuresOfTask(self, t, propertiesToOverwrite={}):
+    def featuresOfTask(self, t):
 
         def getPropertyValue(propertyName, propertyFunc, t):
             """
@@ -226,9 +222,7 @@ class PropertySignatureExtractor(nn.Module):
                 0 corresponds to False, 1 corresponds to True and 2 corresponds to Mixed
             """
 
-            mixed = 2
-            allTrue = 1
-            allFalse = 0
+            taskPropertyValueToInt = {"allFalse":0, "allTrue":1, "mixed":0}
 
             specBooleanValues = []
             for example in t.examples:
@@ -254,26 +248,23 @@ class PropertySignatureExtractor(nn.Module):
 
                 # property can't be applied to this io example and so property for the whole spec is Mixed (2)
                 if booleanValue is None:
-                    return mixed
+                    return taskPropertyValueToInt["mixed"]
                 specBooleanValues.append(booleanValue)
 
             if all(specBooleanValues) is True:
-                return allTrue
+                return taskPropertyValueToInt["allTrue"]
 
             elif all([booleanValue is False for booleanValue in specBooleanValues]):
-                return allFalse
-            return mixed
+                return taskPropertyValueToInt["allFalse"]
+            return taskPropertyValueToInt["mixed"]
 
         propertyValues = []
         for propertyName, propertyProgram, _ in self.properties:
-            # if propertyName in propertiesToOverwrite:
-            #     propertyValue = propertiesToOverwrite[propertyName]
-            # else:
             propertyValue = getPropertyValue(propertyName, propertyProgram, t)
             propertyValues.append(propertyValue)
         
         booleanPropSig = torch.LongTensor(propertyValues)
-        self.test = booleanPropSig
+        self.booleanPropSig = booleanPropSig
 
         # for i,el in enumerate(self.properties):
         #     print("{}: {}".format(el[0], booleanPropSig[i]))
@@ -312,7 +303,8 @@ class PropertySignatureExtractor(nn.Module):
                     y = runWithTimeout(lambda: p.runWithArguments(xs), self.helmholtzEvaluationTimeout)
                     # print("Output y from below program: {}".format(y))
                     examples.append((tuple(xs),y))
-                    if len(examples) >= random.choice(self.requestToNumberOfExamples[tp]):
+                    # we want minimum 3 examples for each task
+                    if len(examples) >= max(3, random.choice(self.requestToNumberOfExamples[tp])):
                         task = Task("Helmholtz", tp, examples)
                         return task
                 except Exception as e:
@@ -359,11 +351,11 @@ def sampleProperties(args, g, tasks):
     propertySamplingMethod = {
         "per_task_discrimination": PropertyHeuristicModel,
         "unique_task_signature": PropertySignatureHeuristicModel
-    }[args["propSamplingMethod"]]
+    }[args["propScoringMethod"]]
 
     # if we sample properties in this way, we don't need to enumerate the same properties
     # for every task, as whether we choose to include the property or not depends on all tasks.
-    if args["propSamplingMethod"] == "unique_task_signature":
+    if args["propScoringMethod"] == "unique_task_signature":
         tasksForPropertySampling = [tasks[0]]
     else:
         tasksForPropertySampling = tasks
@@ -374,10 +366,10 @@ def sampleProperties(args, g, tasks):
                                                  evaluationTimeout=0.01,
                                                  testing=True, allTasks=tasks, likelihoodModel=propertySamplingMethod)
 
-    if args["propSamplingMethod"] == "unique_task_signature":
+    if args["propScoringMethod"] == "unique_task_signature":
         assert len(frontiers) == 1
         return frontiers[0].entries
-    elif args["propSamplingMethod"] == "per_task_discrimination":
+    elif args["propScoringMethod"] == "per_task_discrimination":
         raise Exception("Not implemented yet")
     return None
 
@@ -394,7 +386,7 @@ def testPropertySignatureExtractorHandwritten():
         "propSamplingTimeout": None,
         "propUseConjunction": None,
         "propAddZeroToNinePrims": None,
-        "propSamplingMethod": None,
+        "propScoringMethod": None,
         "propDreamTasks": None,
         "propUseHandWrittenProperties": True,
         "propSamplingGrammar": None,
