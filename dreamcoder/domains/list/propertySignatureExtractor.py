@@ -55,8 +55,8 @@ class PropertySignatureExtractor(nn.Module):
 
         for i,t in enumerate(self.tasks):
             print(i)
-            if i == 1981:
-                continue
+            # if i == 1981:
+            #     continue
             tCopy = copy.deepcopy(t)
             tCopy.specialTask = ("property", None)
             tCopy.request = request

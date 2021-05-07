@@ -575,8 +575,14 @@ def main(args):
     # pseudoCounts = 1
     # comparePropSimFittedToRnnEncoded(train, ecResult, baseGrammar, sampledFrontiers, featureExtractor, featureExtractorArgs, nSim, scoreCutoff, pseudoCounts)
 
+    numSolved = 0
     for task in train:
-        getTaskSimilarFrontier(sampledFrontiers, featureExtractor, task, baseGrammar, featureExtractorArgs, nSim=nSim, onlyUseTrueProperties=onlyUseTrueProperties, verbose=True)
+        f,w = getTaskSimilarFrontier(sampledFrontiers, featureExtractor, task, baseGrammar, featureExtractorArgs, nSim=nSim, onlyUseTrueProperties=onlyUseTrueProperties, verbose=True)
+        if len(f) == 0:
+            numSolved += 1
+
+    print("Solved {} out of {} tasks".format(numSolved, len(train)))
+
 
 
     # recognitionModel = RecognitionModel(
