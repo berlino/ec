@@ -80,7 +80,7 @@ class PropertySignatureHeuristicModel:
 
         return taskPropertyValue
 
-    def score(self, program, task, needToEvaluate=True, programName=None):
+    def score(self, program, task, needToEvaluate=True, programName=None, addAll=False):
         """
         If needToEvaluate program is of type Program, else program is a python function
         """
@@ -94,6 +94,12 @@ class PropertySignatureHeuristicModel:
         f = _evaluateProgram(program) if needToEvaluate else program
         if f is None:
             return False, 0.0
+
+        # if self.tasks is too large we might choose to add all properties instead of filtering
+        # based on different task signature
+        if addAll:
+            self.properties.append((programName, f, None))
+            return True, 1.0
 
         for task in self.tasks:
             

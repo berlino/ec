@@ -1,5 +1,6 @@
 import random
 from collections import defaultdict
+import copy
 import json
 import math
 import numpy as np
@@ -19,6 +20,7 @@ from dreamcoder.type import Context, arrow, tbool, tlist, tint, t0, UnificationF
 from dreamcoder.domains.list.listPrimitives import basePrimitives, primitives, McCarthyPrimitives, bootstrapTarget_extra, no_length, josh_primitives
 from dreamcoder.domains.list.makeListTasks import make_list_bootstrap_tasks, sortBootstrap, EASYLISTTASKS, joshTasks
 from dreamcoder.domains.list.propertySignatureExtractor import PropertySignatureExtractor, sampleProperties
+from dreamcoder.domains.list.resultsProcessing import resume_from_path
 from dreamcoder.domains.list.taskProperties import handWrittenProperties, tinput, toutput
 from dreamcoder.domains.list.utilsProperties import *
 
@@ -472,11 +474,7 @@ def main(args):
         tinputToList = Primitive("tinput_to_tlist", arrow(tinput, tlist(tint)), lambda x: x)
         prims = prims + [toutputToList, tinputToList]
 
-    baseGrammar = Grammar.uniform([p
-                                   for p in prims
-                                   if (p.name != "map" or haveMap) and \
-                                   (p.name != "unfold" or haveUnfold) and \
-                                   (p.name != "length" or haveLength)])
+    baseGrammar = Grammar.uniform([p for p in prims])
 
     extractor_name = args.pop("extractor")
     print(extractor_name)
@@ -563,13 +561,36 @@ def main(args):
     if singleTask:
         train = [train[0]]
 
-    analyzeSampledPrograms(extractor, train[50], baseGrammar, featureExtractorArgs)
+    print("Loading sampled tasks")
+    sampledFrontiers = loadSampledTasks()
+    print("Finished loading sampled tasks")
+
+    featureExtractor = extractor([f.task for f in sampledFrontiers], grammar=baseGrammar, testingTasks=[], cuda=False, featureExtractorArgs=featureExtractorArgs)
+    pickleFile = "experimentOutputs/jrule/2021-04-29T00:06:25.721563/jrule_arity=3_BO=False_CO=False_dp=False_doshaping=False_ES=1_ET=600_epochs=99999_HR=1.0_it=1_MF=10_parallelTest=False_RT=7200_RR=False_RW=False_st=False_STM=True_TRR=default_K=2_topkNotMAP=False_tset=S12_DSL=False.pickle"
+    ecResult, _, _ = resume_from_path(pickleFile)
+
+    nSim = 10
+    onlyUseTrueProperties = True
+    # scoreCutoff = None
+    # pseudoCounts = 1
+    # comparePropSimFittedToRnnEncoded(train, ecResult, baseGrammar, sampledFrontiers, featureExtractor, featureExtractorArgs, nSim, scoreCutoff, pseudoCounts)
+
+    for task in train:
+        getTaskSimilarFrontier(sampledFrontiers, featureExtractor, task, baseGrammar, featureExtractorArgs, nSim=nSim, onlyUseTrueProperties=onlyUseTrueProperties, verbose=True)
 
 
-    # trainedRecognizer = recognitionModel.train(frontiers=[], helmholtzFrontiers=[], helmholtzRatio=1.0, CPUs=40, lrModel=True, timeout=1, defaultRequest=arrow(tlist(tint), tlist(tint)))
+    # recognitionModel = RecognitionModel(
+    #     featureExtractor=extractor(trainTasks, grammar=baseGrammar, testingTasks=[], cuda=False, featureExtractorArgs=featureExtractorArgs),
+    #     grammar=baseGrammar,
+    #     cuda=False,
+    #     contextual=False,
+    #     previousRecognitionModel=False,
+    #     )
 
-    # path = "recognitionModels/{}_trainTasks={}".format(datetime.datetime.now(), len(helmholtzFrontiers))
+    # trainedRecognizer = recognitionModel.train(frontiers=trainFrontiers, helmholtzFrontiers=[], helmholtzRatio=0.0, CPUs=40, lrModel=True, timeout=1, defaultRequest=arrow(tlist(tint), tlist(tint)), 
+    #     tasksToTrainFrontiers=tasksToTrainFrontiers)
     
+    # path = "recognitionModels/{}_lr_{}_weightedFrontiers.pkl".format(datetime.datetime.now(), nSim)
     # with open(path, 'wb') as handle:
     #     dill.dump(trainedRecognizer, handle)
     #     print('Stored recognizer at: {}'.format(path))

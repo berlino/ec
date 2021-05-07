@@ -52,13 +52,18 @@ class PropertySignatureExtractor(nn.Module):
 
         request = arrow(tinput, toutput, tbool)
         self.propertyTasks = []
-        for t in self.tasks:
+
+        for i,t in enumerate(self.tasks):
+            print(i)
+            if i == 1981:
+                continue
             tCopy = copy.deepcopy(t)
             tCopy.specialTask = ("property", None)
             tCopy.request = request
             tCopy.examples = [(tuplify([io[0][0], io[1]]), True) for io in tCopy.examples]
             self.propertyTasks.append(tCopy)
 
+        print("Finished creating propertyTasks")
 
         if self.useEmbeddings:
             self.embedding = nn.Embedding(3, embedSize)
@@ -183,6 +188,8 @@ class PropertySignatureExtractor(nn.Module):
         likelihoodModel = PropertySignatureHeuristicModel(tasks=self.propertyTasks)
         
         for programName, program in programs:
+
+            print(programName)
             # print("p: {} (logprior: {})".format(frontierEntry.program, frontierEntry.logPrior))
             
             # the scoring is a function of all tasks which are already stored in likelihoodModel so
@@ -190,7 +197,7 @@ class PropertySignatureExtractor(nn.Module):
 
             needToEvaluate = False if self.featureExtractorArgs["propUseHandWrittenProperties"] else True
             programName = programName if programName is not None else str(program)
-            likelihoodModel.score(program, self.propertyTasks[0], needToEvaluate, programName)
+            likelihoodModel.score(program, self.propertyTasks[0], needToEvaluate, programName, addAll=False)
 
         print("{} out of {} properties after filtering".format(len(likelihoodModel.properties), len(programs)))
         # for program, f, propertyValues in likelihoodModel.properties:
