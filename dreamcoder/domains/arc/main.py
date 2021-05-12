@@ -240,33 +240,6 @@ class ArcCNN(nn.Module):
             except: continue
         return None
 
-    # def customFeaturesOfTask(self, t):
-    #     v = None
-    #     for example in t.examples[-1:]:
-    #         inputGrid, outputGrid = example
-    #         inputGrid = inputGrid[0]
-
-    #         inputColors, outputColors = set(inputGrid.points.values()), set(outputGrid.points.values())
-    #         specialColorsInput = inputColors - outputColors
-    #         specialColorsInputVector = [int(i in specialColorsInput) for i in range(10)]
-    #         specialColorsOutput = outputColors - inputColors
-    #         specialColorsOutputVector = [int(i in specialColorsOutput) for i in range(10)]
-    #         changeDimensions = [int((inputGrid.getNumCols() != outputGrid.getNumCols()) or (inputGrid.getNumRows() != outputGrid.getNumRows()))]
-    #         useSplitBlocks = [int(((inputGrid.getNumCols()//outputGrid.getNumCols()) == 2) or ((inputGrid.getNumRows()//outputGrid.getNumRows()) == 2))]
-    #         fractionBlackBInput = [sum([c == 0 for c in inputGrid.points.values()]) / len(inputGrid.points)]
-    #         fractionBlackBOutput = [sum([c == 0 for c in outputGrid.points.values()]) / len(outputGrid.points)]
-    #         pixelWiseError = [0 if (changeDimensions[0] == 1) else (sum([outputGrid.points[key] == outputGrid.points[key] for key in outputGrid.points.keys()]) / len(outputGrid.points))]
-
-    #         finalVector = np.array([specialColorsInputVector + specialColorsOutputVector + changeDimensions + useSplitBlocks + fractionBlackBInput + fractionBlackBOutput + pixelWiseError]).astype(np.float32)
-    #         finalTensor = torch.from_numpy(finalVector)
-    #         # print(finalTensor)
-    #         if v is None:
-    #             v = finalTensor
-    #         else:
-    #             v = torch.cat([v, finalTensor], dim=0)
-    #     return self(v)
-
-
     def featuresOfTasks(self, ts, t2=None):  # Take a task and returns [features]
         """Takes the goal first; optionally also takes the current state second"""
         return [self.featuresOfTask(t) for t in ts]
