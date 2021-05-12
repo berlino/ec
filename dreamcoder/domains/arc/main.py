@@ -5,6 +5,7 @@ import json
 import math
 import numpy as np
 import os
+import sys
 import pickle
 import random
 import signal
@@ -126,6 +127,8 @@ def arc_options(parser):
     parser.add_argument("--featureExtractor", default="dummy", choices=[
         "arcCNN",
         "dummy"])
+    parser.add_argument("--test_language_models", action="store_true")
+    parser.add_argument("--language_encoder")
 
     # parser.add_argument("-i", type=int, default=10)
 
@@ -244,6 +247,11 @@ class ArcCNN(nn.Module):
         """Takes the goal first; optionally also takes the current state second"""
         return [self.featuresOfTask(t) for t in ts]
 
+def run_tests(args):
+    if args.pop("test_language_models"):
+        from dreamcoder.domains.arc.test_language_models import main
+        main(args)
+    sys.exit(0)
 
 def main(args):
     """
@@ -262,6 +270,8 @@ def main(args):
     #     "5521c0d9.json": _solve5521c0d9,
     #     "ce4f8723.json": _solvece4f8723,
     # }
+    
+    run_tests(args)
 
     import os
 
