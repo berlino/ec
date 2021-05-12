@@ -4,6 +4,7 @@ try:
 except ModuleNotFoundError:
     import bin.binutil  # alt import if called as module
 
+from dreamcoder.domains.arc import evanPostProcessing
 from dreamcoder.domains.arc.resultsProcessing import viewResults 
 from dreamcoder.domains.arc.main import arc_options, main
 from dreamcoder.recognition import DummyFeatureExtractor
@@ -21,6 +22,7 @@ if __name__ == '__main__':
         CPUs=numberOfCPUs(),
         extras=arc_options)
 
+    evanPostProcessing.main()
     # viewResults()
-    main(args)
+    # main(args)
 
