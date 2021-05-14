@@ -23,11 +23,15 @@ from dreamcoder.program import Program
 from dreamcoder.grammar import Grammar, ContextualGrammar
 from dreamcoder.type import arrow
 from dreamcoder.domains.arc.arcPrimitives import *
+from dreamcoder.task import Task
+from dreamcoder.frontier import Frontier, FrontierEntry
 
 DATA_DIR = "data/arc"
 LANGUAGE_DATA_FILE = "ManyProgramsPlusNlDescription.csv"
 
 # Prediction models supported in this file.
+UNIFORM_UNIGRAM_PRIOR = "uniform_unigram_prior" # Uniform distribution over unigrams.
+FITTED_UNIGRAM_PRIOR = "fitted_unigram_prior" # Frequency distribution over unigrams.
 T5_LINEAR_MODEL = "t5_linear_predictor" 
 
 T5_MODEL = 't5-small' 
@@ -39,7 +43,9 @@ ARC_REQUEST = arrow(tgridin, tgridout)
 def load_language_program_data(language_file):
     """
     Loads language-program data. Parses programs into Program objects under the ARC DSL.
-    Returns: {task_id_{COUNTER}: (language, Program)}.
+    Returns: 
+        arc_grammar: uniform grammar containing the DSL primitives.
+        language_program_data: {task_id_{COUNTER}: (language, Program)}.
     """
     # Initialize base primitives to parse the programs.
     basePrimitives()
@@ -50,6 +56,7 @@ def load_language_program_data(language_file):
     full_filepath = os.path.join(DATA_DIR, language_file)
     task_counter = Counter()
     language_program_data = dict()
+    frontiers = {}
     with open(full_filepath, 'r') as f:
         reader = csv.DictReader(f)
         for row in reader:
@@ -71,7 +78,8 @@ def leave_one_out_evaluation(task_to_data, model_class, grammar):
         model.fit(training_tasks, grammar)
         likelihood = model.evaluate_likelihood(language, program)
         tasks_to_likelihoods[task] = likelihood
-        print(f"Evaluated: {idx}/{len(task_to_data)}")
+        if idx % 10 == 0:
+            print(f"Evaluated: {idx}/{len(task_to_data)}")
     print(f"Average likelihood: {np.mean(list(tasks_to_likelihoods.values()))}")
     return tasks_to_likelihoods
 
@@ -215,11 +223,55 @@ class LinearUnigramModel(nn.Module):
 @register_model(T5_LINEAR_MODEL)
 class T5LinearUnigramModel(LinearUnigramModel):
     def __init__(self):
-        super(T5LinearUnigramModel, self).__init__(lm_model_name=T5_MODEL)    
+        super(T5LinearUnigramModel, self).__init__(lm_model_name=T5_MODEL) 
+
+class BaselinePriorUnigramModel():
+    """Baseline prior models. Fits a single unigram grammar that is not contextually re-calculated based each task."""
+    def __init__(self):
+        self.prior_grammar = None
+        
+    def fit(self, task_to_data, grammar):
+        print("Unimplemented in the base class.")
+        assert False
+    
+    def evaluate_likelihood(self, language, ground_truth_program):
+        return self.prior_grammar.logLikelihood(request=ARC_REQUEST, expression=ground_truth_program)
+
+@register_model(UNIFORM_UNIGRAM_PRIOR)
+class UniformPriorUnigramModel(BaselinePriorUnigramModel):
+    """Uniform prior over the unigram grammar."""
+    def __init__(self):
+        super(UniformPriorUnigramModel, self).__init__()
+    
+    def fit(self, task_to_data, grammar):
+        self.prior_grammar = grammar
+
+@register_model(FITTED_UNIGRAM_PRIOR)
+class FittedUnigramPriorModel(BaselinePriorUnigramModel):
+    def __init__(self):
+        super(FittedUnigramPriorModel, self).__init__()
+    
+    def fit(self, task_to_data, grammar):
+        # Fit grammar using the inside outside algorithm to all of the frontiers.
+        task_names_to_tasks = {}
+        tasks_to_frontiers = {}
+        for task_name, (program, _) in task_to_data.items():
+            original_task_name = task_name.split("_")[0]
+            if original_task_name not in task_names_to_tasks:
+                task = Task(name=original_task_name, request=ARC_REQUEST, examples=[])
+                task_names_to_tasks[original_task_name] = task
+                tasks_to_frontiers[task] = Frontier.makeEmpty(task)
+            task = task_names_to_tasks[original_task_name]
+            tasks_to_frontiers[task].entries.append(
+                FrontierEntry(program=program,
+                              logLikelihood=0.0,
+                              logPrior=0.0))
+        # Grammar inside outside.
+        self.prior_grammar = grammar.insideOutside(frontiers=tasks_to_frontiers.values(), pseudoCounts=1)            
     
 def main(args):
     print("Running language model evaluations....")
     arc_grammar, language_program_data = load_language_program_data(language_file=LANGUAGE_DATA_FILE)
     model = get_model(model_tag=args["language_encoder"])
     leave_one_out_evaluation(language_program_data, model, arc_grammar)
-    
+    # TBD allow it to run leave one out on the tasks vs. the sentences.
