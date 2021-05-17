@@ -32,7 +32,7 @@ from dreamcoder.task import Task
 from dreamcoder.frontier import Frontier, FrontierEntry
 
 DATA_DIR = "data/arc"
-LANGUAGE_PROGRAMS_FILE = "ManyProgramsPlusNlDescription.csv"
+LANGUAGE_PROGRAMS_FILE = "all_programs_nl_sentences.csv"
 PRIMITIVE_NATURAL_LANGUAGE_FILE = "primitiveNamesToDescriptions.json"
 
 # Prediction models supported in this file.
@@ -50,6 +50,7 @@ ARC_REQUEST = arrow(tgridin, tgridout)
 def load_language_program_data(language_programs_file):
     """
     Loads language-program data. Parses programs into Program objects under the ARC DSL.
+    Language is generally parsed 
     Returns: 
         arc_grammar: uniform grammar containing the DSL primitives.
         language_program_data: {task_id_{COUNTER}: (language, Program)}.
@@ -65,11 +66,30 @@ def load_language_program_data(language_programs_file):
     with open(full_filepath, 'r') as f:
         reader = csv.DictReader(f)
         for row in reader:
-            task_name, program, language = row["taskName"], row['program'], row['nlDescription']
-            program = Program.parse(program)
-            language_program_data[task_name].append((program, language))
+            if "taskName" in row:
+                task_name, program, language = row["taskName"], row['program'], row['nlDescription']
+                program = Program.parse(program)
+                language_program_data[task_name].append((program, language))
+            else:
+                task_name, program, sentences = load_sentence_data(row)
+                if task_name is not None:
+                    program = Program.parse(program)
+                    for sentence in sentences:
+                        language_program_data[task_name].append((program, sentence))
     return arc_grammar, language_program_data 
 
+def load_sentence_data(row):
+    """Loads sentence-delimited data.
+    Returns task_name, program, [array of sentences]
+    """
+    if row['phrase_kind'] != 'output':
+        return None, None, None
+    else:
+        task_name = row[""]
+        program = row["program"]
+        sentences = row['natural_language'].split("||")
+        return task_name, program, sentences
+    
 def leave_one_out_evaluation(task_to_data, model_class, grammar):
     """Leave one out evaluation on a per-task basis. Fits a model to all of the other tasks, and then computes the average likelihood for the remaining language/program data for the left out task."""
     print(f"Running leave one out evaluation on {len(task_to_data)} tasks.")
@@ -171,8 +191,22 @@ class LanguageModelUnigramModel(nn.Module):
         else:
             self.language_encoder_fn = pipeline('feature-extraction', self.lm_model_name)
         
+        self.base_grammar = None
+        self.primitive_names = None
+        self.primitive_name_to_idx = None
+        self.idx_to_primitive_name = None
+        
         self.input_dim = None
         self.output_dim = None
+    
+    def _initialize_base_unigram_grammar(self, grammar):
+        self.base_grammar = grammar
+        self.primitive_names = [str(production[-1]) for production in self.base_grammar.productions]
+        self.primitive_name_to_idx, self.idx_to_primitive_name = {}, {}
+        for (idx, name) in enumerate(self.primitive_names):
+            self.primitive_name_to_idx[name] = idx
+            self.idx_to_primitive_name[idx] = name
+        self.output_dim = len(self.primitive_names)
     
     def _t5_language_encoder_fn(self, language):
         """Featurizes a batch of sentences using the T5 model. 
@@ -186,15 +220,68 @@ class LanguageModelUnigramModel(nn.Module):
         last_hidden_states = outputs.last_hidden_state 
         reduced = torch.mean(last_hidden_states, dim=1).detach()
         return reduced
+
+class SimilarityUnigramModel(LanguageModelUnigramModel):
+    """Distribution based on similarities between language model sentence embeddings and 
+    human-readable unigram names in the base grammar."""
+    def __init__(self, lm_model_name, primitive_natural_language_file=PRIMITIVE_NATURAL_LANGUAGE_FILE,
+    data_dir=DATA_DIR):
+        super(SimilarityUnigramModel, self).__init__(lm_model_name)
+        self._primitive_natural_language_file = os.path.join(DATA_DIR, primitive_natural_language_file) 
+        self._primitive_name_to_human_readable = dict()
+        self._primitive_embeddings = None # N_primitives x embedding tensor of embeddings.
+        
+    def _initialize_unigram_name_embeddings(self):
+        """Initializes embeddings based on the human readable names for each unigram name."""
+        with open(self._primitive_natural_language_file, 'r') as f:
+            primitives_to_natural_language = json.load(f)
+        
+        def get_primitive_to_natural_language(name):
+            if name in primitives_to_natural_language:
+                if primitives_to_natural_language[name] == None: return ""
+                if primitives_to_natural_language[name][-1] == "":
+                    return " ".join(primitives_to_natural_language[name][0].split("_"))
+                return primitives_to_natural_language[name][-1]
+            return ""
+        self._primitive_name_to_human_readable = {
+            primitive_name : get_primitive_to_natural_language(primitive_name)
+            for primitive_name in self.primitive_names
+        }
+        self._primitive_embeddings = self.language_encoder_fn([self._primitive_name_to_human_readable[primitive_name] for primitive_name in self.primitive_names])
+        
+    def fit(self, task_to_data, grammar):
+        """
+        task_to_data: dict from task_names to (program, language) for each task.
+        """
+        self._initialize_base_unigram_grammar(grammar)
+        self._initialize_unigram_name_embeddings()
+    
+    def _similarity_probabilities(self, encoded_language):
+        """Predicts probabilities over unigrams based on dot-product similarities to the human-readable
+        names of each unigram."""
+        # TODO: normalize when they come out of there.
+        pass
+    
+    def evaluate_likelihood(self, language, ground_truth_program):
+        """Evaluate likelihood of a ground truth program under predicted unigram probabilities."""
+        encoded_language = self.language_encoder_fn([language])
+        predicted_probabilities = self._similarity_probabilities(encoded_language).detach()[0]
+        unigram_grammar = Grammar(0.0, #logVariable
+                       [(float(predicted_probabilities[k]), t, unigram)
+                        for k, (_, t, unigram) in enumerate(self.base_grammar.productions)],
+                       continuationType=self.base_grammar.continuationType)
+        ll = unigram_grammar.logLikelihood(request=ARC_REQUEST, expression=ground_truth_program)
+        return ll
+        
+@register_model(T5_SIMILARITY_MODEL)
+class T5SimilarityUnigramModel(SimilarityUnigramModel):
+    def __init__(self):
+        super(T5SimilarityUnigramModel, self).__init__(lm_model_name=T5_MODEL) 
         
 class LinearUnigramModel(LanguageModelUnigramModel):
     """Linear classifier from language model sentence embeddings to unigrams in the base grammar."""
     def __init__(self, lm_model_name):
-        super(LinearUnigramModel, self).__init__(lm_model_name)
-        self.base_grammar = None
-        self.primitive_names = None
-        self.primitive_name_to_idx = None
-        self.idx_to_primitive_name = None 
+        super(LinearUnigramModel, self).__init__(lm_model_name) 
         self.linear = None
                 
     def _program_to_unigram_probabilities(self, program, grammar):
@@ -269,6 +356,7 @@ class LinearUnigramModel(LanguageModelUnigramModel):
         """Evaluate likelihood of a ground truth program under predicted unigram probabilities."""
         encoded_language = self.language_encoder_fn([language])
         predicted_probabilities = self.linear(encoded_language).detach()[0]
+        # TODO: normalize when they come out of there.
         unigram_grammar = Grammar(0.0, #logVariable
                        [(float(predicted_probabilities[k]), t, unigram)
                         for k, (_, t, unigram) in enumerate(self.base_grammar.productions)],
