@@ -24,6 +24,7 @@ from torch.utils.data import Dataset
 import tensorflow as tf
 from transformers import pipeline, T5Tokenizer, T5EncoderModel
 
+from dreamcoder.utilities import lse
 from dreamcoder.program import Program
 from dreamcoder.grammar import Grammar, ContextualGrammar
 from dreamcoder.type import arrow
@@ -108,7 +109,6 @@ def leave_one_out_evaluation(task_to_data, model_class, grammar):
             print(f"Evaluated: {idx}/{len(task_to_data)}")
     print(f"Average log likelihood: {np.mean(list(tasks_to_likelihoods.values()))}")
     return tasks_to_likelihoods
-
 
 ## Models: defines models that can be passed directly to the evaluation. use @register_model to register models.
 MODEL_REGISTRY = dict()
@@ -208,17 +208,28 @@ class LanguageModelUnigramModel(nn.Module):
             self.idx_to_primitive_name[idx] = name
         self.output_dim = len(self.primitive_names)
     
-    def _t5_language_encoder_fn(self, language):
+    def _t5_language_encoder_fn(self, language, batching=True):
         """Featurizes a batch of sentences using the T5 model. 
         Each sentence is embedded as a mean over the hidden states of its contextual token embeddings.
         args:
             language: [array of N sentences]
         ret: numpy array of size N x <HIDDEN_STATE_DIM>
         """
-        input_ids = self.tokenizer(language, return_tensors="pt", padding=True, truncation=True).input_ids  
-        outputs = self.t5_encoder_model(input_ids)
-        last_hidden_states = outputs.last_hidden_state 
-        reduced = torch.mean(last_hidden_states, dim=1).detach()
+        if batching:
+            input_ids = self.tokenizer(language, return_tensors="pt", padding=True, truncation=True).input_ids  
+            outputs = self.t5_encoder_model(input_ids)
+            last_hidden_states = outputs.last_hidden_state 
+            reduced = torch.mean(last_hidden_states, dim=1).detach()
+        else:
+            # Avoids padding, but then manually reduces and combines them.
+            reduced_list = []
+            for sentence in language:
+                input_ids = self.tokenizer(sentence, return_tensors="pt", padding=True, truncation=True).input_ids  
+                outputs = self.t5_encoder_model(input_ids)
+                last_hidden_states = outputs.last_hidden_state 
+                reduced = torch.mean(last_hidden_states, dim=1).detach()
+                reduced_list.append(reduced)
+            reduced = torch.cat(reduced_list, dim=0)
         return reduced
 
 class SimilarityUnigramModel(LanguageModelUnigramModel):
@@ -247,7 +258,7 @@ class SimilarityUnigramModel(LanguageModelUnigramModel):
             primitive_name : get_primitive_to_natural_language(primitive_name)
             for primitive_name in self.primitive_names
         }
-        self._primitive_embeddings = self.language_encoder_fn([self._primitive_name_to_human_readable[primitive_name] for primitive_name in self.primitive_names])
+        self._primitive_embeddings = self.language_encoder_fn([self._primitive_name_to_human_readable[primitive_name] for primitive_name in self.primitive_names], batching=False)
         
     def fit(self, task_to_data, grammar):
         """
@@ -259,17 +270,25 @@ class SimilarityUnigramModel(LanguageModelUnigramModel):
     def _similarity_probabilities(self, encoded_language):
         """Predicts probabilities over unigrams based on dot-product similarities to the human-readable
         names of each unigram."""
-        # TODO: normalize when they come out of there.
-        pass
+        similarity = nn.CosineSimilarity(dim=1, eps=1e-6)
+        cos_similarities = similarity(encoded_language, self._primitive_embeddings)
+        avg = torch.mean(cos_similarities, 0, keepdim=True)
+        cos_similarities = torch.cat((avg, cos_similarities), -1)
+        # Normalize into log probabilities.
+        normalized = nn.LogSoftmax(dim=0)(cos_similarities)
+        return normalized
     
     def evaluate_likelihood(self, language, ground_truth_program):
         """Evaluate likelihood of a ground truth program under predicted unigram probabilities."""
-        encoded_language = self.language_encoder_fn([language])
-        predicted_probabilities = self._similarity_probabilities(encoded_language).detach()[0]
-        unigram_grammar = Grammar(0.0, #logVariable
-                       [(float(predicted_probabilities[k]), t, unigram)
-                        for k, (_, t, unigram) in enumerate(self.base_grammar.productions)],
-                       continuationType=self.base_grammar.continuationType)
+        encoded_language = self.language_encoder_fn([language]).detach()
+        predicted_probabilities = self._similarity_probabilities(encoded_language)
+        def make_grammar(predicted_probabilities):
+            return Grammar(float(predicted_probabilities[0]), #logVariable
+                           [(float(predicted_probabilities[k+1]), t, unigram)
+                            for k, (_, t, unigram) in enumerate(self.base_grammar.productions)],
+                           continuationType=self.base_grammar.continuationType)
+        unigram_grammar = make_grammar(predicted_probabilities)
+        
         ll = unigram_grammar.logLikelihood(request=ARC_REQUEST, expression=ground_truth_program)
         return ll
         
