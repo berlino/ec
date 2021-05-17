@@ -22,7 +22,7 @@ from torch.autograd import Variable
 from torch.utils.data import Dataset
 
 import tensorflow as tf
-from transformers import pipeline, T5Tokenizer, TFT5EncoderModel
+from transformers import pipeline, T5Tokenizer, T5EncoderModel
 
 from dreamcoder.program import Program
 from dreamcoder.grammar import Grammar, ContextualGrammar
@@ -32,12 +32,14 @@ from dreamcoder.task import Task
 from dreamcoder.frontier import Frontier, FrontierEntry
 
 DATA_DIR = "data/arc"
-LANGUAGE_DATA_FILE = "ManyProgramsPlusNlDescription.csv"
+LANGUAGE_PROGRAMS_FILE = "ManyProgramsPlusNlDescription.csv"
+PRIMITIVE_NATURAL_LANGUAGE_FILE = "primitiveNamesToDescriptions.json"
 
 # Prediction models supported in this file.
 UNIFORM_UNIGRAM_PRIOR = "uniform_unigram_prior" # Uniform distribution over unigrams.
 FITTED_UNIGRAM_PRIOR = "fitted_unigram_prior" # Frequency distribution over unigrams.
-T5_LINEAR_MODEL = "t5_linear_predictor" 
+T5_LINEAR_MODEL = "t5_linear_predictor" # Linear predictor from language-model embeddings to unigrams.
+T5_SIMILARITY_MODEL = "t5_similarity_model" # Normalized similarities between language-model-embeddings and unigram names.
 
 T5_MODEL = 't5-small' 
 ROBERTA_MODEL = 'distilroberta-base'
@@ -45,7 +47,7 @@ T5 = 't5'
 
 ARC_REQUEST = arrow(tgridin, tgridout)
 
-def load_language_program_data(language_file):
+def load_language_program_data(language_programs_file):
     """
     Loads language-program data. Parses programs into Program objects under the ARC DSL.
     Returns: 
@@ -58,7 +60,7 @@ def load_language_program_data(language_file):
     arc_grammar = Grammar.uniform(basePrimitives() + leafPrimitives())
     
     # Load the language data and the parsed programs.
-    full_filepath = os.path.join(DATA_DIR, language_file)
+    full_filepath = os.path.join(DATA_DIR, language_programs_file)
     language_program_data = defaultdict(list)
     with open(full_filepath, 'r') as f:
         reader = csv.DictReader(f)
@@ -99,6 +101,51 @@ def register_model(name):
 def get_model(model_tag):
     return MODEL_REGISTRY[model_tag]
 
+class BaselinePriorUnigramModel():
+    """Baseline prior models. Fits a single unigram grammar that is not contextually re-calculated based each task."""
+    def __init__(self):
+        self.prior_grammar = None
+        
+    def fit(self, task_to_data, grammar):
+        print("Unimplemented in the base class.")
+        assert False
+    
+    def evaluate_likelihood(self, language, ground_truth_program):
+        return self.prior_grammar.logLikelihood(request=ARC_REQUEST, expression=ground_truth_program)
+
+@register_model(UNIFORM_UNIGRAM_PRIOR)
+class UniformPriorUnigramModel(BaselinePriorUnigramModel):
+    """Uniform prior over the unigram grammar."""
+    def __init__(self):
+        super(UniformPriorUnigramModel, self).__init__()
+    
+    def fit(self, task_to_data, grammar):
+        self.prior_grammar = grammar
+
+@register_model(FITTED_UNIGRAM_PRIOR)
+class FittedUnigramPriorModel(BaselinePriorUnigramModel):
+    def __init__(self):
+        super(FittedUnigramPriorModel, self).__init__()
+    
+    def fit(self, task_to_data, grammar):
+        # Fit grammar using the inside outside algorithm to all of the frontiers.
+        task_names_to_tasks = {}
+        tasks_to_frontiers = {}
+        for task_name, task_programs_and_language in task_to_data.items():
+            original_task_name = task_name.split("_")[0]
+            if original_task_name not in task_names_to_tasks:
+                task = Task(name=original_task_name, request=ARC_REQUEST, examples=[])
+                task_names_to_tasks[original_task_name] = task
+                tasks_to_frontiers[task] = Frontier.makeEmpty(task)
+            task = task_names_to_tasks[original_task_name]
+            for (program, _) in task_programs_and_language:
+                tasks_to_frontiers[task].entries.append(
+                    FrontierEntry(program=program,
+                                  logLikelihood=0.0,
+                                  logPrior=0.0))
+        # Grammar inside outside.
+        self.prior_grammar = grammar.insideOutside(frontiers=tasks_to_frontiers.values(), pseudoCounts=1)            
+    
 class UnigramDataset(Dataset):
     def __init__(self, inputs, outputs=None):
         self.X = inputs
@@ -109,47 +156,47 @@ class UnigramDataset(Dataset):
     
     def __getitem__(self, i):
         return self.X[i], self.y[i]
-        
-class LinearUnigramModel(nn.Module):
-    """Linear classifier from language model sentence embeddings to unigrams in the base grammar."""
+
+class LanguageModelUnigramModel(nn.Module):
+    """Base class for models that embed the natural language descriptions using
+    a pre-initialized language model, and output distributions over unigrams in 
+    a program DSL."""
     def __init__(self, lm_model_name):
+        super(LanguageModelUnigramModel, self).__init__()
         self.lm_model_name = lm_model_name
         if T5 in self.lm_model_name:
             self.tokenizer = T5Tokenizer.from_pretrained(self.lm_model_name)
-            self.t5_encoder_model = TFT5EncoderModel.from_pretrained(self.lm_model_name)
-            self.featurizer = self._t5_featurizer_fn
+            self.t5_encoder_model = T5EncoderModel.from_pretrained(self.lm_model_name)
+            self.language_encoder_fn = self._t5_language_encoder_fn
         else:
-            self.featurizer = pipeline('feature-extraction', self.lm_model_name)
+            self.language_encoder_fn = pipeline('feature-extraction', self.lm_model_name)
         
+        self.input_dim = None
+        self.output_dim = None
+    
+    def _t5_language_encoder_fn(self, language):
+        """Featurizes a batch of sentences using the T5 model. 
+        Each sentence is embedded as a mean over the hidden states of its contextual token embeddings.
+        args:
+            language: [array of N sentences]
+        ret: numpy array of size N x <HIDDEN_STATE_DIM>
+        """
+        input_ids = self.tokenizer(language, return_tensors="pt", padding=True, truncation=True).input_ids  
+        outputs = self.t5_encoder_model(input_ids)
+        last_hidden_states = outputs.last_hidden_state 
+        reduced = torch.mean(last_hidden_states, dim=1).detach()
+        return reduced
+        
+class LinearUnigramModel(LanguageModelUnigramModel):
+    """Linear classifier from language model sentence embeddings to unigrams in the base grammar."""
+    def __init__(self, lm_model_name):
+        super(LinearUnigramModel, self).__init__(lm_model_name)
         self.base_grammar = None
         self.primitive_names = None
         self.primitive_name_to_idx = None
         self.idx_to_primitive_name = None 
         self.linear = None
-        self.input_dim = None
-        self.output_dim = None
-        super(LinearUnigramModel, self).__init__()
-            
-    def _t5_featurizer_fn(self, language):
-        """Featurizes batch of sentences using a mean over the tokens in each sentence.
-        args:
-            language: [array of N sentences]
-        ret: numpy array of size N x <HIDDEN_STATE_DIM>
-        """
-        input_ids = self.tokenizer(language, return_tensors="tf", padding=True, truncation=True).input_ids  # Batch size 1
-        outputs = self.t5_encoder_model(input_ids)
-        last_hidden_states = outputs.last_hidden_state 
-        reduced = tf.math.reduce_mean(last_hidden_states, axis=1)
-        return reduced.numpy()
-    
-    def _featurize_language(self, language):
-        """Featurizes the language. 
-        language: [n_language array of sentences.]
-        :ret: torch array of size n_language x <HIDDEN_STATE_DIM>
-        """
-        outputs = self.featurizer(language)
-        return torch.from_numpy(outputs).type(torch.FloatTensor)
-    
+                
     def _program_to_unigram_probabilities(self, program, grammar):
         """Program to normalized unigram probabilities over the grammar. Simplified unigram probabilities, based on unigram counts excluding variables."""
         unigram_probabilities = np.zeros(len(self.primitive_names))
@@ -213,15 +260,15 @@ class LinearUnigramModel(nn.Module):
             programs += task_programs
             language += task_language
         unigram_probabilities = self._programs_to_unigram_probabilities(programs, grammar)
-        featurized_language = self._featurize_language(language)
-        self.input_dim = featurized_language.shape[-1]
+        encoded_language = self.language_encoder_fn(language)
+        self.input_dim = encoded_language.shape[-1]
         self.linear = nn.Linear(self.input_dim, self.output_dim)
-        self._train(featurized_language, unigram_probabilities)
+        self._train(encoded_language, unigram_probabilities)
     
     def evaluate_likelihood(self, language, ground_truth_program):
         """Evaluate likelihood of a ground truth program under predicted unigram probabilities."""
-        featurized_language = self._featurize_language([language])
-        predicted_probabilities = self.linear(featurized_language).detach()[0]
+        encoded_language = self.language_encoder_fn([language])
+        predicted_probabilities = self.linear(encoded_language).detach()[0]
         unigram_grammar = Grammar(0.0, #logVariable
                        [(float(predicted_probabilities[k]), t, unigram)
                         for k, (_, t, unigram) in enumerate(self.base_grammar.productions)],
@@ -234,53 +281,8 @@ class T5LinearUnigramModel(LinearUnigramModel):
     def __init__(self):
         super(T5LinearUnigramModel, self).__init__(lm_model_name=T5_MODEL) 
 
-class BaselinePriorUnigramModel():
-    """Baseline prior models. Fits a single unigram grammar that is not contextually re-calculated based each task."""
-    def __init__(self):
-        self.prior_grammar = None
-        
-    def fit(self, task_to_data, grammar):
-        print("Unimplemented in the base class.")
-        assert False
-    
-    def evaluate_likelihood(self, language, ground_truth_program):
-        return self.prior_grammar.logLikelihood(request=ARC_REQUEST, expression=ground_truth_program)
-
-@register_model(UNIFORM_UNIGRAM_PRIOR)
-class UniformPriorUnigramModel(BaselinePriorUnigramModel):
-    """Uniform prior over the unigram grammar."""
-    def __init__(self):
-        super(UniformPriorUnigramModel, self).__init__()
-    
-    def fit(self, task_to_data, grammar):
-        self.prior_grammar = grammar
-
-@register_model(FITTED_UNIGRAM_PRIOR)
-class FittedUnigramPriorModel(BaselinePriorUnigramModel):
-    def __init__(self):
-        super(FittedUnigramPriorModel, self).__init__()
-    
-    def fit(self, task_to_data, grammar):
-        # Fit grammar using the inside outside algorithm to all of the frontiers.
-        task_names_to_tasks = {}
-        tasks_to_frontiers = {}
-        for task_name, task_programs_and_language in task_to_data.items():
-            original_task_name = task_name.split("_")[0]
-            if original_task_name not in task_names_to_tasks:
-                task = Task(name=original_task_name, request=ARC_REQUEST, examples=[])
-                task_names_to_tasks[original_task_name] = task
-                tasks_to_frontiers[task] = Frontier.makeEmpty(task)
-            task = task_names_to_tasks[original_task_name]
-            for (program, _) in task_programs_and_language:
-                tasks_to_frontiers[task].entries.append(
-                    FrontierEntry(program=program,
-                                  logLikelihood=0.0,
-                                  logPrior=0.0))
-        # Grammar inside outside.
-        self.prior_grammar = grammar.insideOutside(frontiers=tasks_to_frontiers.values(), pseudoCounts=1)            
-    
 def main(args):
     print(f"Running language model evaluations for model: {args['language_encoder']}")
-    arc_grammar, language_program_data = load_language_program_data(language_file=LANGUAGE_DATA_FILE)
+    arc_grammar, language_program_data = load_language_program_data(language_programs_file=LANGUAGE_PROGRAMS_FILE)
     model = get_model(model_tag=args["language_encoder"])
     leave_one_out_evaluation(language_program_data, model, arc_grammar)
