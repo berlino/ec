@@ -11,7 +11,7 @@ Usage:
         uniform_unigram_prior : -30.729733065225524
         fitted_unigram_prior, all sentences at once : -19.092839837180854
         t5_linear_predictor, all sentences at once : -22.202822097843782
-        t5_mlp_predictor = -20.480979557565394
+        t5_mlp_predictor, 100 epochs = -20.480979557565394
         t5_similarity_model, individual sentences: -31.390206467725108
 """
 import os
@@ -50,7 +50,9 @@ ROBERTA_MODEL = 'distilroberta-base'
 T5 = 't5'
 
 ARC_REQUEST = arrow(tgridin, tgridout)
-
+VAR_TOKEN = "VAR"
+BCE_LOGITS_LOSS = "BCE_LOGITS_LOSS"
+LIKELIHOOD_LOSS = "LIKELIHOOD_LOSS"
 VERBOSE = True
 
 def load_language_program_data(language_programs_file):
@@ -173,10 +175,9 @@ class FittedUnigramPriorModel(BaselinePriorUnigramModel):
         self.prior_grammar = grammar.insideOutside(frontiers=tasks_to_frontiers.values(), pseudoCounts=1)            
     
 class UnigramDataset(Dataset):
-    def __init__(self, inputs, outputs=None):
+    def __init__(self, inputs, outputs=None, ground_truth_programs=None):
         self.X = inputs
         self.y = outputs
-         
     def __len__(self):
         return (len(self.X))
     
@@ -208,7 +209,7 @@ class LanguageModelUnigramModel(nn.Module):
     
     def _initialize_base_unigram_grammar(self, grammar):
         self.base_grammar = grammar
-        self.primitive_names = [str(production[-1]) for production in self.base_grammar.productions]
+        self.primitive_names = [VAR_TOKEN] + [str(production[-1]) for production in self.base_grammar.productions]
         self.primitive_name_to_idx, self.idx_to_primitive_name = {}, {}
         for (idx, name) in enumerate(self.primitive_names):
             self.primitive_name_to_idx[name] = idx
@@ -242,6 +243,22 @@ class LanguageModelUnigramModel(nn.Module):
                 reduced_list.append(reduced)
             reduced = torch.cat(reduced_list, dim=0)
         return reduced
+    
+    def make_unigram_grammar(self, predicted_probabilities, add_variable=False):
+        """Builds a unigram grammar over a set of predicted probabilites.
+        Normalizes using a softmax function.
+        If add_variable: initializes the 'variable' probability to the mean.
+        Otherwise: assumes 'variable' probability is in the first place.
+        """
+        if add_variable:
+            avg = torch.mean(predicted_probabilities, 0, keepdim=True)
+            predicted_probabilities = torch.cat((avg, predicted_probabilities), -1)
+        predicted_probabilities = nn.LogSoftmax(dim=0)(predicted_probabilities)
+        unigram_grammar = Grammar(float(predicted_probabilities[0]), 
+                       [(float(predicted_probabilities[unigram_idx+1]), t, unigram)
+                        for unigram_idx, (_, t, unigram) in enumerate(self.base_grammar.productions)],
+                       continuationType=self.base_grammar.continuationType)
+        return unigram_grammar
 
 class SimilarityUnigramModel(LanguageModelUnigramModel):
     """Distribution based on similarities between language model sentence embeddings and 
@@ -283,8 +300,6 @@ class SimilarityUnigramModel(LanguageModelUnigramModel):
         names of each unigram."""
         similarity = nn.CosineSimilarity(dim=1, eps=1e-6)
         cos_similarities = similarity(encoded_language, self._primitive_embeddings)
-        avg = torch.mean(cos_similarities, 0, keepdim=True)
-        cos_similarities = torch.cat((avg, cos_similarities), -1)
         # Normalize into log probabilities.
         normalized = nn.LogSoftmax(dim=0)(cos_similarities)
         return normalized
@@ -293,12 +308,7 @@ class SimilarityUnigramModel(LanguageModelUnigramModel):
         """Evaluate likelihood of a ground truth program under predicted unigram probabilities."""
         encoded_language = self.language_encoder_fn([language]).detach()
         predicted_probabilities = self._similarity_probabilities(encoded_language)
-        def make_grammar(predicted_probabilities):
-            return Grammar(float(predicted_probabilities[0]), 
-                           [(float(predicted_probabilities[k+1]), t, unigram)
-                            for k, (_, t, unigram) in enumerate(self.base_grammar.productions)],
-                           continuationType=self.base_grammar.continuationType)
-        unigram_grammar = make_grammar(predicted_probabilities)
+        unigram_grammar = self.make_unigram_grammar(predicted_probabilities)
         
         ll = unigram_grammar.logLikelihood(request=ARC_REQUEST, expression=ground_truth_program)
         return ll
@@ -307,22 +317,27 @@ class SimilarityUnigramModel(LanguageModelUnigramModel):
 class T5SimilarityUnigramModel(SimilarityUnigramModel):
     def __init__(self):
         super(T5SimilarityUnigramModel, self).__init__(lm_model_name=T5_MODEL) 
-
         
 class LanguageModelClassifierUnigramModel(LanguageModelUnigramModel):
     """Linear classifier from language model sentence embeddings to unigrams in the base grammar."""
-    def __init__(self, lm_model_name, n_hidden_layers=0):
+    def __init__(self, lm_model_name, n_hidden_layers=0, loss_function_type=BCE_LOGITS_LOSS):
         super(LanguageModelClassifierUnigramModel, self).__init__(lm_model_name) 
         self.n_hidden_layers = n_hidden_layers
         self.classifier = None
+        self.loss_function_type = loss_function_type
+        self.loss = self.get_loss_fn(loss_function_type)
+        self.epsilon = 0.01
                 
     def _program_to_unigram_probabilities(self, program, grammar):
-        """Program to normalized unigram probabilities over the grammar. Simplified unigram probabilities, based on unigram counts excluding variables."""
+        """Program to normalized unigram probabilities over the grammar. Simplified unigram probabilities, based on unigram counts with a single variable token."""
         unigram_probabilities = np.zeros(len(self.primitive_names))
-        unigrams = program.left_order_tokens()
+        unigrams = program.left_order_tokens(show_vars=True)
         for u in unigrams:
             unigram_probabilities[self.primitive_name_to_idx[u]] += 1
         unigram_probabilities /= np.sum(unigram_probabilities)
+        # Add a tiny epsilon.
+        unigram_probabilities += self.epsilon
+        log_probabilities = np.log(unigram_probabilities)
         return unigram_probabilities
         
     def _programs_to_unigram_probabilities(self, programs, grammar):
@@ -340,22 +355,29 @@ class LanguageModelClassifierUnigramModel(LanguageModelUnigramModel):
         unigram_probabilities = torch.from_numpy(unigram_probabilities).type(torch.FloatTensor)
         return unigram_probabilities
     
-    def _initialize_base_unigram_grammar(self, grammar):
-        self.base_grammar = grammar
-        self.primitive_names = [str(production[-1]) for production in self.base_grammar.productions]
-        self.primitive_name_to_idx, self.idx_to_primitive_name = {}, {}
-        for (idx, name) in enumerate(self.primitive_names):
-            self.primitive_name_to_idx[name] = idx
-            self.idx_to_primitive_name[idx] = name
-        self.output_dim = len(self.primitive_names)
-    
-    def _train(self, inputs, outputs, epochs=100):
+    def get_loss_fn(self, loss_function_type):
+        if loss_function_type == BCE_LOGITS_LOSS:
+            self.bce_logits_fn = nn.BCEWithLogitsLoss()
+            return self.bce_logits_loss
+        elif loss_function_type == LIKELIHOOD_LOSS:
+            return self.likelihood_loss_fn
+        else:
+            assert False
+            
+    def bce_logits_loss(self, predictions, outputs):
+        # Normalized predictions and outputs.
+        # normalized = self.softmax(predictions)
+        return self.bce_logits_fn(predictions, outputs)
+        
+    def likelihood_loss_fn(self, predictions, outputs):
+        pass
+        
+    def _train(self, inputs, outputs, ground_truth_programs, epochs=100):
         batch_size = 50
         lr_rate = 0.001
-        self.loss = nn.BCEWithLogitsLoss()
         self.optimizer = torch.optim.Adam(self.parameters(), lr=lr_rate, eps=1e-3, amsgrad=True)
-        
-        train_dataset = UnigramDataset(inputs, outputs)
+        self.softmax = nn.LogSoftmax(dim=0)
+        train_dataset = UnigramDataset(inputs, outputs, ground_truth_programs)
         
         train_loader = torch.utils.data.DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True)
         for epoch in range(epochs): 
@@ -399,17 +421,13 @@ class LanguageModelClassifierUnigramModel(LanguageModelUnigramModel):
         encoded_language = self.language_encoder_fn(language, batching=False)
         self.input_dim = encoded_language.shape[-1]
         self._initialize_classifier()
-        self._train(encoded_language, unigram_probabilities)
+        self._train(encoded_language, unigram_probabilities, programs)
     
     def evaluate_likelihood(self, language, ground_truth_program):
         """Evaluate likelihood of a ground truth program under predicted unigram probabilities."""
         encoded_language = self.language_encoder_fn([language])
         predicted_probabilities = self.classifier(encoded_language).detach()[0]
-        # TODO: normalize when they come out of there.
-        unigram_grammar = Grammar(0.0, #logVariable
-                       [(float(predicted_probabilities[k]), t, unigram)
-                        for k, (_, t, unigram) in enumerate(self.base_grammar.productions)],
-                       continuationType=self.base_grammar.continuationType)
+        unigram_grammar = self.make_unigram_grammar(predicted_probabilities)
         ll = unigram_grammar.logLikelihood(request=ARC_REQUEST, expression=ground_truth_program)
         return ll
 
