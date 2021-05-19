@@ -678,8 +678,6 @@ class RecognitionModel(nn.Module):
         if previousRecognitionModel:
             self._MLP.load_state_dict(previousRecognitionModel._MLP.state_dict())
             self.featureExtractor.load_state_dict(previousRecognitionModel.featureExtractor.state_dict())
-
-        print(self)
             
     def auxiliaryLoss(self, frontier, features):
         # Compute a vector of uses

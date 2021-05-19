@@ -5,6 +5,7 @@ import json
 import math
 import numpy as np
 import os
+import sys
 import pickle
 import random
 import signal
@@ -25,15 +26,18 @@ from dreamcoder.domains.arc.utilsPostProcessing import *
 from dreamcoder.domains.arc.arcPrimitives import *
 from dreamcoder.domains.arc.taskGeneration import *
 
+DATA_DIR = "data/arc"
+LANGUAGE_PROGRAMS_FILE = os.path.join(DATA_DIR, "best_programs_nl_sentences.csv")
+
 class EvaluationTimeout(Exception):
     pass
 
 
 class ArcTask(Task):
     def __init__(self, name, request, examples, evalExamples, features=None, cache=False):
-        super().__init__(name, request, examples, features=features, cache=cache)
+        super().__init__(name, request, examples, features=features, cache=cache, language=language)
         self.evalExamples = evalExamples
-
+        self.language = language
 
     def checkEvalExamples(self, e, timeout=None):
         if timeout is not None:
@@ -126,6 +130,10 @@ def arc_options(parser):
     parser.add_argument("--featureExtractor", default="dummy", choices=[
         "arcCNN",
         "dummy"])
+    parser.add_argument("--test_language_models", action="store_true")
+    parser.add_argument("--test_language_dc_recognition", action="store_true")
+    parser.add_argument("--language_encoder")
+    parser.add_argument("--language_program_data", default=LANGUAGE_PROGRAMS_FILE)
 
     # parser.add_argument("-i", type=int, default=10)
 
@@ -244,6 +252,14 @@ class ArcCNN(nn.Module):
         """Takes the goal first; optionally also takes the current state second"""
         return [self.featuresOfTask(t) for t in ts]
 
+def run_tests(args):
+    if args.pop("test_language_models"):
+        from dreamcoder.domains.arc.test_language_models import main
+        main(args)
+    if args.pop("test_language_dc_recognition"):
+        from dreamcoder.domains.arc.test_language_dc_recognition import main
+        main(args)
+    sys.exit(0)
 
 def main(args):
     """
@@ -262,6 +278,8 @@ def main(args):
     #     "5521c0d9.json": _solve5521c0d9,
     #     "ce4f8723.json": _solvece4f8723,
     # }
+    
+    run_tests(args)
 
     import os
 
