@@ -8,12 +8,20 @@ Usage:
         --language_encoder t5_linear_predictor # Model name: looks up a model in the model registry.
     
     Baseline results:
+    all_programs:
         uniform_unigram_prior : -30.729733065225524
         fitted_unigram_prior, all sentences at once : -19.092839837180854
         t5_linear_predictor, all sentences at once : -22.202822097843782
         t5_mlp_predictor, 100 epochs = -20.480979557565394
         t5_similarity_model, individual sentences: -31.390206467725108
-        t5_mixture_model -19.152084388523328
+        t5_mixture_model, 100 epochs : -19.152084388523328
+    best_programs:
+        fitted_unigram_prior: -14.735810399531251
+        t5_mlp_predictor, 100 epochs: -16.83427124810492
+        t5_mlp_predictor, 100 epochs, batch=10 : -16.252995747965198
+        t5_mixture_model, 0.5, 0.5,  100 epochs, batch=10 : -14.847859258665538
+        t5_unigram_dc_model, 1000 training steps : -15.522826835452928
+        t5_bigram_dc_model: -13.483465064442436
 """
 import os
 import numpy as np
@@ -34,10 +42,10 @@ from dreamcoder.type import arrow
 from dreamcoder.domains.arc.arcPrimitives import *
 from dreamcoder.task import Task
 from dreamcoder.frontier import Frontier, FrontierEntry
-from dreamcoder.recognition import GrammarNetwork
+from dreamcoder.recognition import GrammarNetwork, LowRank
 
 DATA_DIR = "data/arc"
-LANGUAGE_PROGRAMS_FILE = "all_programs_nl_sentences.csv"
+LANGUAGE_PROGRAMS_FILE = "best_programs_nl_sentences.csv"
 PRIMITIVE_NATURAL_LANGUAGE_FILE = "primitiveNamesToDescriptions.json"
 
 # Prediction models supported in this file.
@@ -46,6 +54,7 @@ FITTED_UNIGRAM_PRIOR = "fitted_unigram_prior" # Frequency distribution over unig
 T5_LINEAR_MODEL = "t5_linear_predictor" # Linear predictor from language-model embeddings to unigrams.
 T5_MLP_MODEL = "t5_mlp_predictor" # Linear predictor from language-model embeddings to unigrams.
 T5_SIMILARITY_MODEL = "t5_similarity_model" # Normalized similarities between language-model-embeddings and unigram names.
+T5_TRAINED_SIMILARITY_MODEL = "t5_trained_similarity_model" # Trains a weight matrix to produce similarities.
 T5_MIXTURE_MODEL = "t5_mixture_model" # Mixture between a fitted prior and the unigram predictor
 T5_DC_MODEL = "t5_dc_model" # Original bigram grammar predictor in DreamCoder, initialized with the language as a feature extractor.
 
@@ -116,6 +125,7 @@ def leave_one_out_evaluation(task_to_data, model_class, grammar):
     """Leave one out evaluation on a per-task basis. Fits a model to all of the other tasks, and then computes the average likelihood for the remaining language/program data for the left out task."""
     print(f"Running leave one out evaluation on {len(task_to_data)} tasks.")
     tasks_to_likelihoods = dict()
+    likelihoods_language_programs = []
     for idx, task in enumerate(task_to_data):
         heldout_task_programs_and_language  = task_to_data[task]
         training_tasks = {t : d for t, d in task_to_data.items() if t != task}
@@ -125,11 +135,17 @@ def leave_one_out_evaluation(task_to_data, model_class, grammar):
         for (program, language) in heldout_task_programs_and_language:
             log_likelihood = model.evaluate_likelihood(language, program)
             task_likelihoods.append(log_likelihood)
+            likelihoods_language_programs.append((log_likelihood, language, program))
         tasks_to_likelihoods[task] = np.mean(task_likelihoods)
         if idx % 10 == 0:
             print(f"Evaluated: {idx}/{len(task_to_data)}")
             print(f"Current average log likelihood: {np.mean(list(tasks_to_likelihoods.values()))}")
     print(f"Average log likelihood: {np.mean(list(tasks_to_likelihoods.values()))}")
+    # Print summary of performance
+    for (likelihood, language, program) in sorted(likelihoods_language_programs, key=lambda x : -x[0]):
+        print(language)
+        print(program, likelihood)
+        
     return tasks_to_likelihoods
 
 ## Models: defines models that can be passed directly to the evaluation. use @register_model to register models.
@@ -286,16 +302,45 @@ class LanguageModelUnigramModel(nn.Module):
                         for unigram_idx, (_, t, unigram) in enumerate(self.base_grammar.productions)],
                        continuationType=self.base_grammar.continuationType)
         return unigram_grammar
+        
+    def _program_to_unigram_probabilities(self, program, grammar):
+        """Program to normalized unigram probabilities over the grammar. Simplified unigram probabilities, based on unigram counts with a single variable token."""
+        unigram_probabilities = np.zeros(len(self.primitive_names))
+        unigrams = program.left_order_tokens(show_vars=True)
+        for u in unigrams:
+            unigram_probabilities[self.primitive_name_to_idx[u]] += 1
+        unigram_probabilities /= np.sum(unigram_probabilities)
+        # # Add a tiny epsilon.
+        # unigram_probabilities += self.epsilon
+        # # log_probabilities = np.log(unigram_probabilities)
+        return unigram_probabilities
+        
+    def _programs_to_unigram_probabilities(self, programs, grammar):
+        """
+        Featurizes programs into a unigram probability summary over the DSL of primitives.
+        programs: [n_programs array of programs]
+        grammar: DreamCoder Grammar containing all DSL primitives.
+        :ret: np.array of size n_programs x <number of primitives>.
+        """
+        unigram_probabilities = []
+        for program in programs:
+            unigram_probability = self._program_to_unigram_probabilities(program, grammar)
+            unigram_probabilities.append(unigram_probability)
+        unigram_probabilities = np.stack(unigram_probabilities)
+        unigram_probabilities = torch.from_numpy(unigram_probabilities).type(torch.FloatTensor)
+        return unigram_probabilities
 
 class SimilarityUnigramModel(LanguageModelUnigramModel):
     """Distribution based on similarities between language model sentence embeddings and 
     human-readable unigram names in the base grammar."""
-    def __init__(self, lm_model_name, primitive_natural_language_file=PRIMITIVE_NATURAL_LANGUAGE_FILE,
+    def __init__(self, lm_model_name, trained=False, primitive_natural_language_file=PRIMITIVE_NATURAL_LANGUAGE_FILE,
     data_dir=DATA_DIR):
         super(SimilarityUnigramModel, self).__init__(lm_model_name)
         self._primitive_natural_language_file = os.path.join(DATA_DIR, primitive_natural_language_file) 
         self._primitive_name_to_human_readable = dict()
         self._primitive_embeddings = None # N_primitives x embedding tensor of embeddings.
+        
+        self.trained = trained
         
     def _initialize_unigram_name_embeddings(self):
         """Initializes embeddings based on the human readable names for each unigram name."""
@@ -321,6 +366,43 @@ class SimilarityUnigramModel(LanguageModelUnigramModel):
         """
         self._initialize_base_unigram_grammar(grammar)
         self._initialize_unigram_name_embeddings()
+        
+        if self.trained:
+            self._train(task_to_data, grammar)
+    
+    def _train(self, task_to_data, grammar):
+        programs, language = [], []
+        for task_programs_and_language in task_to_data.values():
+            task_programs, task_language = zip(*task_programs_and_language)
+            programs += task_programs
+            language += task_language
+        unigram_probabilities = self._programs_to_unigram_probabilities(programs, grammar)
+        encoded_language = self.language_encoder_fn(language, batching=False)
+        self.input_dim = encoded_language.shape[-1]
+        
+        batch_size = 10
+        lr_rate = 0.001
+        self.optimizer = torch.optim.Adam(self.parameters(), lr=lr_rate, eps=1e-3, amsgrad=True)
+        train_dataset = UnigramDataset(inputs, outputs)
+        train_loader = torch.utils.data.DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True)
+        for epoch in range(epochs): 
+            losses = []
+            for i, (input_batch, output_batch) in enumerate(train_loader):
+                input_batch, output_batch = Variable(input_batch), Variable(output_batch)
+                self.optimizer.zero_grad()
+                predictions = self.forward(input_batch)
+                loss = self.loss(predictions, output_batch)
+                loss.backward()
+                losses.append(loss.data.item())
+                self.optimizer.step()
+            if VERBOSE: 
+                if epoch % 50 == 0:
+                    print(f"Epoch: {epoch}, Current average loss: {np.mean(losses)}")
+    
+    def forward(self, encoded_language):
+        """Cosine similarities with a trained low_rank matrix."""
+        self.R = 16
+        self.low_rank = LowRank(self.input_dim, self.output_dim, )
     
     def _similarity_probabilities(self, encoded_language):
         """Predicts probabilities over unigrams based on dot-product similarities to the human-readable
@@ -334,7 +416,10 @@ class SimilarityUnigramModel(LanguageModelUnigramModel):
     def evaluate_likelihood(self, language, ground_truth_program):
         """Evaluate likelihood of a ground truth program under predicted unigram probabilities."""
         encoded_language = self.language_encoder_fn([language]).detach()
-        predicted_probabilities = self._similarity_probabilities(encoded_language)
+        if self.trained:
+            predicted_probabilities = self.forward(encoded_language)
+        else:
+            predicted_probabilities = self._similarity_probabilities(encoded_language)
         unigram_grammar = self.make_unigram_grammar(predicted_probabilities)
         
         ll = unigram_grammar.logLikelihood(request=ARC_REQUEST, expression=ground_truth_program)
@@ -344,6 +429,11 @@ class SimilarityUnigramModel(LanguageModelUnigramModel):
 class T5SimilarityUnigramModel(SimilarityUnigramModel):
     def __init__(self):
         super(T5SimilarityUnigramModel, self).__init__(lm_model_name=T5_MODEL) 
+
+@register_model(T5_TRAINED_SIMILARITY_MODEL)
+class T5TrainedSimilarityUnigramModel(SimilarityUnigramModel):
+    def __init__(self):
+        super(T5SimilarityUnigramModel, self).__init__(lm_model_name=T5_MODEL, trained=True)
         
 class LanguageModelClassifierUnigramModel(LanguageModelUnigramModel):
     """Linear classifier from language model sentence embeddings to unigrams in the base grammar."""
@@ -357,35 +447,8 @@ class LanguageModelClassifierUnigramModel(LanguageModelUnigramModel):
         
         self.prior_mixture = prior_mixture
         self.fitted_prior = None
-        self.prior_weight = 0.5
-        self.learned_weight = 0.5
-                
-    def _program_to_unigram_probabilities(self, program, grammar):
-        """Program to normalized unigram log probabilities over the grammar. Simplified unigram probabilities, based on unigram counts with a single variable token."""
-        unigram_probabilities = np.zeros(len(self.primitive_names))
-        unigrams = program.left_order_tokens(show_vars=True)
-        for u in unigrams:
-            unigram_probabilities[self.primitive_name_to_idx[u]] += 1
-        unigram_probabilities /= np.sum(unigram_probabilities)
-        # # Add a tiny epsilon.
-        # unigram_probabilities += self.epsilon
-        # # log_probabilities = np.log(unigram_probabilities)
-        return unigram_probabilities
-        
-    def _programs_to_unigram_probabilities(self, programs, grammar):
-        """
-        Featurizes programs into a unigram probability summary over the DSL of primitives.
-        programs: [n_programs array of programs]
-        grammar: DreamCoder Grammar containing all DSL primitives.
-        :ret: np.array of size n_programs x <number of primitives>.
-        """
-        unigram_probabilities = []
-        for program in programs:
-            unigram_probability = self._program_to_unigram_probabilities(program, grammar)
-            unigram_probabilities.append(unigram_probability)
-        unigram_probabilities = np.stack(unigram_probabilities)
-        unigram_probabilities = torch.from_numpy(unigram_probabilities).type(torch.FloatTensor)
-        return unigram_probabilities
+        self.prior_weight = 0.1
+        self.learned_weight = 0.9
     
     def get_loss_fn(self, loss_function_type):
         self.prediction_loss_fn = nn.BCELoss()
@@ -406,8 +469,8 @@ class LanguageModelClassifierUnigramModel(LanguageModelUnigramModel):
         al = self.prediction_loss_fn(prediction, output)
         return al
 
-    def _train(self, inputs, outputs, ground_truth_programs, epochs=100):
-        batch_size = 50
+    def _train(self, inputs, outputs, ground_truth_programs, epochs=200):
+        batch_size = 10
         lr_rate = 0.001
         self.optimizer = torch.optim.Adam(self.parameters(), lr=lr_rate, eps=1e-3, amsgrad=True)
 
@@ -423,7 +486,9 @@ class LanguageModelClassifierUnigramModel(LanguageModelUnigramModel):
                 loss.backward()
                 losses.append(loss.data.item())
                 self.optimizer.step()
-            if VERBOSE: print(f"Epoch: {epoch}, Current average loss: {np.mean(losses)}")
+            if VERBOSE: 
+                if epoch % 50 == 0:
+                    print(f"Epoch: {epoch}, Current average loss: {np.mean(losses)}")
         
     def _initialize_classifier(self):
         self.hidden_size = self.input_dim
