@@ -74,7 +74,7 @@ class Program(object):
                                                                              e, e.infer())
         return e
     
-    def left_order_tokens(self, show_vars=True):
+    def left_order_tokens(self, show_vars=False):
         def t(show_vars, tokens, p):
             if p.isIndex:
                 if show_vars: return tokens + ["VAR"]
