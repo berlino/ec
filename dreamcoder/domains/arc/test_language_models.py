@@ -17,11 +17,12 @@ Usage:
         t5_mixture_model, 100 epochs : -19.152084388523328
     best_programs:
         fitted_unigram_prior: -14.735810399531251
+        fitted_bigram_prior: -13.74875295799526
         t5_mlp_predictor, 100 epochs: -16.83427124810492
         t5_mlp_predictor, 100 epochs, batch=10 : -16.252995747965198
         t5_mixture_model, 0.5, 0.5,  100 epochs, batch=10 : -14.847859258665538
         t5_unigram_dc_model, 1000 training steps : -15.522826835452928
-        t5_bigram_dc_model: -13.483465064442436
+        *t5_bigram_dc_model: -13.483465064442436
 """
 import os
 import numpy as np
@@ -379,11 +380,25 @@ class SimilarityUnigramModel(LanguageModelUnigramModel):
         unigram_probabilities = self._programs_to_unigram_probabilities(programs, grammar)
         encoded_language = self.language_encoder_fn(language, batching=False)
         self.input_dim = encoded_language.shape[-1]
+        self.R = 16
+        self.low_rank = LowRank(self.input_dim, m=1, n=self.output_dim, r=self.R)
         
-        batch_size = 10
+        self.loss =  nn.BCELoss()
+        activation = nn.Tanh
+        logits = nn.Sigmoid
+        self.similarity = nn.CosineSimilarity(dim=1, eps=1e-6)
+        self.softmax = nn.Softmax(dim=0)
+        self.logits = nn.Sigmoid()
+        self.mlp = torch.nn.Sequential(
+                            torch.nn.Linear(self.input_dim, self.input_dim),
+                            activation(),
+                            torch.nn.Linear(self.input_dim, self.input_dim),
+                            logits())
+        batch_size = 1
         lr_rate = 0.001
+        epochs = 200
         self.optimizer = torch.optim.Adam(self.parameters(), lr=lr_rate, eps=1e-3, amsgrad=True)
-        train_dataset = UnigramDataset(inputs, outputs)
+        train_dataset = UnigramDataset(encoded_language, unigram_probabilities)
         train_loader = torch.utils.data.DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True)
         for epoch in range(epochs): 
             losses = []
@@ -391,7 +406,7 @@ class SimilarityUnigramModel(LanguageModelUnigramModel):
                 input_batch, output_batch = Variable(input_batch), Variable(output_batch)
                 self.optimizer.zero_grad()
                 predictions = self.forward(input_batch)
-                loss = self.loss(predictions, output_batch)
+                loss = self.loss(torch.unsqueeze(predictions, dim=0), output_batch)
                 loss.backward()
                 losses.append(loss.data.item())
                 self.optimizer.step()
@@ -400,9 +415,12 @@ class SimilarityUnigramModel(LanguageModelUnigramModel):
                     print(f"Epoch: {epoch}, Current average loss: {np.mean(losses)}")
     
     def forward(self, encoded_language):
-        """Cosine similarities with a trained low_rank matrix."""
-        self.R = 16
-        self.low_rank = LowRank(self.input_dim, self.output_dim, )
+        """Cosine similarities with a trained low_rank weight matrix.
+        """
+        weighted_encoding = self.mlp(encoded_language)
+        cos_similarities = self.similarity(weighted_encoding, self._primitive_embeddings)
+        normalized = self.logits(cos_similarities)
+        return normalized
     
     def _similarity_probabilities(self, encoded_language):
         """Predicts probabilities over unigrams based on dot-product similarities to the human-readable
@@ -433,7 +451,7 @@ class T5SimilarityUnigramModel(SimilarityUnigramModel):
 @register_model(T5_TRAINED_SIMILARITY_MODEL)
 class T5TrainedSimilarityUnigramModel(SimilarityUnigramModel):
     def __init__(self):
-        super(T5SimilarityUnigramModel, self).__init__(lm_model_name=T5_MODEL, trained=True)
+        super(T5TrainedSimilarityUnigramModel, self).__init__(lm_model_name=T5_MODEL, trained=True)
         
 class LanguageModelClassifierUnigramModel(LanguageModelUnigramModel):
     """Linear classifier from language model sentence embeddings to unigrams in the base grammar."""

@@ -16,7 +16,7 @@ from dreamcoder.type import arrow
 from dreamcoder.domains.arc.arcPrimitives import *
 from dreamcoder.task import Task
 from dreamcoder.frontier import Frontier, FrontierEntry
-from dreamcoder.recognition import RecognitionModel
+from dreamcoder.recognition import RecognitionModel, DummyFeatureExtractor
 
 from dreamcoder.domains.arc.language_model_feature_extractor import LMFeatureExtractor
 
@@ -84,15 +84,21 @@ def leave_one_out_evaluation_dc_model(arc_grammar, task_names_to_tasks, tasks_to
     print(f"Average log likelihood: {np.mean(list(tasks_to_likelihoods.values()))}")
     return tasks_to_likelihoods
 
+def test_leave_one_out_bigram_dc_dummy_model(arc_grammar, task_names_to_tasks, tasks_to_frontiers):
+    return test_leave_one_out_dc_lm_model(arc_grammar, task_names_to_tasks, tasks_to_frontiers, contextual=True, dummy=True)
+
 def test_leave_one_out_bigram_dc_lm_model(arc_grammar, task_names_to_tasks, tasks_to_frontiers):
     return test_leave_one_out_dc_lm_model(arc_grammar, task_names_to_tasks, tasks_to_frontiers, contextual=True)
 
 def test_leave_one_out_unigram_dc_lm_model(arc_grammar, task_names_to_tasks, tasks_to_frontiers):
     return test_leave_one_out_dc_lm_model(arc_grammar, task_names_to_tasks, tasks_to_frontiers, contextual=False)
 
-def test_leave_one_out_dc_lm_model(arc_grammar, task_names_to_tasks, tasks_to_frontiers, contextual):
+def test_leave_one_out_dc_lm_model(arc_grammar, task_names_to_tasks, tasks_to_frontiers, contextual, dummy=False):
     def recognition_model_fn():
-        feature_extractor = LMFeatureExtractor()
+        if dummy:
+            feature_extractor = DummyFeatureExtractor(tasks=None)
+        else:
+            feature_extractor = LMFeatureExtractor()
         recognition_model = RecognitionModel(
             featureExtractor=feature_extractor,
             grammar=arc_grammar,
@@ -120,5 +126,6 @@ def main(args):
     arc_grammar, task_names_to_tasks, tasks_to_frontiers = build_language_tasks(language_program_data=args["language_program_data"])
     
     # test_leave_one_out_unigram_dc_lm_model(arc_grammar, task_names_to_tasks, tasks_to_frontiers)
-    test_leave_one_out_bigram_dc_lm_model(arc_grammar, task_names_to_tasks, tasks_to_frontiers)
+    # test_leave_one_out_bigram_dc_lm_model(arc_grammar, task_names_to_tasks, tasks_to_frontiers)
+    test_leave_one_out_bigram_dc_dummy_model(arc_grammar, task_names_to_tasks, tasks_to_frontiers)
     
