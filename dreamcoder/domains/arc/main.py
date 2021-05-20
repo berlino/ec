@@ -15,8 +15,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from dreamcoder.dreaming import helmholtzEnumeration
-from dreamcoder.dreamcoder import explorationCompression, sleep_recognition
-from dreamcoder.utilities import eprint, flatten, testTrainSplit, lse, runWithTimeout
+from dreamcoder.dreamcoder import explorationCompression, sleep_recognition, ecIterator
+from dreamcoder.utilities import eprint, flatten, testTrainSplit, lse, runWithTimeout, pop_all_domain_specific_args
 from dreamcoder.grammar import Grammar, ContextualGrammar
 from dreamcoder.task import Task
 from dreamcoder.type import Context, arrow, tbool, tlist, tint, t0, UnificationFailure
@@ -26,18 +26,24 @@ from dreamcoder.domains.arc.utilsPostProcessing import *
 from dreamcoder.domains.arc.arcPrimitives import *
 from dreamcoder.domains.arc.taskGeneration import *
 
+import dreamcoder.domains.arc.language_utilities as language_utilities
+from dreamcoder.domains.arc.language_model_feature_extractor import LMFeatureExtractor
+
+
 DATA_DIR = "data/arc"
 LANGUAGE_PROGRAMS_FILE = os.path.join(DATA_DIR, "best_programs_nl_sentences.csv")
+LANGUAGE_ANNOTATIONS_FILE = os.path.join(DATA_DIR, "language/sentences/language.json")
+
+PRIOR_ENUMERATION_FRONTIERS = os.path.join(DATA_DIR, "prior_enumeration_frontiers.pkl")
 
 class EvaluationTimeout(Exception):
     pass
 
-
 class ArcTask(Task):
-    def __init__(self, name, request, examples, evalExamples, features=None, cache=False):
-        super().__init__(name, request, examples, features=features, cache=cache, language=language)
+    def __init__(self, name, request, examples, evalExamples, features=None, cache=False, sentences=[]):
+        super().__init__(name, request, examples, features=features, cache=cache)
         self.evalExamples = evalExamples
-        self.language = language
+        self.sentences = sentences
 
     def checkEvalExamples(self, e, timeout=None):
         if timeout is not None:
@@ -98,7 +104,6 @@ def retrieveARCJSONTasks(directory, filenames=None):
                 data.append(task)
     return data
 
-
 def retrieveARCJSONTask(filename, directory):
     with open(directory + "/" + filename, "r") as f:
         loaded = json.load(f)
@@ -121,6 +126,15 @@ def retrieveARCJSONTask(filename, directory):
     task.specialTask = ('arc', 5)
     return task
 
+def preload_initial_frontiers(preload_frontiers_file):
+    with open(preload_frontiers_file, "rb") as f:
+        preloaded_frontiers = pickle.load(f)
+    tasks_to_preloaded_frontiers = {
+        task.name : frontier
+        for task, frontier in preloaded_frontiers.items() if not frontier.empty
+    }
+    print(f"Preloaded frontiers for {len(tasks_to_preloaded_frontiers)} tasks.")
+    return tasks_to_preloaded_frontiers
 
 def arc_options(parser):
     # parser.add_argument("--random-seed", type=int, default=17)
@@ -129,14 +143,18 @@ def arc_options(parser):
     parser.add_argument("--firstTimeEnumerationTimeout", type=int, default=1)
     parser.add_argument("--featureExtractor", default="dummy", choices=[
         "arcCNN",
-        "dummy"])
+        "dummy",
+        "LMFeatureExtractor"])
+    
+    # Language annotation.
     parser.add_argument("--test_language_models", action="store_true")
     parser.add_argument("--test_language_dc_recognition", action="store_true")
-    parser.add_argument("--language_encoder")
+    parser.add_argument("--language_encoder", help="Which language encoder to use for test_language_models.")
     parser.add_argument("--language_program_data", default=LANGUAGE_PROGRAMS_FILE)
+    parser.add_argument("--language_annotations_data", default=LANGUAGE_ANNOTATIONS_FILE)
+    parser.add_argument("--preload_frontiers", default=PRIOR_ENUMERATION_FRONTIERS)
 
     # parser.add_argument("-i", type=int, default=10)
-
 
 def check(filename, f, directory):
     train, test = retrieveARCJSONTask(filename, directory=directory)
@@ -256,10 +274,11 @@ def run_tests(args):
     if args.pop("test_language_models"):
         from dreamcoder.domains.arc.test_language_models import main
         main(args)
+        sys.exit(0)
     if args.pop("test_language_dc_recognition"):
         from dreamcoder.domains.arc.test_language_dc_recognition import main
         main(args)
-    sys.exit(0)
+        sys.exit(0)
 
 def main(args):
     """
@@ -286,9 +305,18 @@ def main(args):
     homeDirectory = "/".join(os.path.abspath(__file__).split("/")[:-4])
     dataDirectory = homeDirectory + "/arc_data/data/"
 
-
     trainTasks = retrieveARCJSONTasks(dataDirectory + 'training', None)
     holdoutTasks = retrieveARCJSONTasks(dataDirectory + 'evaluation')
+    
+    language_annotations_data = args.pop("language_annotations_data") 
+    if language_annotations_data is not None:
+        trainTasks, holdoutTasks = language_utilities.add_task_language_annotations(trainTasks, holdoutTasks, language_annotations_data)
+        
+    # Load any pre-initialized frontiers.
+    preloaded_frontiers_file = args.pop("preload_frontiers")
+    preloaded_frontiers = dict()
+    if preloaded_frontiers is not None:
+        preloaded_frontiers = preload_initial_frontiers(preloaded_frontiers_file)
 
     baseGrammar = Grammar.uniform(basePrimitives() + leafPrimitives())
     # print("base Grammar {}".format(baseGrammar))
@@ -303,10 +331,15 @@ def main(args):
 
     featureExtractor = {
         "dummy": DummyFeatureExtractor,
-        "arcCNN": ArcCNN
+        "arcCNN": ArcCNN,
+        "LMFeatureExtractor" : LMFeatureExtractor
     }[args.pop("featureExtractor")]
 
     if args.pop("singleTask"):
         trainTasks = [trainTasks[0]]
 
-    explorationCompression(baseGrammar, trainTasks, featureExtractor=featureExtractor, testingTasks=[], **args)
+    # Utility function to remove any command line arguments that are not in the main iterator.
+    pop_all_domain_specific_args(args, ecIterator)
+    explorationCompression(baseGrammar, trainTasks, featureExtractor=featureExtractor, testingTasks=[], 
+    preloaded_frontiers=preloaded_frontiers,
+     **args)

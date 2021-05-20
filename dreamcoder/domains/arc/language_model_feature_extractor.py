@@ -3,6 +3,7 @@ language_model_feature_extractor.py | Feature extractors initialized with large 
 """
 T5_MODEL = 't5-small' 
 T5 = 't5'
+UNK = ""
 
 from collections import defaultdict
 
@@ -53,6 +54,8 @@ class LMFeatureExtractor(nn.Module):
         else:
             # Avoids padding, but then manually reduces and combines them.
             reduced_list = []
+            if len(language) < 1:
+                language = [UNK]
             for sentence in language:
                 if sentence in LMFeatureExtractor.encoder_cache[self.lm_model_name]:
                     reduced = LMFeatureExtractor.encoder_cache[self.lm_model_name][sentence]

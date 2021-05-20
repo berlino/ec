@@ -173,7 +173,7 @@ class Frontier(object):
 
     def combine(self, other, tolerance=0.01):
         '''Takes the union of the programs in each of the frontiers'''
-        assert self.task == other.task
+        assert self.task.name == other.task.name
 
         foundDifference = False
 
