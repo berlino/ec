@@ -134,9 +134,6 @@ def preload_initial_frontiers(preload_frontiers_file):
         for task, frontier in preloaded_frontiers.items() if not frontier.empty
     }
     print(f"Preloaded frontiers for {len(tasks_to_preloaded_frontiers)} tasks.")
-    for task in sorted(tasks_to_preloaded_frontiers):
-        print(task)
-    exit()
     return tasks_to_preloaded_frontiers
 
 def arc_options(parser):
