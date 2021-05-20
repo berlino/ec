@@ -184,7 +184,7 @@ def getProgramUses(program, request, grammar):
         usesIdx = [usesIdx]
     return usesIdx
 
-def parseHandwritten(taskName):
+def parseHandwritten(taskName, manuallySolvedTasks):
     # if taskName in ["007bbfb7.json", "ea786f4a.json"]:
     #     return None
     # else:

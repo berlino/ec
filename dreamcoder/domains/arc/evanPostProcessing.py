@@ -1,5 +1,6 @@
 import pandas as pd
 
+from dreamcoder.frontier import FrontierEntry, Frontier
 from dreamcoder.domains.arc.arcPrimitives import *
 from dreamcoder.domains.arc.utilsPostProcessing import *
 from dreamcoder.type import Context, arrow, tbool, tlist, tint, t0, UnificationFailure
@@ -25,7 +26,7 @@ def writeSyntheticNlData(paths, runNames):
             manuallySolved = task.name in list(manuallySolvedTasks.keys())
             humanSolution = None
             if manuallySolved:
-                humanProgram = parseHandwritten(task.name)
+                humanProgram = parseHandwritten(task.name, manuallySolvedTasks)
                 # usesIdx = getProgramUses(humanProgram, arrow(tgridin, tgridout), firstGrammar)
                 # humanSolution = (len(usesIdx), usesIdx)
                 if "handwritten" not in toReturn[task]:
@@ -89,4 +90,40 @@ def main():
     pickleFilename = "arc_aic=1.0_arity=3_BO=True_CO=True_ES=1_ET=1200_t_zero=1_HR=0.0_it=9_MF=5_noConsolidation=False_pc=30.0_RS=10000_RT=3600_RR=False_RW=False_solver=ocaml_STM=True_L=1.5_TRR=unsolved_K=2_topkNotMAP=False_UET=14400.pickle"
     picklePath4 = path + pickleFilename
 
-    writeSyntheticNlData([picklePath1, picklePath2, picklePath3, picklePath4], ["rich", "rich_2", "trimmed", "trimmed_2"])
+    # writeSyntheticNlData([picklePath1, picklePath2, picklePath3, picklePath4], ["rich", "rich_2", "trimmed", "trimmed_2"])
+
+    count = 0
+    result, _, _ = resume_from_path(picklePath1)
+    result3, _, _ = resume_from_path(picklePath3)
+
+    task2Frontier = {}
+
+    basePrimitives()
+    leafPrimitives()
+    moreSpecificPrimitives()
+
+    handWrittenFrontiers = {}
+    for task in result.allFrontiers.keys():
+        if task.name in manuallySolvedTasks:
+            handWrittenFrontiers[task] = Frontier([FrontierEntry(parseHandwritten(task.name, manuallySolvedTasks), logPrior=0, logLikelihood=0)], task)
+        else:
+            handWrittenFrontiers[task] = Frontier([], task)
+
+    for task, frontiers in result.frontiersOverTime.items():
+        # print(task, frontiers[0])
+        task2Frontier[task] = frontiers[0].combine(result3.allFrontiers[task])
+
+    for t,f in handWrittenFrontiers.items():
+        print(t,f)
+
+    # print(len([t for t,f in handWrittenFrontiers.items() if len(f.entries) > 0]))
+    # dill.dump(handWrittenFrontiers, open("data/arc/handwritten_frontiers.pkl", "wb"))
+
+    f1 = dill.load(open("data/arc/handwritten_and_prior_enumeration_frontiers.pkl", "rb"))
+    f2 = dill.load(open("data/arc/handwritten_frontiers.pkl", "rb"))
+    f3 = dill.load(open("data/arc/prior_enumeration_frontiers.pkl", "rb"))
+
+    print(len([f for t,f in f1.items() if len(f.entries) > 0]))
+    print(len([f for t,f in f2.items() if len(f.entries) > 1]))
+    print(len([f for t,f in f3.items() if len(f.entries) > 0]))
+
