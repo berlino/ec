@@ -64,7 +64,7 @@ def writeSyntheticNlData(paths, runNames):
     print("DF shape before dropping duplicates: {}".format(df.shape))
     df = df.drop_duplicates(subset=["program"])
     print("DF shape after dropping duplicates: {}".format(df.shape))
-    df.to_csv("data/arc/all_unique_programs.csv")
+    # df.to_csv("data/arc/all_unique_programs.csv")
     return df
 
 def main():

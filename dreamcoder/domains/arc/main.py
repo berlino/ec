@@ -145,8 +145,8 @@ def arc_options(parser):
         "arcCNN",
         "dummy",
         "LMFeatureExtractor"])
-    
-    # Language annotation.
+
+    parser.add_argument("--primitives", default="rich", help="Which primitive set to use", choices=["base", "rich"])
     parser.add_argument("--test_language_models", action="store_true")
     parser.add_argument("--test_language_dc_recognition", action="store_true")
     parser.add_argument("--language_encoder", help="Which language encoder to use for test_language_models.")
@@ -297,7 +297,7 @@ def main(args):
     #     "5521c0d9.json": _solve5521c0d9,
     #     "ce4f8723.json": _solvece4f8723,
     # }
-    
+    # 
     run_tests(args)
 
     import os
@@ -318,7 +318,12 @@ def main(args):
     if preloaded_frontiers is not None:
         preloaded_frontiers = preload_initial_frontiers(preloaded_frontiers_file)
 
-    baseGrammar = Grammar.uniform(basePrimitives() + leafPrimitives())
+    primitivesTable = {
+        "base": basePrimitives() + leafPrimitives(),
+        "rich": basePrimitives() + leafPrimitives() + moreSpecificPrimitives()
+        }
+
+    baseGrammar = Grammar.uniform(primitivesTable[args.pop("primitives")])
     # print("base Grammar {}".format(baseGrammar))
 
     timestamp = datetime.datetime.now().isoformat()

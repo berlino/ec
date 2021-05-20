@@ -700,7 +700,6 @@ def leafPrimitives():
         Primitive("maroon", tcolor, _maroon)
         ]
 
-
 def basePrimitives():
 
     return [
@@ -721,9 +720,6 @@ def basePrimitives():
     Primitive("map_blocks", arrow(tblocks, arrow(tblock, tblock), tblocks), _map),
     # Primitive('sortBlocks',arrow(tblocks, arrow(tblock, tint), tblocks), _sortBlocks),
 
-    # arrow(tblocks, ttbs)
-    # Primitive("filter_template_block", arrow(tblocks, arrow(tblock, tbool), ttbs), None),
-
 ##### tblock ######
 
     # arrow(tblock, tblock)
@@ -733,7 +729,6 @@ def basePrimitives():
     Primitive('duplicate', arrow(tblock, tdirection, tint, tblock), None),
     Primitive('grow', arrow(tblock, tint, tblock), _grow),
     Primitive('fill_color', arrow(tblock, tcolor, tblock), _fill),
-    Primitive('fill_snakewise', arrow(tblock, tcolorpair, tblock), None),
     Primitive('replace_color', arrow(tblock, tcolor, tcolor, tblock), _replaceColors),
     Primitive('remove_black_b', arrow(tblock, tblock), None),
     Primitive('remove_color', arrow(tblock, tcolor, tblock), None),
@@ -774,9 +769,6 @@ def basePrimitives():
     Primitive("block_to_tile", arrow(tblock, ttile), None),
     Primitive("get_block_center", arrow(tblock, ttile), None),
 
-    # arrow(tblock, tblocks)
-    Primitive("map_for_directions", arrow(tblock, tdirections, arrow(t0, tdirection, tblock), tblocks), None),
-
 ##### tgridin #####
 
     # arrow(tgridin, tblocks)
@@ -786,9 +778,6 @@ def basePrimitives():
     Primitive('find_blocks_by_inferred_b', arrow(tgridin, tbool, tbool, tblocks), lambda grid: grid),    
     #arrow(tgridin, tblock)
     Primitive('grid_to_block', arrow(tgridin, tblock), lambda grid: grid),
-    
-    # arrow(tgridin, tsplitblocks)
-    Primitive('split_grid', arrow(tgridin, tbool, tsplitblocks), None),
 
     # arrow(tgridin, ttiles)
     Primitive('find_tiles_by_black_b', arrow(tgridin, ttiles), None),
@@ -804,12 +793,7 @@ def basePrimitives():
     # arrow(ttile, tblock)
     Primitive('tile_to_block', arrow(ttile, tblock), None),
     Primitive('extend_towards_until', arrow(ttile, tdirection, arrow(ttile, tbool), tblock), None),
-    Primitive('extend_towards_until_edge', arrow(ttile, tdirection, tblock), None),
-    Primitive('extend_until_touches_block', arrow(ttile, tblock, tbool, tblock), None),
     Primitive('move_towards_until', arrow(ttile, tdirection, arrow(ttile, tbool), tblock), None),
-    Primitive('move_towards_until_edge', arrow(ttile, tdirection, tblock), None),
-    Primitive('move_until_touches_block', arrow(ttile, tblock, tbool, tblock), None),
-    Primitive('move_until_overlaps_block', arrow(ttile, tblock, tbool, tblock), None),
 
     # arrow(ttile, tcolor)
     Primitive('get_tile_color', arrow(ttile, tcolor), None),
@@ -823,7 +807,45 @@ def basePrimitives():
     Primitive("filter_tiles", arrow(ttiles, arrow(ttile, tbool), ttiles), _filter),
     Primitive("map_tiles", arrow(ttiles, arrow(ttile, tblock), tblocks), _map),
 
-##### tsplitblocks #####
+#### tbool #####
+
+    Primitive("negate_boolean", arrow(tbool, tbool), None),
+
+# ##### tintcolorpair #####
+
+    # Primitive("make_intcolorpair", arrow(tint, tcolor, tintcolorpair), None),
+
+# ##### tcmap #####
+
+    # Primitive("make_cmap", arrow(tcolorpair, tcolorpair, tcolorpair, tcmap), None),
+    # Primitive("get_color_from_cmap", arrow(tcmap, tcolor, tcolor), None),
+
+# ##### ticmmap #####
+
+    # Primitive("make_icmap", arrow(tintcolorpair, tintcolorpair, tintcolorpair, ticmap), None),
+]
+
+def moreSpecificPrimitives():
+
+    return [
+    # arrow(tblocks, ttbs)
+    Primitive("filter_template_block", arrow(tblocks, arrow(tblock, tbool), ttbs), None),
+
+    # arrow(tblock, tblock)
+    Primitive('fill_snakewise', arrow(tblock, tcolorpair, tblock), None),
+
+    # arrow(tblock, tblocks)
+    Primitive("map_for_directions", arrow(tblock, tdirections, arrow(t0, tdirection, tblock), tblocks), None),
+
+    # arrow(tgridin, tsplitblocks)
+    Primitive('split_grid', arrow(tgridin, tbool, tsplitblocks), None),
+
+    # arrow(ttile, tblock)
+    Primitive('extend_towards_until_edge', arrow(ttile, tdirection, tblock), None),
+    Primitive('extend_until_touches_block', arrow(ttile, tblock, tbool, tblock), None),
+    Primitive('move_towards_until_edge', arrow(ttile, tdirection, tblock), None),
+    Primitive('move_until_touches_block', arrow(ttile, tblock, tbool, tblock), None),
+    Primitive('move_until_overlaps_block', arrow(ttile, tblock, tbool, tblock), None),
 
     # arrow(tsplitblocks -> tgridout)
     Primitive('overlap_split_blocks', arrow(tsplitblocks, arrow(tcolor, tcolor, tcolor), tgridout), None),
@@ -831,43 +853,20 @@ def basePrimitives():
     # arrow(tsplitblocks -> tblocks)
     Primitive('splitblocks_to_blocks', arrow(tsplitblocks, tblocks), None),
 
-##### tcolor #####
-
     # arrow(tcolor, tcolor)
     Primitive('color_logical', arrow(tcolor, tcolor, tcolor, tlogical, tcolor), None),
-
-##### tlogical #####
 
     Primitive("land", tlogical, None),
     Primitive("lor", tlogical, None),
     Primitive("lxor", tlogical, None),
-
-
-#### tbool #####
-
-    Primitive("negate_boolean", arrow(tbool, tbool), None),
 
 #### ttbs ####
     Primitive("map_tbs", arrow(ttbs, arrow(tblock, tblock, tblock), tbool, tblocks), None),
 
 ##### tcolorpair #####
 
-    Primitive("make_colorpair", arrow(tcolor, tcolor, tcolorpair), None),
-
-# ##### tintcolorpair #####
-
-    Primitive("make_intcolorpair", arrow(tint, tcolor, tintcolorpair), None),
-
-# ##### tcmap #####
-
-
-    Primitive("make_cmap", arrow(tcolorpair, tcolorpair, tcolorpair, tcmap), None),
-    Primitive("get_color_from_cmap", arrow(tcmap, tcolor, tcolor), None),
-
-# ##### ticmmap #####
-
-    Primitive("make_icmap", arrow(tintcolorpair, tintcolorpair, tintcolorpair, ticmap), None),
-]
+    Primitive("make_colorpair", arrow(tcolor, tcolor, tcolorpair), None)
+    ]
 
 
 # def retrieveARCJSONTask(filename, directory):
