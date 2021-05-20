@@ -130,6 +130,7 @@ def arc_options(parser):
     parser.add_argument("--featureExtractor", default="dummy", choices=[
         "arcCNN",
         "dummy"])
+    parser.add_argument("--primitives", default="base", help="Which primitive set to use", choices=["base", "rich"])
     parser.add_argument("--test_language_models", action="store_true")
     parser.add_argument("--test_language_dc_recognition", action="store_true")
     parser.add_argument("--language_encoder")
@@ -278,7 +279,7 @@ def main(args):
     #     "5521c0d9.json": _solve5521c0d9,
     #     "ce4f8723.json": _solvece4f8723,
     # }
-    
+    # 
     run_tests(args)
 
     import os
@@ -286,11 +287,15 @@ def main(args):
     homeDirectory = "/".join(os.path.abspath(__file__).split("/")[:-4])
     dataDirectory = homeDirectory + "/arc_data/data/"
 
+    # trainTasks = retrieveARCJSONTasks(dataDirectory + 'training', None)
+    # holdoutTasks = retrieveARCJSONTasks(dataDirectory + 'evaluation')
 
-    trainTasks = retrieveARCJSONTasks(dataDirectory + 'training', None)
-    holdoutTasks = retrieveARCJSONTasks(dataDirectory + 'evaluation')
+    primitivesTable = {
+        "base": basePrimitives() + leafPrimitives(),
+        "rich": basePrimitives() + leafPrimitives() + moreSpecificPrimitives()
+        }
 
-    baseGrammar = Grammar.uniform(basePrimitives() + leafPrimitives())
+    baseGrammar = Grammar.uniform(primitivesTable[args.pop("primitives")])
     # print("base Grammar {}".format(baseGrammar))
 
     timestamp = datetime.datetime.now().isoformat()
@@ -309,4 +314,4 @@ def main(args):
     if args.pop("singleTask"):
         trainTasks = [trainTasks[0]]
 
-    explorationCompression(baseGrammar, trainTasks, featureExtractor=featureExtractor, testingTasks=[], **args)
+    # explorationCompression(baseGrammar, trainTasks, featureExtractor=featureExtractor, testingTasks=[], **args)
