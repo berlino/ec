@@ -177,7 +177,9 @@ def ecIterator(grammar, tasks,
                auxiliaryLoss=False,
                custom_wake_generative=None,
                firstTimeEnumerationTimeout=1,
-               unigramEnumerationTimeout=3600):
+               unigramEnumerationTimeout=3600,
+               preloaded_frontiers={}, # Dictionary from tasks to preloaded initial frontiers.
+               ):
 
     if enumerationTimeout is None:
         eprint(
@@ -236,7 +238,9 @@ def ecIterator(grammar, tasks,
             "evaluationTimeout",
             "testingTasks",
             "compressor",
-            "custom_wake_generative"} and v is not None}
+            "custom_wake_generative",
+            "preloaded_frontiers"
+            } and v is not None}
     if not useRecognitionModel:
         for k in {"helmholtzRatio", "recognitionTimeout", "biasOptimal", "mask",
                   "contextual", "matrixRank", "reuseRecognition", "auxiliaryLoss", "ensembleSize"}:
@@ -269,7 +273,7 @@ def ecIterator(grammar, tasks,
     eprint("Running EC%s on %s @ %s with %d CPUs and parameters:" %
            (message, os.uname()[1], datetime.datetime.now(), CPUs))
     for k, v in parameters.items():
-        eprint("\t", k, " = ", v)
+            eprint("\t", k, " = ", v)
     eprint("\t", "evaluationTimeout", " = ", evaluationTimeout)
     eprint("\t", "cuda", " = ", cuda)
     eprint()
@@ -306,6 +310,10 @@ def ecIterator(grammar, tasks,
                               t: Frontier([],
                                           task=t) for t in tasks})
 
+    # Initialize any preloaded frontiers.
+    for task in result.allFrontiers:
+        if task.name in preloaded_frontiers:
+            result.allFrontiers[task] = result.allFrontiers[task].combine(preloaded_frontiers[task.name])
 
     # Set up the task batcher.
     if taskReranker == 'default':

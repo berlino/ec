@@ -736,8 +736,8 @@ def basePrimitives():
     Primitive('wrap_block', arrow(tblock, tcolor, tbool, tblock), None),
     Primitive("filter_block_tiles", arrow(tblock, arrow(ttile, tbool), tblock), None),
     Primitive("map_block_tiles", arrow(tblock, arrow(ttile, ttile), tblock), None),
-    Primitive('_replaceNthColors', arrow(tblock, tint, tint, tblock), _replaceNthColors),
-    Primitive('fillWithNthColor', arrow(tblock, tint, tblock), _fillWithNthColor),
+    # Primitive('_replaceNthColors', arrow(tblock, tint, tint, tblock), _replaceNthColors),
+    # Primitive('fillWithNthColor', arrow(tblock, tint, tblock), _fillWithNthColor),
     Primitive('fillIn', arrow(tblock, tcolor, tblock), _fillIn),
 
     # arrow(tblock, tgridout)

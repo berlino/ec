@@ -14,6 +14,19 @@ import heapq
 
 import hashlib
 
+def pop_all_domain_specific_args(args_dict, iterator_fn):
+    """Pops any additional domain-specific arguments that may have been added at the command line
+    but are not present in the main iterator.
+    Mutates: args_dict
+    """
+    print("Popping off additional domain specific arguments:")
+    initial_args = list(args_dict.keys())
+    for arg in initial_args:
+        if arg not in inspect.signature(iterator_fn).parameters:
+            print(f"Arg {arg} not in main iterator function; removing.")
+            args_dict.pop(arg)
+
+
 def computeMD5hash(my_string):
     #https://stackoverflow.com/questions/13259691/convert-string-to-md5
     m = hashlib.md5()
