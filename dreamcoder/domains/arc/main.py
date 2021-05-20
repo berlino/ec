@@ -287,8 +287,8 @@ def main(args):
     homeDirectory = "/".join(os.path.abspath(__file__).split("/")[:-4])
     dataDirectory = homeDirectory + "/arc_data/data/"
 
-    # trainTasks = retrieveARCJSONTasks(dataDirectory + 'training', None)
-    # holdoutTasks = retrieveARCJSONTasks(dataDirectory + 'evaluation')
+    trainTasks = retrieveARCJSONTasks(dataDirectory + 'training', None)
+    holdoutTasks = retrieveARCJSONTasks(dataDirectory + 'evaluation')
 
     primitivesTable = {
         "base": basePrimitives() + leafPrimitives(),
