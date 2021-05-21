@@ -253,10 +253,10 @@ def ecIterator(grammar, tasks,
             del parameters["mask"]
     if not mask and 'mask' in parameters: del parameters["mask"]
     if not auxiliaryLoss and 'auxiliaryLoss' in parameters: del parameters['auxiliaryLoss']
-    if not useDSL:
-        for k in {"structurePenalty", "pseudoCounts", "aic"}:
-            del parameters[k]
-    else: del parameters["useDSL"]
+    # if not useDSL:
+    #     for k in {"structurePenalty", "pseudoCounts", "aic"}:
+    #         del parameters[k]
+    # else: del parameters["useDSL"]
     
     # Uses `parameters` to construct the checkpoint path
     def checkpointPath(iteration, extra=""):
@@ -473,7 +473,7 @@ def ecIterator(grammar, tasks,
                                  'frontier')                
         
         # Sleep-G
-        if useDSL and not(noConsolidation):
+        if not(noConsolidation):
             eprint(f"Currently using this much memory: {getThisMemoryUsage()}")
             grammar = consolidate(result, grammar, topK=topK, pseudoCounts=pseudoCounts, arity=arity, aic=aic,
                                   structurePenalty=structurePenalty, compressor=compressor, CPUs=CPUs,
@@ -826,7 +826,7 @@ def commandlineArguments(_=None,
     parser.add_argument("-d", "--no-dsl",
                         dest="useDSL",
                         action="store_false",
-                        help="""Disable DSL enumeration and updating.""")
+                        help="""Disable DSL enumeration.""")
     parser.add_argument("--no-consolidation",
                         dest="noConsolidation",
                         action="store_true",
