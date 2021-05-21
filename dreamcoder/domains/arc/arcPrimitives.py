@@ -736,9 +736,6 @@ def basePrimitives():
     Primitive('wrap_block', arrow(tblock, tcolor, tbool, tblock), None),
     Primitive("filter_block_tiles", arrow(tblock, arrow(ttile, tbool), tblock), None),
     Primitive("map_block_tiles", arrow(tblock, arrow(ttile, ttile), tblock), None),
-    # Primitive('_replaceNthColors', arrow(tblock, tint, tint, tblock), _replaceNthColors),
-    # Primitive('fillWithNthColor', arrow(tblock, tint, tblock), _fillWithNthColor),
-    Primitive('fillIn', arrow(tblock, tcolor, tblock), _fillIn),
 
     # arrow(tblock, tgridout)
     Primitive("to_min_grid", arrow(tblock, tbool, tgridout), _blockToMinGrid),
@@ -763,7 +760,6 @@ def basePrimitives():
     Primitive('touches_boundary', arrow(tblock, tdirection, tbool), None),
     Primitive('has_color', arrow(tblock, tcolor, tbool), None),
     Primitive('is_tile', arrow(tblock, tbool), None),
-    Primitive('hasGeqNcolors', arrow(tblock, tint, tbool), _hasGeqNColors), # (5117e062)
 
     # arrow(tblock, ttile)
     Primitive("block_to_tile", arrow(tblock, ttile), None),
