@@ -841,6 +841,10 @@ class RecognitionModel(nn.Module):
         return ml, al
 
     def replaceProgramsWithLikelihoodSummaries(self, frontier):
+        # Cache the solution programs if we need them.
+        solution_programs = [e.program for e in frontier]
+        frontier.task.solution_programs = solution_programs
+        
         return Frontier(
             [FrontierEntry(
                 program=self.grammar.closedLikelihoodSummary(frontier.task.request, e.program),
@@ -857,6 +861,7 @@ class RecognitionModel(nn.Module):
         helmholtzFrontiers: Frontiers from programs enumerated from generative model (optional)
         If helmholtzFrontiers is not provided then we will sample programs during training
         """
+        self.featureExtractor.train = True
         assert (steps is not None) or (timeout is not None), \
             "Cannot train recognition model without either a bound on the number of gradient steps or bound on the training time"
         if steps is None: steps = 9999999
@@ -1078,6 +1083,7 @@ class RecognitionModel(nn.Module):
         
         eprint("(ID=%d): " % self.id, " Trained recognition model in",time.time() - start,"seconds")
         self.trained=True
+        self.featureExtractor.train = False
         return self
 
     def sampleHelmholtz(self, requests, statusUpdate=None, seed=None):

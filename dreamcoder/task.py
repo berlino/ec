@@ -26,7 +26,7 @@ class Task(object):
             assert all(len(xs) == len(examples[0][0])
                        for xs, _ in examples), \
                 "(for task %s) FATAL: Number of arguments varies." % name
-
+        self.solution_programs = []
     def __str__(self):
         if self.supervision is None:
             return self.name

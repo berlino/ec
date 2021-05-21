@@ -23,6 +23,15 @@ Usage:
         t5_mixture_model, 0.5, 0.5,  100 epochs, batch=10 : -14.847859258665538
         t5_unigram_dc_model, 1000 training steps : -15.522826835452928
         *t5_bigram_dc_model: -13.483465064442436
+    
+    best_programs, final_dsl:
+        fitted_bigram_prior: -13.904265685889866
+        t5_bigram_dc_model: -13.264508984184484
+        tagged_bigram_model: -13.261363718441588
+        t5_tags_bigram_model: -13.132459419297774
+        t5_only_pseudotranslation_model = -13.431850043146119
+        t5_with_pseudotranslation_model = -13.124230662349463
+        t5_train_on_pseudotranslations_test_nothing: -11.788840493275307 
 """
 import os
 import numpy as np
@@ -90,7 +99,8 @@ def load_language_program_data(language_programs_file):
     # Initialize base primitives to parse the programs.
     basePrimitives()
     leafPrimitives()
-    arc_grammar = Grammar.uniform(basePrimitives() + leafPrimitives())
+    moreSpecificPrimitives()
+    arc_grammar = Grammar.uniform(basePrimitives() + leafPrimitives() + moreSpecificPrimitives())
     
     # Load the language data and the parsed programs.
     full_filepath = os.path.join(DATA_DIR, language_programs_file)

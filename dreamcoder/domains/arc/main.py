@@ -31,10 +31,16 @@ from dreamcoder.domains.arc.language_model_feature_extractor import LMFeatureExt
 
 
 DATA_DIR = "data/arc"
-LANGUAGE_PROGRAMS_FILE = os.path.join(DATA_DIR, "best_programs_nl_sentences.csv")
-LANGUAGE_ANNOTATIONS_FILE = os.path.join(DATA_DIR, "language/sentences/language.json")
 
+LANGUAGE_PROGRAMS_FILE = os.path.join(DATA_DIR, "best_programs_nl_sentences.csv") # Sentences and the best supervised programs.
+TAGGED_LANGUAGE_FEATURES_FILE = os.path.join(DATA_DIR, "tagged_nl_sentences.csv") # Tagged semantic features.
+LANGUAGE_ANNOTATIONS_FILE = os.path.join(DATA_DIR, "language/sentences/language.json") # All language annotations for training.
+PRIMITIVE_HUMAN_READABLE = os.path.join(DATA_DIR, "primitiveNamesToDescriptions.json")
 PRIOR_ENUMERATION_FRONTIERS = os.path.join(DATA_DIR, "prior_enumeration_frontiers.pkl")
+
+class LMPseudoTranslationFeatureExtractor(LMFeatureExtractor):
+    def __init__(self, tasks=[], testingTasks=[], cuda=False):
+        return super(LMPseudoTranslationFeatureExtractor, self).__init__(tasks=tasks, testingTasks=testingTasks, cuda=cuda,use_language_model=False,primitive_names_to_descriptions=PRIMITIVE_HUMAN_READABLE,pseudo_translation_probability=0.5)
 
 class EvaluationTimeout(Exception):
     pass
@@ -144,7 +150,8 @@ def arc_options(parser):
     parser.add_argument("--featureExtractor", default="dummy", choices=[
         "arcCNN",
         "dummy",
-        "LMFeatureExtractor"])
+        "LMFeatureExtractor",
+        "LMPseudoTranslationFeatureExtractor"])
 
     parser.add_argument("--primitives", default="rich", help="Which primitive set to use", choices=["base", "rich"])
     parser.add_argument("--test_language_models", action="store_true")
@@ -152,6 +159,9 @@ def arc_options(parser):
     parser.add_argument("--language_encoder", help="Which language encoder to use for test_language_models.")
     parser.add_argument("--language_program_data", default=LANGUAGE_PROGRAMS_FILE)
     parser.add_argument("--language_annotations_data", default=LANGUAGE_ANNOTATIONS_FILE)
+    parser.add_argument("--tagged_annotations_data", default=TAGGED_LANGUAGE_FEATURES_FILE)
+    parser.add_argument("--primitive_names_to_descriptions",
+    default=PRIMITIVE_HUMAN_READABLE)
     parser.add_argument("--preload_frontiers", default=PRIOR_ENUMERATION_FRONTIERS)
 
     # parser.add_argument("-i", type=int, default=10)
@@ -337,7 +347,8 @@ def main(args):
     featureExtractor = {
         "dummy": DummyFeatureExtractor,
         "arcCNN": ArcCNN,
-        "LMFeatureExtractor" : LMFeatureExtractor
+        "LMFeatureExtractor" : LMFeatureExtractor,
+        "LMPseudoTranslationFeatureExtractor" : LMPseudoTranslationFeatureExtractor
     }[args.pop("featureExtractor")]
 
     if args.pop("singleTask"):
