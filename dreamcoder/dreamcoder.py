@@ -179,6 +179,7 @@ def ecIterator(grammar, tasks,
                firstTimeEnumerationTimeout=1,
                unigramEnumerationTimeout=3600,
                preloaded_frontiers={}, # Dictionary from tasks to preloaded initial frontiers.
+               no_background_helmholtz=False,
                ):
 
     if enumerationTimeout is None:
@@ -239,7 +240,8 @@ def ecIterator(grammar, tasks,
             "testingTasks",
             "compressor",
             "custom_wake_generative",
-            "preloaded_frontiers"
+            "preloaded_frontiers",
+            "no_background_helmholtz"
             } and v is not None}
     if not useRecognitionModel:
         for k in {"helmholtzRatio", "recognitionTimeout", "biasOptimal", "mask",
@@ -393,7 +395,7 @@ def ecIterator(grammar, tasks,
         # If we have to also enumerate Helmholtz frontiers,
         # do this extra sneaky in the background
         if useRecognitionModel and biasOptimal and helmholtzRatio > 0 and \
-           all( str(p) != "REAL" for p in grammar.primitives ): # real numbers don't support this
+           all( str(p) != "REAL" for p in grammar.primitives ) and (not no_background_helmholtz): # real numbers don't support this
             # the DSL is fixed, so the dreams are also fixed. don't recompute them.
             if useDSL or 'helmholtzFrontiers' not in locals():
                 helmholtzFrontiers = backgroundHelmholtzEnumeration(tasks, grammar, enumerationTimeout,
@@ -831,6 +833,10 @@ def commandlineArguments(_=None,
                         dest="noConsolidation",
                         action="store_true",
                         help="""Disable DSL updating.""")
+    parser.add_argument("--no-background-helmholtz",
+                        dest='no_background_helmholtz',
+                        action="store_true",
+                        help="Disable background helmholtz/")
     parser.add_argument(
         "--testingTimeout",
         type=int,
