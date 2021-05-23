@@ -35,6 +35,7 @@ To view these results clone the repository and open ec/arc-data/apps/testing_int
 
 #### Full training corpus Enumeration with Bigram Model (slurm-16731642.out, slurm-16817187.out)
 ec/experimentOutputs/arc/2020-05-10T14:49:21.186479
+experimentOutputs/arc/2020-04-28T23:28:35.521649/arc_aic=1.0_arity=3_BO=True_CO=True_ES=1_ET=1200_t_zero=28800_HR=0.0_it=3_MF=10_noConsolidation=False_pc=1.0_RT=1800_RR=False_RW=False_solver=ocaml_STM=True_L=1.0_TRR=unsolved_K=2_topkNotMAP=False.pickle
 
 Iterations: 6,
 Top-down enumeration timeout: 8 hours,
