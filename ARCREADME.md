@@ -33,30 +33,65 @@ There are also `tblocks`, `ttiles` which are lists of `tblock` and `ttile`.
 ## Results
 To view these results clone the repository and open ec/arc-data/apps/testing_interface.html with your browser. Once you can see the main ARC test interface click on the "Choose File" button to "Load EC Console output". Then select the ecResults.json file found in ec/experimentOutputs/arc/.../ecResults.json.
 
-#### Full training corpus Enumeration with Bigram Model (slurm-16731642.out, slurm-16817187.out)
-ec/experimentOutputs/arc/2020-05-10T14:49:21.186479
-experimentOutputs/arc/2020-04-28T23:28:35.521649/arc_aic=1.0_arity=3_BO=True_CO=True_ES=1_ET=1200_t_zero=28800_HR=0.0_it=3_MF=10_noConsolidation=False_pc=1.0_RT=1800_RR=False_RW=False_solver=ocaml_STM=True_L=1.0_TRR=unsolved_K=2_topkNotMAP=False.pickle
+### Best Dreamcoder Run so far (Unconditional Unigram Enumeration + Unconditional Bigram Enumeration + Compression)
 
-Iterations: 6,
-Top-down enumeration timeout: 8 hours,
-Bottom-up enumeration timeout: 20 minutes
+Total number of iterations: 6 <br>
+Top-down enumeration timeout: 8 hours <br>
+Bottom-up enumeration timeout: 20 minutes <br>
+Low-Rank Bigram NN training: 1800s recognition timeout, 0 helmholtz ratio (i.e. only solved) <br>
+Relevant log files: slurm-16749218.out, slurm-16817187.out <br>
+Resume pickle file: experimentOutputs/arc/2020-05-10T14:49:21.186479/arc_aic=1.0_arity=3_BO=True_CO=True_ES=1_ET=1200_t_zero=28800_HR=0.0_it=6_MF=10_noConsolidation=False_pc=1.0_RT=1800_RR=False_RW=False_solver=ocaml_STM=True_L=1.0_TRR=unsolved_K=2_topkNotMAP=False.pickle <br>
 
-After 8 Hour unconditional enumeration (w/o bigram model): 31/400 <br />
-At the end of iteration 1: (top-dow): 71/400 <br />
-At the end of iteration 2: 73/400 <br />
-At the end of iteration 3: 74/400 <br />
-At the end of iteration 4: 74/400 <br />
-At the end of iteration 5: 74/400 <br />
+(Below information is from: slurm-16749218.out)
 
+#### Iteration 1:
+Unigram Unconditional Frontiers (enumerating for all 400 tasks, 28800s): 31 <br>
+Bigram Frontiers (enumerating for all 400 tasks, 1200s): 38 (same 31 + 7 new) <br>
+Compression: 4 new invented primitives <br>
+**Total Frontiers: 38**
 
-#### Batch Enumeration with Bigram Model (slurm-16769822.out)
-experimentOutputs/arc/2020-05-01T19:00:26.769291
+#### Iteration 2:
+Unigram Unconditional Frontiers (enumerating for all 400 tasks, 28800s): 48 <br>
+Bigram Frontiers (enumerating for all 400 tasks, 1200s): 59 (same 48 + 11 new) <br>
+Compression: 10 new invented primitives <br>
+**Total Frontiers: 59** <br>
 
-Iterations: 20,
+#### Iteration 3:
+Unigram Uncondition Frontiers (enumerating for unsolved (362 tasks), 28800s): 25 <br>
+Bigram Frontiers (enumerating for unsolved (362 tasks), 1200s): 31 (same 25 + 6 new) <br>
+Compression: 2 new invented primitives <br>
+**Total Frontiers: 69** <br>
+
+(Below information is from: slurm-16817187.out)
+
+#### Iteration 4:
+Unigram Unconditional Frontiers (enumerating for all 400 tasks, 28800s): 71 <br>
+Bigram Frontiers (enumerating for all 400 tasks, 1200s): 73 (same 71 as above + 2 new) <br>
+Compression: 0 new invented primitives <br>
+**Total Frontiers: 73** .<br>
+
+#### Iteration 5:
+Unigram Unconditional Frontiers (enumerating for unsolved (331 tasks) 28800s, exactly 643,937 program enumerated): 3 <br>
+Bigram Frontiers (enumerating for unsolved (331 tasks), 1200s, mean 1,694,037 enumerated program per task): 4 (same 3 as above + 1 new) <br>
+Compression: 0 new invented primitives <br>
+**Total Frontiers: 73** <br>
+
+#### Iteration 6:
+Unigram Unconditional Frontiers (enumerating for unsolved (327 tasks), 28800s, exactly 649,405 programs enumerated per task): 0 <br>
+Bigram Frontiers (enumerating for unsolved (327 tasks), 1200s, mean 1,800,000 enumerated program per task): 1 <br>
+Compression: 0 new invented primitives <br>
+**Total Frontiers: 74** <br>
+
+### Batch Enumeration with Bigram Model (slurm-16769822.out)
+Resume pickle file: experimentOutputs/arc/2020-05-01T19:00:26.769291 <br>
+Iterations: 20 <br>
+Batch size: 30 <br>
+Top-down enumeration timeout: 1 hour <br>
+Bottom-up enumeration timeout: 1 hour <br>
+
 (At iteration 0, top-down enumerated for all tasks for 8 hours to jump start)
-Batch size: 30,
-Top-down enumeration timeout: 1 hour,
-Bottom-up enumeration timeout: 1 hour
+
+**TODO: Finish documenting**
 ## Next Steps
 ### DSL
 The DSL code can be found in `solvers/arc.ml`.
