@@ -175,7 +175,7 @@ let default_hash ?timeout:(timeout=0.001) request inputs : program -> PolyList.t
           match run_for_interval ~attempts:2 timeout
                   (fun () -> run_lazy_analyzed_with_arguments p input)
           with
-          | Some(value) -> PolyValue.pack return value.points            
+          | Some(value) -> PolyValue.pack return value            
           | _ -> PolyValue.None
         with (* We have to be a bit careful with exceptions if the
               * synthesized program generated an exception, then we just
@@ -205,7 +205,7 @@ let arc_hash ?timeout:(timeout=0.001) request inputs : program -> PolyList.t opt
           match run_for_interval ~attempts:2 timeout
                   (fun () -> run_lazy_analyzed_with_arguments p input_grid)
           with
-          | Some(output_grid) -> Printf.eprintf "Succesfully executed sampled program on input \n%!"; PolyValue.pack return output_grid
+          | Some(output_grid) -> Printf.eprintf "Succesfully executed sampled program on input \n%!"; PolyValue.pack return output_grid.points
           | _ -> Printf.eprintf "Failed to execute sampled program on input \n%!"; PolyValue.None
         with (* We have to be a bit careful with exceptions if the
               * synthesized program generated an exception, then we just
