@@ -338,17 +338,24 @@ class Grid(RectangleBlock):
         rows = [' '.join(row) for row in temp.tolist()]
         return '\n'.join(rows)
 
-    # def toJson(self):
+    # def __repr__(self):
     #     temp = {}
     #     for yPos,xPos in self.points:
     #         temp["{},{}".format(yPos, xPos)] = self.points[(yPos,xPos)]
     #     return {'grid':temp}
 
-    def __repr__(self):
+    def toJson(self):
         temp = {}
         for yPos,xPos in self.points:
             temp["{},{}".format(yPos, xPos)] = self.points[(yPos,xPos)]
         return {'grid':temp}
+
+    def hash(self):
+        temp = np.full((self.getNumRows(),self.getNumCols()),None)
+        for yPos,xPos in self.points:
+            temp[yPos, xPos] = str(self.points[(yPos,xPos)])
+        rows = [' '.join(row) for row in temp.tolist()]
+        return '\n'.join(rows)
 
     def fromPoints(self, points):
         return Grid(points=points, originalGrid=self.originalGrid)

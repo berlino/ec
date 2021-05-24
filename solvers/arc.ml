@@ -130,7 +130,7 @@ let box_block {points;original_grid} =
    {points ; original_grid}
 
 let print_block {points ; original_grid}  =
-  printf "\n Block has %d tiles" (List.length points);
+  printf "\n Block has %d tiles%!" (List.length points);
   let maxY = get_max_y {points=(original_grid @ points) ;original_grid} in
   let maxX = get_max_x {points=(original_grid @ points);original_grid} in
   let indices = List.cartesian_product (0 -- maxY) (0 -- maxX) in
@@ -140,10 +140,10 @@ let print_block {points ; original_grid}  =
   let points = List.map ~f:(fun (y,x) -> ((y,x), deduce_val (y,x))) indices in
   let rec print_points points last_row = 
     match points with 
-    | [] -> Printf.printf "\n\n";
+    | [] -> Printf.eprintf "\n\n%!";
     | ((y, x),c) :: rest -> if y > last_row then 
-      (if (c > (-1)) then Printf.printf "\n |%i|" c else  Printf.printf "\n | |") else
-      (if (c > (-1)) then Printf.printf "%i|" c else  Printf.printf " |");
+      (if (c > (-1)) then Printf.eprintf "\n |%i|" c else  Printf.eprintf "\n | |%!") else
+      (if (c > (-1)) then Printf.eprintf "%i|" c else Printf.eprintf " |%!");
       print_points rest y; in
     print_points points (-1)
 

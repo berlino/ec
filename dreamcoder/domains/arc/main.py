@@ -14,7 +14,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from dreamcoder.dreaming import helmholtzEnumeration
+from dreamcoder.dreaming import helmholtzEnumeration, backgroundHelmholtzEnumeration
 from dreamcoder.dreamcoder import explorationCompression, sleep_recognition, ecIterator
 from dreamcoder.utilities import eprint, flatten, testTrainSplit, lse, runWithTimeout, pop_all_domain_specific_args
 from dreamcoder.grammar import Grammar, ContextualGrammar
@@ -337,7 +337,7 @@ def main(args):
     featureExtractor = {
         "dummy": DummyFeatureExtractor,
         "arcCNN": ArcCNN,
-        "LMFeatureExtractor" : LMFeatureExtractor
+        "LMFeatureExtractor": LMFeatureExtractor
     }[args.pop("featureExtractor")]
 
     if args.pop("singleTask"):
@@ -345,6 +345,12 @@ def main(args):
 
     # Utility function to remove any command line arguments that are not in the main iterator.
     pop_all_domain_specific_args(args, ecIterator)
-    explorationCompression(baseGrammar, trainTasks, featureExtractor=featureExtractor, testingTasks=[], 
-    preloaded_frontiers=preloaded_frontiers,
-     **args)
+
+    helmholtzFrontiers = backgroundHelmholtzEnumeration(trainTasks, baseGrammar, timeout=5.0, _=None, special="arc", evaluationTimeout=1.0)
+    import time
+    time.sleep(10)
+    print(helmholtzFrontiers())
+
+    # explorationCompression(baseGrammar, trainTasks, featureExtractor=featureExtractor, testingTasks=[], 
+    # preloaded_frontiers=preloaded_frontiers,
+    #  **args)

@@ -19,6 +19,10 @@ open Yojson.Basic
 let run_job channel =
   let open Yojson.Basic.Util in
   let j = Yojson.Basic.from_channel channel in
+  let location = "run_job" in
+  Printf.eprintf "Printing from: %s\n%!" location;
+  (* print_endline "Calling run_job"; *)
+
   let request = j |> member "request" |> deserialize_type in
   let timeout = j |> member "timeout" |> to_float in
   let evaluationTimeout =
@@ -66,8 +70,11 @@ let output_job ?maxExamples:(maxExamples=50000) result =
         `Assoc([(* "behavior", behavior; *)
                 "ll", `Float(l);
                 "programs", `List(ps |> List.map ~f:(fun p -> `String(p |> string_of_program)))])))
-  in 
+  in
+  (* Printf.eprintf "message from ocaml helmholtz enumeration: %s" (to_string message); *)
+  (* to_file "background_helmoltz.json" message; *)
   message
 
 let _ = 
   run_job Pervasives.stdin |> remove_bad_dreams |> output_job |> to_channel Pervasives.stdout
+  (* run_job Pervasives.stdin |> to_channel Pervasives.stdout *)

@@ -1,10 +1,12 @@
 open Core
 
+open Arc
 open Pregex
 open Program
 open Enumeration
 open Grammar
 open Utils
+open Task
 open Timeout
 open Type
 open Tower
@@ -89,9 +91,8 @@ let remove_bad_dreams behavior_to_programs : (PolyList.t * (float* program list)
   
 let helmholtz_enumeration (behavior_hash : program -> PolyList.t option) ?nc:(nc=1) g request ~timeout ~maximumSize =
   assert (nc = 1); (* FIXME *)
-  
+  Printf.eprintf "Entering helmholtz_enumeration";
   let behavior_to_programs = make_poly_list_table() in
-
   let update ~key ~data =
     let l,ps = data in
     match Hashtbl.find behavior_to_programs key with
@@ -113,10 +114,14 @@ let helmholtz_enumeration (behavior_hash : program -> PolyList.t option) ?nc:(nc
       let final_results = 
         enumerate_programs ~extraQuiet:true ~nc:nc ~final:(fun () -> [behavior_to_programs])
           g request lb (lb+.1.5) (fun p l ->
+              Printf.eprintf "Program: %s \n%!" (string_of_program p) ;
               if Hashtbl.length behavior_to_programs > maximumSize then set_enumeration_timeout (-1.0) else
+                let location = "before behavior_hash" in
+                Printf.eprintf "Printing from: %s\n%!" location;
                 match behavior_hash p with
-                | Some(key) -> update ~key ~data:(l,[p])
-                | None -> ()
+                | Some(key) -> Printf.eprintf "after behavior_hash, Some(key)%!"; update ~key ~data:(l,[p])
+                | None -> Printf.eprintf "after behavior_hash, None%!"; ()
+                | _ -> Printf.eprintf "after behavior_hash, no match%!"; ()
             ) |> List.concat
       in
       if nc > 1 then final_results |> List.iter ~f:merge;
@@ -134,6 +139,7 @@ let rec unpack x =
   try magical (x |> to_int) with _ ->
   try magical (x |> to_float) with _ ->
   try magical (x |> to_bool) with _ ->
+  try magical (x |> to_grid) with _ ->
   try
     let v = x |> to_string in
     if String.length v = 1 then magical v.[0] else magical v
@@ -182,6 +188,41 @@ let default_hash ?timeout:(timeout=0.001) request inputs : program -> PolyList.t
     if List.exists outputs ~f:PolyValue.is_some then
       Some(outputs)
     else None
+
+let arc_hash ?timeout:(timeout=0.001) request inputs : program -> PolyList.t option =
+
+  Printf.eprintf "Entering arc_hash%!";
+  let open Yojson.Basic.Util in
+  let input_grids = inputs |> to_list |> List.map ~f:unpack in
+  Printf.eprintf "Unpacked inputs\n%!";
+  (* let inputs_hashable = input_grids |> List.map ~f:(fun input_grid -> input_grid.points) in *)
+  let return = return_of_type request in
+  fun program ->
+    let p = analyze_lazy_evaluation program in
+    flush_everything () ;
+    let outputs = input_grids |> List.map ~f:(fun input_grid ->
+        try
+          match run_for_interval ~attempts:2 timeout
+                  (fun () -> run_lazy_analyzed_with_arguments p input_grid)
+          with
+          | Some(output_grid) -> Printf.eprintf "Succesfully executed sampled program on input \n%!"; PolyValue.pack return output_grid
+          | _ -> Printf.eprintf "Failed to execute sampled program on input \n%!"; PolyValue.None
+        with (* We have to be a bit careful with exceptions if the
+              * synthesized program generated an exception, then we just
+              * terminate w/ false but if the enumeration timeout was
+              * triggered during program evaluation, we need to pass the
+              * exception on
+             *)
+        | UnknownPrimitive(n) -> raise (Failure ("Unknown primitive: "^n))
+        | EnumerationTimeout  -> raise EnumerationTimeout
+        (* | EnumerationTimeout  -> raise EnumerationTimeout *)
+        | _                   -> Printf.eprintf "Error during execution of sampled program\n%!"; PolyValue.None) in
+    if List.exists outputs ~f:PolyValue.is_some then
+      Some(outputs)
+    else None
+;;
+
+register_special_helmholtz "arc" arc_hash;;
 
 let string_hash ?timeout:(timeout=0.001) request inputs : program -> PolyList.t option =
   let open Yojson.Basic.Util in

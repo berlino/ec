@@ -20,7 +20,9 @@ def helmholtzEnumeration(g, request, inputs, timeout, _=None,
     message = {"request": request.json(),
                "timeout": timeout,
                "DSL": g.json(),
-               "extras": inputs}
+               "extras": [inputGrid.toJson() for inputGrid in inputs]}
+
+
     if evaluationTimeout: message["evaluationTimeout"] = evaluationTimeout
     if special: message["special"] = special
     message = json.dumps(message)
@@ -28,10 +30,15 @@ def helmholtzEnumeration(g, request, inputs, timeout, _=None,
         handle.write(message)
     try:
         binary = os.path.join(get_root_dir(), 'helmholtz')
+        print("starting process")
         process = subprocess.Popen(binary,
                                    stdin=subprocess.PIPE,
                                    stdout=subprocess.PIPE)
+        print("process opened")
+        print("sending message: {}".format(message))
         response, error = process.communicate(bytes(message, encoding="utf-8"))
+        print('response: {}'.format(response))
+        print('error: {}'.format(error))
     except OSError as exc:
         raise exc
     return response
@@ -40,10 +47,19 @@ def helmholtzEnumeration(g, request, inputs, timeout, _=None,
 def backgroundHelmholtzEnumeration(tasks, g, timeout, _=None,
                                    special=None, evaluationTimeout=None):
     requests = list({t.request for t in tasks})
-    inputs = {r: list({tuplify(xs)
-                       for t in tasks if t.request == r
-                       for xs, y in t.examples})
-              for r in requests}
+
+    # get unique inputs for each type
+    inputs = {}
+    for r in requests:
+        inputs[r] = []
+        inputHashes = set()
+        for t in tasks:
+            if t.request == r:
+                for xs, y in t.examples:
+                    print(xs)
+                    if xs[0].hash() not in inputHashes:
+                        inputs[r].append(xs[0])
+
     workers = Pool(len(requests))
     promises = [workers.apply_async(helmholtzEnumeration,
                                     args=(g, r, inputs[r], float(timeout)),
@@ -52,7 +68,13 @@ def backgroundHelmholtzEnumeration(tasks, g, timeout, _=None,
                 for r in requests]
 
     def get():
-        results = [p.get() for p in promises]
+        results = []
+        for p in promises:
+            print("calling get")
+            res = p.get()
+            print("called get")
+            results.append(res)
+        print("results", results)
         frontiers = []
         with timing("(Helmholtz enumeration) Decoded json into frontiers"):
             for request, result in zip(requests, results):
