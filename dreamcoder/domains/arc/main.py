@@ -344,7 +344,7 @@ def main(args):
     if args.pop("singleTask"):
         trainTasks = [trainTasks[0]]
 
-    elicit.main(baseGrammar)
+    # elicit.main(baseGrammar)
 
     # # Utility function to remove any command line arguments that are not in the main iterator.
     # pop_all_domain_specific_args(args, ecIterator)

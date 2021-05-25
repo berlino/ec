@@ -8,6 +8,21 @@ from dreamcoder.domains.arc.utilsPostProcessing import getProgramUses
 from dreamcoder.domains.arc.arcPrimitives import tgridin, tgridout
 from dreamcoder.type import arrow
 
+
+def get_price_estimate(elicit_df):
+
+    nl_phrase_words = [w for sentence in list(elicit_df["NL phrase"].head(20)) for w in sentence.split(" ")]
+    tag_words = [w for sentence in list(elicit_df["User Tag"].head(20)) for w in sentence.split(" ")]
+
+    token_per_word = 1.4
+    num_token_estimate = len(nl_phrase_words + tag_words) * token_per_word
+
+    price_per_token = 0.06 * 0.001
+    price_estimate = (num_token_estimate**2) * 0.06 * 0.001 * 1.4
+
+    return price_estimate
+
+
 def parseNaturalLanguageAnnotations():
 
     # load dictionary that maps 0,1,..400 ids to Chollet ids
@@ -56,9 +71,6 @@ def main(grammar):
     # load dictionary from task to a list of the idxs of the primitives in the best program
     frontiers = pickle.load(open("data/arc/prior_enumeration_frontiers.pkl",  "rb"))
     taskToBestProgramUses = getTaskToBestProgramUses(grammar, frontiers)
-
-    # load alternative names for primitives
-    namesToDescriptions = json.load(open("data/arc/primitiveNamesToDescriptions.json", "r"))
     
     # find good candidate primitives to experiment with
     primitiveUseCounts = getPrimitiveUseCounts(grammar, taskToBestProgramUses)

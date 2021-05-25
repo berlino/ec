@@ -1,4 +1,4 @@
-import pandas as pd
+# import pandas as pd
 
 from dreamcoder.frontier import FrontierEntry, Frontier
 from dreamcoder.domains.arc.arcPrimitives import *
