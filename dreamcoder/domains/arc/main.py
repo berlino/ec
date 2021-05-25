@@ -22,6 +22,7 @@ from dreamcoder.task import Task
 from dreamcoder.type import Context, arrow, tbool, tlist, tint, t0, UnificationFailure
 from dreamcoder.recognition import RecognitionModel, DummyFeatureExtractor, variable
 from dreamcoder.program import Program
+from dreamcoder.domains.arc import elicit
 from dreamcoder.domains.arc.utilsPostProcessing import *
 from dreamcoder.domains.arc.arcPrimitives import *
 from dreamcoder.domains.arc.taskGeneration import *
@@ -343,8 +344,10 @@ def main(args):
     if args.pop("singleTask"):
         trainTasks = [trainTasks[0]]
 
-    # Utility function to remove any command line arguments that are not in the main iterator.
-    pop_all_domain_specific_args(args, ecIterator)
-    explorationCompression(baseGrammar, trainTasks, featureExtractor=featureExtractor, testingTasks=[], 
-    preloaded_frontiers=preloaded_frontiers,
-     **args)
+    elicit.main(baseGrammar)
+
+    # # Utility function to remove any command line arguments that are not in the main iterator.
+    # pop_all_domain_specific_args(args, ecIterator)
+    # explorationCompression(baseGrammar, trainTasks, featureExtractor=featureExtractor, testingTasks=[], 
+    # preloaded_frontiers=preloaded_frontiers,
+    #  **args)

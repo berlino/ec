@@ -102,6 +102,7 @@ def main():
     leafPrimitives()
     moreSpecificPrimitives()
 
+    # load handwrittenFrontiers    
     handWrittenFrontiers = {}
     for task in result.allFrontiers.keys():
         if task.name in manuallySolvedTasks:
@@ -109,15 +110,9 @@ def main():
         else:
             handWrittenFrontiers[task] = Frontier([], task)
 
+    # load and combine frontiers from result and result3
     for task, frontiers in result.frontiersOverTime.items():
-        # print(task, frontiers[0])
         task2Frontier[task] = frontiers[0].combine(result3.allFrontiers[task])
-
-    for t,f in handWrittenFrontiers.items():
-        print(t,f)
-
-    # print(len([t for t,f in handWrittenFrontiers.items() if len(f.entries) > 0]))
-    # dill.dump(handWrittenFrontiers, open("data/arc/handwritten_frontiers.pkl", "wb"))
 
     f1 = dill.load(open("data/arc/handwritten_and_prior_enumeration_frontiers.pkl", "rb"))
     f2 = dill.load(open("data/arc/handwritten_frontiers.pkl", "rb"))
