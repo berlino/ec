@@ -32,6 +32,7 @@ from dreamcoder.domains.arc.language_model_feature_extractor import LMFeatureExt
 
 DATA_DIR = "data/arc"
 
+NONE = "NONE"
 LANGUAGE_PROGRAMS_FILE = os.path.join(DATA_DIR, "best_programs_nl_sentences.csv") # Sentences and the best supervised programs.
 TAGGED_LANGUAGE_FEATURES_FILE = os.path.join(DATA_DIR, "tagged_nl_sentences.csv") # Tagged semantic features.
 LANGUAGE_ANNOTATIONS_FILE = os.path.join(DATA_DIR, "language/sentences/language.json") # All language annotations for training.
@@ -325,7 +326,7 @@ def main(args):
     # Load any pre-initialized frontiers.
     preloaded_frontiers_file = args.pop("preload_frontiers")
     preloaded_frontiers = dict()
-    if preloaded_frontiers is not None:
+    if preloaded_frontiers_file != NONE:
         preloaded_frontiers = preload_initial_frontiers(preloaded_frontiers_file)
 
     primitivesTable = {
