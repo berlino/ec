@@ -95,14 +95,14 @@ class ArcTask(Task):
                 signal.signal(signal.SIGVTALRM, lambda *_: None)
                 signal.setitimer(signal.ITIMER_VIRTUAL, 0)
 
-def retrieveARCJSONTasks(directory, filenames=None):
+def retrieveARCJSONTasks(directory, useEvalExamplesForTraining=False, filenames=None):
 
     # directory = '/Users/theo/Development/program_induction/ec/ARC/data/training'
     data = []
 
     for filename in os.listdir(directory):
         if ("json" in filename):
-            task = retrieveARCJSONTask(filename, directory)
+            task = retrieveARCJSONTask(filename, directory, useEvalExamplesForTraining)
             if filenames is not None:
                 if filename in filenames:
                     data.append(task)
@@ -110,11 +110,11 @@ def retrieveARCJSONTasks(directory, filenames=None):
                 data.append(task)
     return data
 
-def retrieveARCJSONTask(filename, directory):
+def retrieveARCJSONTask(filename, directory, useEvalExamplesForTraining=False):
     with open(directory + "/" + filename, "r") as f:
         loaded = json.load(f)
 
-    ioExamples = [
+    trainExamples = [
             ((Grid(gridArray=example["input"]),), Grid(gridArray=example["output"]))
             for example in loaded["train"]
         ]
@@ -123,10 +123,14 @@ def retrieveARCJSONTask(filename, directory):
             for example in loaded["test"]
         ]
 
+    if useEvalExamplesForTraining:
+        trainExamples = trainExamples + evalExamples
+        evalExamples = []
+
     task = ArcTask(
         filename,
         arrow(tgridin, tgridout),
-        ioExamples,
+        trainExamples,
         evalExamples
     )
     task.specialTask = ('arc', 5)
@@ -315,7 +319,7 @@ def main(args):
     homeDirectory = "/".join(os.path.abspath(__file__).split("/")[:-4])
     dataDirectory = homeDirectory + "/arc_data/data/"
 
-    trainTasks = retrieveARCJSONTasks(dataDirectory + 'training', None)
+    trainTasks = retrieveARCJSONTasks(dataDirectory + 'training', useEvalExamplesForTraining=True, filenames=None)
     holdoutTasks = retrieveARCJSONTasks(dataDirectory + 'evaluation')
     
     language_annotations_data = args.pop("language_annotations_data") 
