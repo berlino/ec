@@ -23,6 +23,7 @@ data/*
 !data/puddleworld/
 data/taskRankGraphs
 message
+message2*
 sklearn-container.img
 .idea/
 venv/
@@ -36,4 +37,5 @@ compression
 helmholtz
 evolution
 logoDrawString
+task.txt
 solvers/**/*.merlin
