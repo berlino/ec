@@ -32,11 +32,12 @@ from dreamcoder.domains.arc.language_model_feature_extractor import LMFeatureExt
 
 DATA_DIR = "data/arc"
 
+NONE = "NONE"
 LANGUAGE_PROGRAMS_FILE = os.path.join(DATA_DIR, "best_programs_nl_sentences.csv") # Sentences and the best supervised programs.
 TAGGED_LANGUAGE_FEATURES_FILE = os.path.join(DATA_DIR, "tagged_nl_sentences.csv") # Tagged semantic features.
 LANGUAGE_ANNOTATIONS_FILE = os.path.join(DATA_DIR, "language/sentences/language.json") # All language annotations for training.
 PRIMITIVE_HUMAN_READABLE = os.path.join(DATA_DIR, "primitiveNamesToDescriptions.json")
-PRIOR_ENUMERATION_FRONTIERS = os.path.join(DATA_DIR, "prior_enumeration_frontiers.pkl")
+PRIOR_ENUMERATION_FRONTIERS = os.path.join(DATA_DIR, "prior_enumeration_frontiers_8hr.pkl")
 
 class LMPseudoTranslationFeatureExtractor(LMFeatureExtractor):
     def __init__(self, tasks=[], testingTasks=[], cuda=False):
@@ -166,7 +167,7 @@ def arc_options(parser):
     parser.add_argument("--tagged_annotations_data", default=TAGGED_LANGUAGE_FEATURES_FILE)
     parser.add_argument("--primitive_names_to_descriptions",
     default=PRIMITIVE_HUMAN_READABLE)
-    parser.add_argument("--preload_frontiers", default=PRIOR_ENUMERATION_FRONTIERS)
+    parser.add_argument("--preload_frontiers", default=NONE)
 
     # parser.add_argument("-i", type=int, default=10)
 
@@ -329,7 +330,7 @@ def main(args):
     # Load any pre-initialized frontiers.
     preloaded_frontiers_file = args.pop("preload_frontiers")
     preloaded_frontiers = dict()
-    if preloaded_frontiers is not None:
+    if preloaded_frontiers_file != NONE:
         preloaded_frontiers = preload_initial_frontiers(preloaded_frontiers_file)
 
     primitivesTable = {
