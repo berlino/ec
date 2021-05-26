@@ -17,6 +17,7 @@ import torch.nn as nn
 from transformers import pipeline, T5Tokenizer, T5EncoderModel
 
 from dreamcoder.task import Task
+from dreamcoder.domains.arc.cnn_feature_extractor import ArcCNN
 
 import logging
 import re
@@ -43,7 +44,8 @@ class LMFeatureExtractor(nn.Module):
     def __init__(self, tasks=[], testingTasks=[], cuda=False, lm_model_name=T5_MODEL, use_language_model=True, tagged_annotations_file=None,
     primitive_names_to_descriptions=None,
     pseudo_translation_probability=0.0,
-    should_normalize=True):
+    should_normalize=True,
+    use_cnn=False):
         super(LMFeatureExtractor, self).__init__()
         self.CUDA = cuda
         self.recomputeTasks = True
@@ -68,6 +70,11 @@ class LMFeatureExtractor(nn.Module):
         if self.use_primitive_names_to_descriptions:
             self.primitive_names_to_descriptions = self._initialize_primitive_names_to_descriptions(primitive_names_to_descriptions)
             self.pseudo_translation_probability = pseudo_translation_probability
+        
+        self.use_cnn = use_cnn
+        if self.use_cnn:
+            self.cnn_H = 64
+            self.arc_cnn = ArcCNN(tasks, testingTasks, cuda)
         
         self.outputDimensionality = self._compute_output_dimensionality()
     
@@ -120,6 +127,8 @@ class LMFeatureExtractor(nn.Module):
                 assert False
         if self.use_tagged_features:
             outputDimensionality += len(self.tag_keys)
+        if self.use_cnn:
+            outputDimensionality += self.arc_cnn.outputDimensionality
         assert outputDimensionality > 0
         return outputDimensionality
     
@@ -168,6 +177,8 @@ class LMFeatureExtractor(nn.Module):
             features.append(self.language_encoder_fn(sentences))
         if self.use_tagged_features:
             features.append(self.tasks_to_tagged_features[task_name])
+        if self.use_cnn:
+            features.append(self.arc_cnn.featuresOfTask(task))
         return torch.cat(features)
     
     def get_pseudo_translations_or_sentences(self, pseudo_translations, sentences):

@@ -111,18 +111,23 @@ def test_leave_one_out_bigram_dc_annotated_primitives_helmholtz(arc_grammar, tas
     return test_leave_one_out_dc_lm_model(arc_grammar, task_names_to_tasks, tasks_to_frontiers, contextual=True, use_language_model=False, primitive_names_to_descriptions=primitive_names_to_descriptions,
     pseudo_translation_probability=1.0,
     helmholtzRatio=0.5)
+
+def test_leave_one_out_bigram_dc_lm_and_cnn_model(arc_grammar, task_names_to_tasks, tasks_to_frontiers):
+    return test_leave_one_out_dc_lm_model(arc_grammar, task_names_to_tasks, tasks_to_frontiers, contextual=True, use_language_model=True, use_cnn=True)
     
 def test_leave_one_out_dc_lm_model(arc_grammar, task_names_to_tasks, tasks_to_frontiers, contextual, dummy=False, use_language_model=True, tagged_annotations_file=None,
 primitive_names_to_descriptions=None,
 pseudo_translation_probability=0.0,
-helmholtzRatio=0):
+helmholtzRatio=0,
+use_cnn=False):
     def recognition_model_fn():
         if dummy:
             feature_extractor = DummyFeatureExtractor(tasks=None)
         else:
             feature_extractor = LMFeatureExtractor(use_language_model=use_language_model, tagged_annotations_file=tagged_annotations_file,
             primitive_names_to_descriptions=primitive_names_to_descriptions,
-            pseudo_translation_probability=pseudo_translation_probability)
+            pseudo_translation_probability=pseudo_translation_probability,
+            use_cnn=use_cnn)
         recognition_model = RecognitionModel(
             featureExtractor=feature_extractor,
             grammar=arc_grammar,
@@ -157,5 +162,7 @@ def main(args):
     # test_leave_one_out_bigram_dc_tagged_and_lm_model(arc_grammar, task_names_to_tasks, tasks_to_frontiers, args["tagged_annotations_data"])
     
     # test_leave_one_out_bigram_dc_annotated_primitives(arc_grammar, task_names_to_tasks, tasks_to_frontiers, args["primitive_names_to_descriptions"])
-    test_leave_one_out_bigram_dc_annotated_primitives_helmholtz(arc_grammar, task_names_to_tasks, tasks_to_frontiers, args["primitive_names_to_descriptions"])
+    # test_leave_one_out_bigram_dc_annotated_primitives_helmholtz(arc_grammar, task_names_to_tasks, tasks_to_frontiers, args["primitive_names_to_descriptions"])
+    # 
+    test_leave_one_out_bigram_dc_lm_and_cnn_model(arc_grammar, task_names_to_tasks, tasks_to_frontiers)
     
