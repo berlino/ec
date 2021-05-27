@@ -53,6 +53,9 @@ class ArcCNN(nn.Module):
 
     def featuresOfTask(self, t):  # Take a task and returns [features]
         v = None
+        if len(t.examples) < 1:
+            # Return a zero torch variable.
+            return variable(torch.zeros(self.outputDimensionality))
         for example in t.examples:
             inputGrid, outputGrid = example
             inputGrid = inputGrid[0]
