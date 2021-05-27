@@ -39,14 +39,30 @@ TAGGED_LANGUAGE_FEATURES_FILE = os.path.join(DATA_DIR, "tagged_nl_sentences.csv"
 LANGUAGE_ANNOTATIONS_FILE = os.path.join(DATA_DIR, "language/sentences/language.json") # All language annotations for training.
 PRIMITIVE_HUMAN_READABLE = os.path.join(DATA_DIR, "primitiveNamesToDescriptions.json")
 PRIOR_ENUMERATION_FRONTIERS = os.path.join(DATA_DIR, "prior_enumeration_frontiers_8hr.pkl")
+ELICIT_FEATURE_VECTOR = os.path.join(DATA_DIR, "elicit_feature_vectors.json")
 
 class LMPseudoTranslationFeatureExtractor(LMFeatureExtractor):
+    """Generates pseudo annotations during training."""
     def __init__(self, tasks=[], testingTasks=[], cuda=False):
         return super(LMPseudoTranslationFeatureExtractor, self).__init__(tasks=tasks, testingTasks=testingTasks, cuda=cuda,use_language_model=False,primitive_names_to_descriptions=PRIMITIVE_HUMAN_READABLE,pseudo_translation_probability=0.5)
 
 class LMCNNFeatureExtractor(LMFeatureExtractor):
+    """Concatenates LM and CNN feature embeddings."""
     def __init__(self, tasks=[], testingTasks=[], cuda=False):
         return super(LMCNNFeatureExtractor, self).__init__(tasks=tasks, testingTasks=testingTasks, cuda=cuda,use_language_model=True,
+        use_cnn=True)
+
+class LMAugmentedFeatureExtractor(LMFeatureExtractor):
+    """Concatenates LM and additional feature vector embeddings."""
+    def __init__(self, tasks=[], testingTasks=[], cuda=False):
+        return super(LMAugmentedFeatureExtractor, self).__init__(tasks=tasks, testingTasks=testingTasks, cuda=cuda,use_language_model=True,
+        additional_feature_file=ELICIT_FEATURE_VECTOR,
+        use_cnn=False)
+
+class LMCNNPseudoFeatureExtractor(LMFeatureExtractor):
+    """Concatenates LM and CNN feature embeddings with pseudo annotation tasks."""
+    def __init__(self, tasks=[], testingTasks=[], cuda=False):
+        return super(LMCNNPseudoFeatureExtractor, self).__init__(tasks=tasks, testingTasks=testingTasks, cuda=cuda,use_language_model=False,primitive_names_to_descriptions=PRIMITIVE_HUMAN_READABLE,pseudo_translation_probability=0.5,
         use_cnn=True)
 
 class EvaluationTimeout(Exception):
@@ -163,7 +179,9 @@ def arc_options(parser):
         "dummy",
         "LMFeatureExtractor",
         "LMPseudoTranslationFeatureExtractor",
-        "LMCNNFeatureExtractor"])
+        "LMCNNFeatureExtractor",
+        "LMCNNPseudoFeatureExtractor",
+        "LMAugmentedFeatureExtractor"])
 
     parser.add_argument("--primitives", default="rich", help="Which primitive set to use", choices=["base", "rich"])
     parser.add_argument("--test_language_models", action="store_true")
@@ -270,7 +288,9 @@ def main(args):
         "arcCNN": ArcCNN,
         "LMFeatureExtractor" : LMFeatureExtractor,
         "LMPseudoTranslationFeatureExtractor" : LMPseudoTranslationFeatureExtractor,
-        "LMCNNFeatureExtractor" : LMCNNFeatureExtractor
+        "LMCNNFeatureExtractor" : LMCNNFeatureExtractor,
+        "LMCNNPseudoFeatureExtractor" : LMCNNPseudoFeatureExtractor,
+        "LMAugmentedFeatureExtractor" : LMAugmentedFeatureExtractor
     }[args.pop("featureExtractor")]
 
     if args.pop("singleTask"):

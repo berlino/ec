@@ -42,6 +42,7 @@ class LMFeatureExtractor(nn.Module):
     special = 'arc'
     
     def __init__(self, tasks=[], testingTasks=[], cuda=False, lm_model_name=T5_MODEL, use_language_model=True, tagged_annotations_file=None,
+    additional_feature_file=None,
     primitive_names_to_descriptions=None,
     pseudo_translation_probability=0.0,
     should_normalize=True,
@@ -61,11 +62,14 @@ class LMFeatureExtractor(nn.Module):
         
         self.should_normalize = should_normalize
         self.use_language_model = use_language_model
-        self.use_tagged_features = (tagged_annotations_file is not None)
+        self.use_tagged_features = (tagged_annotations_file is not None) or (additional_feature_file is not None)
         self.use_primitive_names_to_descriptions = (primitive_names_to_descriptions is not None)
         
         if self.use_tagged_features:
-            self.tagged_features_data = self._initialize_tagged_features(tagged_annotations_file)
+            if tagged_annotations_file is not None:
+                self.tagged_features_data = self._initialize_tagged_features(tagged_annotations_file)
+            if additional_feature_file is not None:
+                self.tagged_features_data = self._initialize_json_features(additional_feature_file)
         
         if self.use_primitive_names_to_descriptions:
             self.primitive_names_to_descriptions = self._initialize_primitive_names_to_descriptions(primitive_names_to_descriptions)
@@ -88,6 +92,25 @@ class LMFeatureExtractor(nn.Module):
                 continue
             primitive_names_to_descriptions[name] = raw[name][-1]
         return primitive_names_to_descriptions
+    
+    def _initialize_json_features(self, json_features_file):
+        """Initalizes self.tasks_to_tagged_features from a JSON file that annotates tasks with a feature vector.
+        Returns defaultdict {task_id : torch_feature_vector} and sets self.tagged_feature_output_dim. Unfound tasks will return a zero vector of the appropriate size.
+        """
+        self.tasks_to_features_raw = defaultdict(list)
+        
+        sample_feature_vector = None
+        with open(json_features_file) as f:
+            raw_json_features = json.load(f)["task_to_feature_vector"]
+            for task_name in raw_json_features:
+                self.tagged_feature_output_dim = len(raw_json_features[task_name])
+                task_feature_vector = torch.as_tensor(raw_json_features[task_name], dtype=torch.float32)
+                sample_feature_vector = task_feature_vector
+                self.tasks_to_features_raw[task_name] = task_feature_vector
+        
+        self.tasks_to_tagged_features = defaultdict(lambda : torch.zeros_like(sample_feature_vector) + self.epsilon)
+        for task in self.tasks_to_features_raw:
+            self.tasks_to_tagged_features[task] = self.tasks_to_features_raw[task]
     
     def _initialize_tagged_features(self, tagged_annotations_file):
         """Initalizes self.tasks_to_tagged_features from a CSV file that annotates tasks with a feature vector.
@@ -126,7 +149,7 @@ class LMFeatureExtractor(nn.Module):
             else:
                 assert False
         if self.use_tagged_features:
-            outputDimensionality += len(self.tag_keys)
+            outputDimensionality += self.tagged_feature_output_dim
         if self.use_cnn:
             outputDimensionality += self.arc_cnn.outputDimensionality
         assert outputDimensionality > 0
