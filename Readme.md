@@ -1,7 +1,7 @@
 #  Communicating Natural Programs to Humans and Machines : Leveraging Language for Program Synthesis
 This repository is the official implementation for the language-guided program synthesis experiments in **Communicating Natural Programs to Humans and Machines** (Section 5, Leveraging Language for Program Synthesis). The paper is currently under review. This repository and branch is a static branch designed to reproduce the results in the paper.
 
-## Getting Started -- Dependencies and Requirements
+## Getting Started: Dependencies and Requirements
 The experiments in the paper were conducted on an academic supercomputing cluster (Ubuntu machines, 24 parallel CPUs per experiment.) The following setup has been tested on both Ubuntu and Mac (OS Catalina). The codebase is implemented in both Python and OCaml.
 
 ##### Install Python 3.7.7 and the Python requirements.
