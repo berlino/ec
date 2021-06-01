@@ -1,0 +1,45 @@
+###### Language-annotated ARC 
+# The following commands were executed using 24-parallel CPUs on a supercomputing cluster.
+## No language – fitted bigram baseline
+# Initialize from 720s initial enumeration.
+python bin/arc.py --enumerationTimeout 720 --testingTimeout 0 --iterations 10 --taskBatchSize 400 --testEvery 1 --recognitionSteps 10000 --biasOptimal --contextual --no-cuda --preload_frontiers data/arc/prior_enumeration_frontiers_720s.pkl --CPUs 24 --featureExtractor dummy --Helmholtz 0 --no-dsl --no-consolidation --taskReranker randomShuffle --seed 1
+
+# Initialize from 1hr initial enumeration.
+python bin/arc.py --enumerationTimeout 720 --testingTimeout 0 --iterations 10 --taskBatchSize 400 --testEvery 1 --recognitionSteps 10000 --biasOptimal --contextual --no-cuda --preload_frontiers data/arc/prior_enumeration_frontiers_1hr.pkl --CPUs 24 --featureExtractor dummy --Helmholtz 0 --no-dsl --no-consolidation --taskReranker randomShuffle --seed 1
+
+# Initialize from 8hr initial enumeration.
+python bin/arc.py --enumerationTimeout 720 --testingTimeout 0 --iterations 10 --taskBatchSize 400 --testEvery 1 --recognitionSteps 10000 --biasOptimal --contextual --no-cuda --preload_frontiers data/arc/prior_enumeration_frontiers_8hr.pkl --CPUs 24 --featureExtractor dummy --Helmholtz 0 --no-dsl --no-consolidation --taskReranker randomShuffle --seed 1
+
+
+## No language – CNN task encoder for neural search
+# Initialize from 720s initial enumeration.
+python bin/arc.py --enumerationTimeout 720 --testingTimeout 0 --iterations 10 --taskBatchSize 400 --testEvery 1 --recognitionSteps 10000 --biasOptimal --contextual --no-cuda --preload_frontiers data/arc/prior_enumeration_frontiers_720s.pkl --CPUs 24 --featureExtractor arcCNN --Helmholtz 0 --no-dsl --no-consolidation --taskReranker randomShuffle --seed 1
+
+# Initialize from 1hr initial enumeration.
+python bin/arc.py --enumerationTimeout 720 --testingTimeout 0 --iterations 10 --taskBatchSize 400 --testEvery 1 --recognitionSteps 10000 --biasOptimal --contextual --no-cuda --preload_frontiers data/arc/prior_enumeration_frontiers_1hr.pkl --CPUs 24 --featureExtractor arcCNN --Helmholtz 0 --no-dsl --no-consolidation --taskReranker randomShuffle --seed 1
+
+# Initialize from 8hr initial enumeration.
+python bin/arc.py --enumerationTimeout 720 --testingTimeout 0 --iterations 10 --taskBatchSize 400 --testEvery 1 --recognitionSteps 10000 --biasOptimal --contextual --no-cuda --preload_frontiers data/arc/prior_enumeration_frontiers_8hr.pkl --CPUs 24 --featureExtractor arcCNN --Helmholtz 0 --no-dsl --no-consolidation --taskReranker randomShuffle --seed 1
+
+
+
+## Language – T5 language encoder for neural search
+# Initialize from 720s initial enumeration.
+python bin/arc.py --enumerationTimeout 720 --testingTimeout 0 --iterations 10 --taskBatchSize 400 --testEvery 1 --recognitionSteps 10000 --biasOptimal --contextual --no-cuda --preload_frontiers data/arc/prior_enumeration_frontiers_720s.pkl  --CPUs 24 --featureExtractor LMFeatureExtractor --Helmholtz 0 --no-dsl --no-consolidation --taskReranker randomShuffle --seed 1
+
+# Initialize from 1hr initial enumeration.
+python bin/arc.py --enumerationTimeout 720 --testingTimeout 0 --iterations 10 --taskBatchSize 400 --testEvery 1 --recognitionSteps 10000 --biasOptimal --contextual --no-cuda --preload_frontiers data/arc/prior_enumeration_frontiers_1hr.pkl  --CPUs 24 --featureExtractor LMFeatureExtractor --Helmholtz 0 --no-dsl --no-consolidation --taskReranker randomShuffle --seed 1
+
+# Initialize from 8hr initial enumeration.
+python bin/arc.py --enumerationTimeout 720 --testingTimeout 0 --iterations 10 --taskBatchSize 400 --testEvery 1 --recognitionSteps 10000 --biasOptimal --contextual --no-cuda --preload_frontiers data/arc/prior_enumeration_frontiers_8hr.pkl  --CPUs 24 --featureExtractor LMFeatureExtractor --Helmholtz 0 --no-dsl --no-consolidation --taskReranker randomShuffle --seed 1
+
+
+## Language – T5 + pseudoannotation training
+# Initialize from 720s initial enumeration.
+python bin/arc.py --enumerationTimeout 720 --testingTimeout 0 --iterations 10 --taskBatchSize 400 --testEvery 1 --recognitionSteps 10000 --biasOptimal --contextual --no-cuda --preload_frontiers data/arc/prior_enumeration_frontiers_720s.pkl --CPUs 24 --featureExtractor LMPseudoTranslationFeatureExtractor --Helmholtz 0.5 --no-background-helmholtz --no-dsl --no-consolidation --taskReranker randomShuffle --seed 1
+
+# Initialize from 1hr initial enumeration.
+python bin/arc.py --enumerationTimeout 720 --testingTimeout 0 --iterations 10 --taskBatchSize 400 --testEvery 1 --recognitionSteps 10000 --biasOptimal --contextual --no-cuda --preload_frontiers data/arc/prior_enumeration_frontiers_1hr.pkl --CPUs 24 --featureExtractor LMPseudoTranslationFeatureExtractor --Helmholtz 0.5 --no-background-helmholtz --no-dsl --no-consolidation --taskReranker randomShuffle --seed 1
+
+# Initialize from 8hr initial enumeration.
+python bin/arc.py --enumerationTimeout 720 --testingTimeout 0 --iterations 10 --taskBatchSize 400 --testEvery 1 --recognitionSteps 10000 --biasOptimal --contextual --no-cuda --preload_frontiers data/arc/prior_enumeration_frontiers_8hr.pkl --CPUs 24 --featureExtractor LMPseudoTranslationFeatureExtractor --Helmholtz 0.5 --no-background-helmholtz --no-dsl --no-consolidation --taskReranker randomShuffle --seed 1
