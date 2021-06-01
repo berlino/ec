@@ -1,6 +1,8 @@
 #  Communicating Natural Programs to Humans and Machines : Leveraging Language for Program Synthesis
 This repository is the official implementation for the language-guided program synthesis experiments in **Communicating Natural Programs to Humans and Machines** (Section 5, Leveraging Language for Program Synthesis). The paper is currently under review. This repository and branch is a static branch designed to reproduce the results in the paper.
 
+![banner](./docs/arc-data-collection.jpg "Banner")
+
 ## Getting Started: Dependencies and Requirements
 The experiments in the paper were conducted on an academic supercomputing cluster (Ubuntu machines, 24 parallel CPUs per experiment.) The following setup has been tested on both Ubuntu and Mac (OS Catalina). The codebase is implemented in both Python and OCaml.
 
@@ -95,7 +97,7 @@ python3.7 bin/arc.py \
 ## Results
 The table below (Table 1 in the main paper) shows % held-out tasks solved on both the graphics program and regex domains, including when testing and trained on synthetic and human language data; the table also shows performance on model ablations and baselines.
 
-![results](./docs/imcl_2021_results.png "Results")
+![results](./docs/results.png "Results")
 
 Commands to reproduce each of these experiments (including replications) can be found in the ```docs/neurips_2021_experiments``` file.
 
