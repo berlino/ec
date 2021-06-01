@@ -11,7 +11,6 @@ from dreamcoder.utilities import numberOfCPUs
 
 
 if __name__ == '__main__':
-    # print(retrieveARCJSONTasks('/Users/theo/Development/program_induction/ARC/data/training/007bbfb7.json')[1])
 
     args = commandlineArguments(
         enumerationTimeout=10, activation='tanh', iterations=10, recognitionTimeout=3600, 
@@ -20,6 +19,5 @@ if __name__ == '__main__':
         CPUs=numberOfCPUs(),
         extras=arc_options)
 
-    # viewResults()
     main(args)
 

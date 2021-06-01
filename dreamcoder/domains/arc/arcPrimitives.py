@@ -1,16 +1,13 @@
-# runFull = False
-runFull = True
+"""
+Contains DSL primitive names and their type signatures defined in: basePrimitives(), leafPrimitives() and moreSpecificPrimitives()
 
-if runFull:
-    from dreamcoder.program import Primitive, Program, baseType
-    from dreamcoder.grammar import Grammar
-    from dreamcoder.type import tlist, tint, tbool, arrow, t0, t1, t2, tpair
-else:
-    class Task:
-        def __init__(self,examples):
-            self.examples = [((example[0],),example[1]) for example in examples]
-            self.program = "(lambda (overlap_split_blocks (split_grid $0 (has_color (tile_to_block (block_to_tile (grid_to_block $0))) red)) (lambda (lambda $0))))"
-    #
+Additionally includes implementations of **some** of these primitives in python. In LARC experiments, the ocaml 
+solver/enumerator and so ocaml implementations of **all** the primitives defined in this file can be found in solver/arc.ml.
+Even though ocaml solver/enumerator is used, the primitive names and their type signatures as defined in functions: basePrimitives(),
+leafPrimitives() and moreSpecificPrimitives() are still required on the python side and must **exactly** match the corresponding
+primitives names and type signatures on the ocaml side (solvers/arc.ml).
+"""
+
 
 import copy
 import itertools
@@ -25,6 +22,10 @@ from scipy.special import perm, comb
 import random
 import torch
 import torch
+
+from dreamcoder.program import Primitive, Program, baseType
+from dreamcoder.grammar import Grammar
+from dreamcoder.type import tlist, tint, tbool, arrow, t0, t1, t2, tpair
 
 
 class Block:
@@ -639,27 +640,31 @@ def _solve007bbfb7(a): return _zipGrids(_grow(a)(3))(_duplicate2dN(a)(2))(_keepN
 def _solveGenericBlockMap(grid): return lambda findFunc: lambda mapFunc: lambda combineFunc: combineFunc(_map(mapFunc)(findFunc(grid)))
 # def _solve42a50994(grid): return lambda count: _blocksToGrid(_filter(lambda block: _hasMinTiles(count)(block))(_findBlocksBy(grid)(True)))(grid.getNumRows())(grid.getNumCols())
 
-if runFull:
-    tblock = baseType('tblock')
-    tcolor = baseType('tcolor')
-    tgridin = baseType('tgridin')
-    tgridout = baseType('tgridout')
-    tdirection = baseType('tdirection')
-    ttile = baseType('ttile')
-    tsplitblock = baseType('tsplitblock')
-    tlogical = baseType('tlogical')
-    ttbs = baseType('template_blocks_scene')
-    tcolorpair = tpair(tcolor, tcolor)
-    tcmap = tlist(tcolorpair)
+def pprint(arr):
+    print('The grid shape is {}'.format(np.array(arr).shape))
+    for row in arr:
+        print(row)
 
-    tintcolorpair = tpair(tint, tcolor)
-    ticmap = tlist(tintcolorpair)  
+tblock = baseType('tblock')
+tcolor = baseType('tcolor')
+tgridin = baseType('tgridin')
+tgridout = baseType('tgridout')
+tdirection = baseType('tdirection')
+ttile = baseType('ttile')
+tsplitblock = baseType('tsplitblock')
+tlogical = baseType('tlogical')
+ttbs = baseType('template_blocks_scene')
+tcolorpair = tpair(tcolor, tcolor)
+tcmap = tlist(tcolorpair)
 
-    ttiles = tlist(ttile)
-    tblocks = tlist(tblock)
-    tcolors = tlist(tcolor)
-    tsplitblocks = tlist(tsplitblock)
-    tdirections = tlist(tdirection)
+tintcolorpair = tpair(tint, tcolor)
+ticmap = tlist(tintcolorpair)  
+
+ttiles = tlist(ttile)
+tblocks = tlist(tblock)
+tcolors = tlist(tcolor)
+tsplitblocks = tlist(tsplitblock)
+tdirections = tlist(tdirection)
 
 def leafPrimitives():
     return [
@@ -863,41 +868,6 @@ def moreSpecificPrimitives():
 
     Primitive("make_colorpair", arrow(tcolor, tcolor, tcolorpair), None)
     ]
-
-
-# def retrieveARCJSONTask(filename, directory):
-#     with open(directory + '/' + filename, "r") as f:
-#         loaded = json.load(f)
-#
-#     train = Task(filename, arrow(tgrid, tgrid), [(Object(mask=(example['input'],)), Object(mask=example['output'])) for example in loaded['train']])
-#     test = Task(filename, arrow(tgrid, tgrid), [(Object(mask=(example['input'],)), Object(mask=example['output'])) for example in loaded['test']])
-#
-#     return train, test
-
-def pprint(arr):
-    print('The grid shape is {}'.format(np.array(arr).shape))
-    for row in arr:
-        print(row)
-#
-#     input = [[7, 0, 7], [7, 0, 7], [7, 7, 0], [2,2,2], [2,2,2], [1,1,1]]
-#     output = [[7, 0, 7, 0, 0, 0, 7, 0, 7], [7, 0, 7, 0, 0, 0, 7, 0, 7],
-#                                                   [7, 7, 0, 0, 0, 0, 7, 7, 0], [7, 0, 7, 0, 0, 0, 7, 0, 7],
-#                                                   [7, 0, 7, 0, 0, 0, 7, 0, 7], [7, 7, 0, 0, 0, 0, 7, 7, 0],
-#                                                   [7, 0, 7, 7, 0, 7, 0, 0, 0], [7, 0, 7, 7, 0, 7, 0, 0, 0],
-#                                                   [7, 7, 0, 7, 7, 0, 0, 0, 0]]
-#
-#     a,b,c = [[1,1,1],[2,2,2],[3,3,3]],[[2,2,2],[3,3,3],[4,4,4]], [[3,3,3],[4,4,4],[5,5,5]]
-#
-
-
-    # print(_zip(a)(b)(lambda x: lambda y: x + y))
-
-    # print(_transpose(np.zeros((3,3)).tolist()))
-    # print(_flatten(_map(temp)(lambda blockRow: _reduce(lambda a: lambda b: [a[i] + b[i] for i in range(len(a))])([[],[],[]])(blockRow))))
-
-    # def a(current): return _replace(current)(x)(_equals(current)(0))
-    #
-    # print(a(1))
 
 
 manuallySolvedTasks = {
