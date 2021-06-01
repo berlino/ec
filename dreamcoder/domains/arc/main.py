@@ -22,9 +22,7 @@ from dreamcoder.task import Task
 from dreamcoder.type import Context, arrow, tbool, tlist, tint, t0, UnificationFailure
 from dreamcoder.recognition import RecognitionModel, DummyFeatureExtractor, variable
 from dreamcoder.program import Program
-from dreamcoder.domains.arc.utilsPostProcessing import *
 from dreamcoder.domains.arc.arcPrimitives import *
-from dreamcoder.domains.arc.taskGeneration import *
 
 import dreamcoder.domains.arc.language_utilities as language_utilities
 from dreamcoder.domains.arc.language_model_feature_extractor import LMFeatureExtractor
