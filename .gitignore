@@ -24,6 +24,7 @@ data/*
 data/taskRankGraphs
 message
 message2*
+message_to_solver.txt
 sklearn-container.img
 .idea/
 venv/

@@ -46,7 +46,6 @@ let load_problems channel =
 
   let rec unpack x =
     let open Yojson.Basic in
-    to_file "task.txt" x;
     try magical (x |> to_int) with _ ->
     try magical (x |> to_float) with _ ->
     try magical (x |> to_bool) with _ ->
