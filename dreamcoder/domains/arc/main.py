@@ -118,9 +118,7 @@ class ArcTask(Task):
 
 def retrieveARCJSONTasks(directory, useEvalExamplesForTraining=False, filenames=None):
 
-    # directory = '/Users/theo/Development/program_induction/ec/ARC/data/training'
     data = []
-
     for filename in os.listdir(directory):
         if ("json" in filename):
             task = retrieveARCJSONTask(filename, directory, useEvalExamplesForTraining)
@@ -154,7 +152,8 @@ def retrieveARCJSONTask(filename, directory, useEvalExamplesForTraining=False):
         trainExamples,
         evalExamples
     )
-    task.specialTask = ('arc', 5)
+    # passed in json message to ocaml solver; used to select the arc specific solver
+    task.specialTask = ('arc', None)
     return task
 
 def preload_initial_frontiers(preload_frontiers_file):
@@ -194,29 +193,6 @@ def arc_options(parser):
 
     # parser.add_argument("-i", type=int, default=10)
 
-def check(filename, f, directory):
-    train, test = retrieveARCJSONTask(filename, directory=directory)
-    print(train)
-
-    for input, output in train.examples:
-        input = input[0]
-        if f(input) == output:
-            print("HIT")
-        else:
-            print("MISS")
-            print("Got")
-            f(input).pprint()
-            print("Expected")
-            output.pprint()
-
-    return
-
-def gridToArray(grid):
-    temp = np.full((grid.getNumRows(),grid.getNumCols()),None)
-    for yPos,xPos in grid.points:
-        temp[yPos, xPos] = str(grid.points[(yPos,xPos)])
-    return temp
-
 def run_tests(args):
     if args.pop("test_language_models"):
         from dreamcoder.domains.arc.test_language_models import main
@@ -233,18 +209,6 @@ def main(args):
     trains/tests the model on manipulating sequences of numbers.
 
     """
-    # samples = {
-    #     "007bbfb7.json": _solve007bbfb7,
-    #     "c9e6f938.json": _solvec9e6f938,
-    #     "50cb2852.json": lambda grid: _solve50cb2852(grid)(8),
-    #     "fcb5c309.json": _solvefcb5c309,
-    #     "97999447.json": _solve97999447,
-    #     "f25fbde4.json": _solvef25fbde4,
-    #     "72ca375d.json": _solve72ca375d,
-    #     "5521c0d9.json": _solve5521c0d9,
-    #     "ce4f8723.json": _solvece4f8723,
-    # }
-    # 
     run_tests(args)
 
     import os
