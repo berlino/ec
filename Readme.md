@@ -46,5 +46,57 @@ The program synthesis experiments use **LARC (Language-annotated Abstraction and
 
 1. ARC tasks. Our experiments use the training dataset (n=400 tasks) from the original ARC repository. JSON files containing the input/output examples for each task and a task_id are in `arc_data/data/training/<task_id>.json`.
 2. Human natural language task annotations. Sentence-parsed annotations for each task from the human experiment are in `data/arc/language/sentences/language.json`, in a dict mapping from task_id to an array of strings for each task.
-3. Natural language DSL function annotations. Additional expert-written annotations for each _function_ in the DSL, used in the _pseudo-annotation_ training procedure (Sec. 5.1), are available in `data/arc/primitiveNamesToDescriptions.json`. This maps each function in the DSL to both a human readable name and a human readable short gloss (stored in a `[name, gloss]` tuple); we use the gloss for our experiments.
+3. Natural language DSL function annotations. Additional expert-written annotations for each _function_ in the DSL, used in the _pseudo-annotation_ training procedure (Sec. 5.1), are available in `data/arc/primitiveNamesToDescriptions.json`. This maps each function in the DSL to both a human readable name and a human readable short gloss (stored in a `[name, gloss]` tuple); we use the gloss for our experiments. During training and execution, these natural language annotations are used along with the formal DSL, implemented in OCaml, in `solvers/arc.ml`.
+
+##### Training and Evaluation.
+The script to train and evaluate any of the reported models on the paper (including calling the LARC dataloader) is located at ```bin/arc.py```.
+
+A full list of commandline arguments (and descriptions of their functions) can be found by running 
+```
+python bin/arc.py -h
+```
+
+By default, as the algorithm is iterative, the training scripts will both run the algorithm for a specified number of iterations, and evaluate on a held-out test task every n iterations (where n is an adjustable argument.)
+
+Running the commands below will produce fairly verbose log outputs that include evaluation metrics, and the location of the model checkpoint. In particular, running
+```
+grep 'checkpoint' [LOG_FILE]
+``` 
+will print out the path of the checkpoints at each iteration, and running
+
+```
+grep 'Hits' [LOG_FILE]
+```
+will print out the held-out task evaluation metrics.
+
+It is also possible to resume and evaluate a model checkpoint from any iteration in training. By default, the scripts write timestamped checkpoints to a directory titled `experimentOutputs` (the exact directory appears with other informaiton in the output.)
+
+The ```--resume [CHECKPOINT_PATH]``` commandline argument will resume training from a checkpoint, including to re-run evaluation tasks.
+
+For additional information on the command line output (and default scripts to graph the outputs from the checkpoints), see docs/EC_README.md.
+
+###### Command line arguments for experiments
+To train and evaluate the best-performing model in the paper (Table 1, Language – T5 + pseudoannotation training, initialized from tasks solved after an 8hr initial enumeration from the base DSL), run:
+```
+python3.7 bin/arc.py \
+  --enumerationTimeout 720 # Search timeout (s)
+  --testingTimeout 0 # Search timeout on testing tasks (we do not evaluate on testing tasks in the reported experiments)
+  --iterations 5 # By default, number of full *epochs* to run over training tasks.
+  --taskBatchSize 400 # Training batch size at each iteration. Set to the full 400 training tasks
+  --recognitionSteps 10000 # Maximum gradient steps for the neural model.
+  --featureExtractor LMPseudoTranslationFeatureExtractor # Neural model (T5-small) with pseudo-annotation training.
+  --preload_frontiers data/arc/prior_enumeration_frontiers_8hr.pkl # Initialize from tasks solved from 8 hours of enumeration. See data/arc/prior_enumeration* for other initializations.
+  --Helmholtz 0.5 # Train 50% on pseudoannotations and 50% on solved tasks with accompanying annotations.
+  --taskReranker randomShuffle # Random permutation of training tasks (N/A when no train-time batching.)
+  --seed 1 # Random seed.
+  --no-background-helmholtz --testEvery 1  --biasOptimal --contextual --no-cuda  --CPUs 24 -no-dsl 
+```
+
+## Results
+The table below (Table 1 in the main paper) shows % held-out tasks solved on both the graphics program and regex domains, including when testing and trained on synthetic and human language data; the table also shows performance on model ablations and baselines.
+
+![results](./docs/imcl_2021_results.png "Results")
+
+Commands to reproduce each of these experiments (including replications) can be found in the ```docs/neurips_2021_experiments``` file.
+
 
