@@ -95,10 +95,10 @@ python3.7 bin/arc.py \
 ```
 
 ## Results
-The table below (Table 1 in the main paper) shows % held-out tasks solved on both the graphics program and regex domains, including when testing and trained on synthetic and human language data; the table also shows performance on model ablations and baselines.
+The table below (Table 1 in the main paper) shows the number of training tasks solved after 5 iterations of search (720s per task), initialized with various initializations.
 
 ![results](./docs/results.png "Results")
 
-Commands to reproduce each of these experiments (including replications) can be found in the ```docs/neurips_2021_experiments``` file.
+Commands to reproduce each of these experiments (including the full initialization) can be found in the ```docs/neurips_2021_experiments``` file.
 
 
