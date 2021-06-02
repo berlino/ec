@@ -36,7 +36,7 @@ def joshTasks(w):
             ts.append(Task(data.get("name",fn.split(".")[0][1:]),
                            arrow(tlist(tint),tlist(tint)),
                            [((e["i"],),e["o"])
-                            for e in data["data"] ]))
+                            for e in data["data"]]))
     return list(sorted(ts,key=lambda t: t.name))
         
         

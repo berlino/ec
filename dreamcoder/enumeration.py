@@ -15,8 +15,9 @@ def multicoreEnumeration(g, tasks, _=None,
                          verbose=True,
                          evaluationTimeout=None,
                          testing=False,
-                         allTasks=None,
-                         likelihoodModel=None):
+                         likelihoodModel=None,
+                         leaveHoldout=False,
+                         similarTasks=None):
     '''g: Either a Grammar, or a map from task to grammar.
     Returns (list-of-frontiers, map-from-task-to-search-time, map-from-task-to-number-enumerated)'''
 
@@ -35,9 +36,14 @@ def multicoreEnumeration(g, tasks, _=None,
     assert solver in solvers, "You must specify a valid solver. options are ocaml, pypy, or python." 
 
     if solver == 'pypy' or solver == 'python':
-      likelihoodModel = likelihoodModel(tasks=allTasks)
-      # Use an all or nothing likelihood model.
-      # likelihoodModel = AllOrNothingLikelihoodModel(timeout=evaluationTimeout) 
+      if likelihoodModel is None:
+        # Use an all or nothing likelihood model.
+        likelihoodModel = AllOrNothingLikelihoodModel(timeout=evaluationTimeout, leaveHoldout=leaveHoldout) 
+      else:
+        if similarTasks is not None:
+          likelihoodModel = likelihoodModel(similarTasks=similarTasks)
+        else:
+          likelihoodModel = likelihoodModel(tasks=tasks)
       
     solver = solvers[solver]
 

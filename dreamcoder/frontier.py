@@ -16,7 +16,7 @@ class FrontierEntry(object):
         self.logLikelihood = logLikelihood
 
     def __repr__(self):
-        return "FrontierEntry(program={self.program}, logPrior={self.logPrior}, logLikelihood={self.logLikelihood}".format(
+        return "FrontierEntry(program={self.program}, logPrior={self.logPrior}, logLikelihood={self.logLikelihood}, logPosterior={self.logPosterior}".format(
             self=self)
 
 

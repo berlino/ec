@@ -859,11 +859,11 @@ class RecognitionModel(nn.Module):
                 logPrior=e.logPrior) for e in frontier],
             task=frontier.task)
 
-    def train(self, frontiers, _=None, steps=None, lr=0.001, topK=5, CPUs=1,
+    def trainRecognizer(self, frontiers, _=None, steps=None, lr=0.001, topK=5, CPUs=1,
               timeout=None, evaluationTimeout=0.001,
               helmholtzFrontiers=[], helmholtzRatio=0., helmholtzBatch=1000,
               biasOptimal=None, defaultRequest=None, auxLoss=False, vectorized=True,
-              epochs=99999, earlyStopping=True, lrModel=False):
+              epochs=99999, earlyStopping=True, lrModel=False, holdout=False):
         """
         helmholtzRatio: What fraction of the training data should be forward samples from the generative model?
         helmholtzFrontiers: Frontiers from programs enumerated from generative model (optional)
@@ -923,9 +923,12 @@ class RecognitionModel(nn.Module):
         if not hasattr(self.featureExtractor, 'recomputeTasks'):
             self.featureExtractor.recomputeTasks = True
 
-        # only convert to Helmholtz entry if it's not already that type.
-
-        helmholtzFrontiers = [HelmholtzEntry(f, self) for f in helmholtzFrontiers]
+        # # only convert to Helmholtz entry if it's not already that type.
+        if len(helmholtzFrontiers) > 0:
+            if isinstance(helmholtzFrontiers[0], HelmholtzEntry):
+                pass
+            else:
+                helmholtzFrontiers = [HelmholtzEntry(f, self) for f in helmholtzFrontiers]
         random.shuffle(helmholtzFrontiers)
         
         helmholtzIndex = [0]
@@ -1009,13 +1012,14 @@ class RecognitionModel(nn.Module):
         # We replace each program in the frontier with its likelihoodSummary
         # This is because calculating likelihood summaries requires juggling types
         # And type stuff is expensive!
-        frontiers = [self.replaceProgramsWithLikelihoodSummaries(f).normalize()
+        # TODO (theosech): Figure out whether it's better to normalize or not
+        frontiers = [self.replaceProgramsWithLikelihoodSummaries(f)
                      for f in frontiers]
 
         if lrModel:
             
             if len(helmholtzFrontiers) == 0:
-                n = 10000
+                n = 100
                 helmholtzFrontiers = [getHelmholtz() for i in range(n)]
                 for f in helmholtzFrontiers:
                     print(f.task.describe())
@@ -1084,20 +1088,24 @@ class RecognitionModel(nn.Module):
             eprint("(ID=%d): Contextual? %s" % (self.id, str(self.contextual)))
             eprint("(ID=%d): Bias optimal? %s" % (self.id, str(biasOptimal)))
             eprint(f"(ID={self.id}): Aux loss? {auxLoss} (n.b. we train a 'auxiliary' classifier anyway - this controls if gradients propagate back to the future extractor)")
+            eprint("Using cuda: {}".format(torch.cuda.is_available()))
 
             # The number of Helmholtz samples that we generate at once
             # Should only affect performance and shouldn't affect anything else
-            helmholtzSamples = []
 
             optimizer = torch.optim.Adam(self.parameters(), lr=lr, eps=1e-3, amsgrad=True)
             start = time.time()
             losses, descriptionLengths, realLosses, dreamLosses, realMDL, dreamMDL = [], [], [], [], [], []
             classificationLosses = []
             totalGradientSteps = 0
+            epCount = 0
 
-            holdoutFrontiers = copy.deepcopy([getHelmholtz() for i in range(1000)])
+            if earlyStopping:
+                ep = EarlyStopping(patience=10, n_epochs_stop=10, init_best_val_loss=100.0)
+                assert holdout
 
-            ep = EarlyStopping(patience=1, n_epochs_stop=10, init_best_val_loss=100.0)
+            if holdout:
+                holdoutFrontiers = copy.deepcopy([getHelmholtz() for i in range(1000)])
 
             for i in range(1, epochs + 1):
 
@@ -1114,7 +1122,10 @@ class RecognitionModel(nn.Module):
                     permutedFrontiers = [None]
 
                 finishedSteps = False
-                for frontier in permutedFrontiers:
+                for j,frontier in enumerate(permutedFrontiers):
+
+                    print("Epoch: {}, Frontier: {}".format(i, j))
+
                     # Randomly decide whether to sample from the generative model
                     dreaming = random.random() < helmholtzRatio
                     if dreaming: frontier = getHelmholtz()
@@ -1123,6 +1134,10 @@ class RecognitionModel(nn.Module):
                             self.frontierBiasOptimal(frontier, auxiliary=auxLoss, vectorized=vectorized) if biasOptimal \
                             else self.frontierKL(frontier, auxiliary=auxLoss, vectorized=vectorized)
                     if loss is None:
+                        print(frontier)
+                        print(frontier.task.describe())
+                        print(self.featureExtractor.featuresOfTask(frontier.task))
+                        print("loss is None")
                         if not dreaming:
                             eprint("ERROR: Could not extract features during experience replay.")
                             eprint("Task is:",frontier.task)
@@ -1147,43 +1162,48 @@ class RecognitionModel(nn.Module):
                             realMDL.append(descriptionLengths[-1])
                         if totalGradientSteps > steps:
                             break # Stop iterating, then print epoch and loss, then break to finish.
-                            
-                if (i == 1 or i % 250 == 0) and losses:
 
-                    # calculate hold out losses
-                    holdoutLosses, holdoutClassificationLosses, holdoutDescriptionLengths = [], [], []
-                    for frontier in holdoutFrontiers:
-                        loss, classificationLoss = self.frontierBiasOptimal(frontier, auxiliary=auxLoss, vectorized=vectorized) if biasOptimal \
-                        else self.frontierKL(frontier, auxiliary=auxLoss, vectorized=vectorized)
-                        if loss is None:
-                            continue
-                        holdoutLosses.append(loss.data.item())
-                        holdoutClassificationLosses.append(classificationLoss.data.item())
-                        holdoutDescriptionLengths.append(min(-e.logPrior for e in frontier))
+                    if j % 1000 == 0:
 
-                    if ep.should_stop(i, mean(holdoutLosses)):
-                        break
+                        if holdout:
+                            # calculate hold out losses
+                            holdoutLosses, holdoutClassificationLosses, holdoutDescriptionLengths = [], [], []
+                            for frontier in holdoutFrontiers:
+                                loss, classificationLoss = self.frontierBiasOptimal(frontier, auxiliary=auxLoss, vectorized=vectorized) if biasOptimal \
+                                else self.frontierKL(frontier, auxiliary=auxLoss, vectorized=vectorized)
+                                if loss is None:
+                                    continue
 
-                    eprint("\n(ID=%d): " % self.id, "\t Evaluated on ", len(holdoutFrontiers), "holdout frontiers")
-                    eprint("(ID=%d): " % self.id, "\tHoldout Mean Classification Loss", mean(holdoutClassificationLosses))
-                    eprint("(ID=%d): " % self.id, "\tHoldout Mean MDL Loss", mean(holdoutLosses))
-                    eprint("(ID=%d): " % self.id, "\tvs Holdout Mean MDL (w/o neural net)", mean(holdoutDescriptionLengths))
+                                holdoutLosses.append(loss.data.item())
+                                holdoutClassificationLosses.append(classificationLoss.data.item())
+                                holdoutDescriptionLengths.append(min(-e.logPrior for e in frontier))
 
+                            eprint("\n(ID=%d): " % self.id, "\t Evaluated on ", len(holdoutFrontiers), "holdout frontiers")
+                            eprint("(ID=%d): " % self.id, "\tHoldout Mean Classification Loss", mean(holdoutClassificationLosses))
+                            eprint("(ID=%d): " % self.id, "\tHoldout Mean MDL Loss", mean(holdoutLosses))
+                            eprint("(ID=%d): " % self.id, "\tvs Holdout Mean MDL (w/o neural net)", mean(holdoutDescriptionLengths))
 
-                    eprint("\n(ID=%d): " % self.id, "Epoch", i, "Loss", mean(losses))
-                    if realLosses and dreamLosses:
-                        eprint("(ID=%d): " % self.id, "\t\t(real loss): ", mean(realLosses), "\t(dream loss):", mean(dreamLosses))
-                    eprint("(ID=%d): " % self.id, "\tvs MDL (w/o neural net)", mean(descriptionLengths))
-                    if realMDL and dreamMDL:
-                        eprint("\t\t(real MDL): ", mean(realMDL), "\t(dream MDL):", mean(dreamMDL))
-                    eprint("(ID=%d): " % self.id, "\t%d cumulative gradient steps. %f steps/sec"%(totalGradientSteps,
-                                                                           totalGradientSteps/(time.time() - start)))
-                    eprint("(ID=%d): " % self.id, "\t%d-way auxiliary classification loss"%len(self.grammar.primitives),sum(classificationLosses)/len(classificationLosses))
-                    losses, descriptionLengths, realLosses, dreamLosses, realMDL, dreamMDL = [], [], [], [], [], []
-                    classificationLosses = []
-                    gc.collect()
+                        if earlyStopping:
+                            shouldStop, bestModel = ep.should_stop(epCount, mean(holdoutLosses), self)
+                            if shouldStop:
+                                self.trained = True
+                                eprint("(ID=%d): " % self.id, " Trained recognition model in",time.time() - start,"seconds")
+                                return bestModel
+                            epCount += 1
+
+                eprint("\n(ID=%d): " % self.id, "Epoch", i, "Loss", mean(losses))
+                if realLosses and dreamLosses:
+                    eprint("(ID=%d): " % self.id, "\t\t(real loss): ", mean(realLosses), "\t(dream loss):", mean(dreamLosses))
+                eprint("(ID=%d): " % self.id, "\tvs MDL (w/o neural net)", mean(descriptionLengths))
+                if realMDL and dreamMDL:
+                    eprint("\t\t(real MDL): ", mean(realMDL), "\t(dream MDL):", mean(dreamMDL))
+                eprint("(ID=%d): " % self.id, "\t%d cumulative gradient steps. %f steps/sec"%(totalGradientSteps,
+                                                                       totalGradientSteps/(time.time() - start)))
+                eprint("(ID=%d): " % self.id, "\t%d-way auxiliary classification loss"%len(self.grammar.primitives),sum(classificationLosses)/len(classificationLosses))
+                losses, descriptionLengths, realLosses, dreamLosses, realMDL, dreamMDL = [], [], [], [], [], []
+                classificationLosses = []
+                gc.collect()
             
-            eprint("(ID=%d): " % self.id, " Trained recognition model in",time.time() - start,"seconds")
             self.trained=True
             return self
 
@@ -1208,11 +1228,8 @@ class RecognitionModel(nn.Module):
                 if all([i[0] == o for i,o in task.examples]):
                     return None
 
-
         if statusUpdate is not None:
             flushEverything()
-        if task is None:
-            return None
 
         if hasattr(self.featureExtractor, 'lexicon'):
             if self.featureExtractor.tokenize(task.examples) is None:

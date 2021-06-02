@@ -12,7 +12,9 @@ import datetime
 import dill
 
 from dreamcoder.dreamcoder import explorationCompression
+from dreamcoder.enumeration import multicoreEnumeration
 from dreamcoder.utilities import eprint, flatten, testTrainSplit, numberOfCPUs, getThisMemoryUsage, getMemoryUsageFraction, howManyGigabytesOfMemory
+from dreamcoder.program import *
 from dreamcoder.recognition import DummyFeatureExtractor, RecognitionModel
 from dreamcoder.grammar import Grammar
 from dreamcoder.task import Task
@@ -20,7 +22,7 @@ from dreamcoder.type import Context, arrow, tbool, tlist, tint, t0, UnificationF
 from dreamcoder.domains.list.listPrimitives import basePrimitives, primitives, McCarthyPrimitives, bootstrapTarget_extra, no_length, josh_primitives
 from dreamcoder.domains.list.makeListTasks import make_list_bootstrap_tasks, sortBootstrap, EASYLISTTASKS, joshTasks
 from dreamcoder.domains.list.propertySignatureExtractor import PropertySignatureExtractor, sampleProperties
-from dreamcoder.domains.list.resultsProcessing import resume_from_path
+from dreamcoder.domains.list.resultsProcessing import resume_from_path, viewResults, plotFrontiers
 from dreamcoder.domains.list.taskProperties import handWrittenProperties, tinput, toutput
 from dreamcoder.domains.list.utilsProperties import *
 
@@ -203,6 +205,7 @@ try:
                                      for xs, y in self.tokenize(t.examples)
                                      for l in [y] + [x for x in xs])
 
+            self.parallelTaskOfProgram = True
             self.recomputeTasks = True
 
             super(
@@ -334,7 +337,9 @@ def list_options(parser):
 
 
     # Arguments relating to properties
+    parser.add_argument("--earlyStopping", action="store_true", default=False)
     parser.add_argument("--singleTask", action="store_true", default=False)
+    parser.add_argument("--debug", action="store_true", default=False)
     parser.add_argument("--propCPUs", type=int, default=numberOfCPUs())
     parser.add_argument("--propSolver",default="ocaml",type=str)
     parser.add_argument("--propSamplingTimeout",default=600,type=float)
@@ -342,7 +347,8 @@ def list_options(parser):
     parser.add_argument("--propAddZeroToNinePrims", action="store_true", default=False)
     parser.add_argument("--propScoringMethod", default="unique_task_signature", choices=[
         "per_task_discrimination",
-        "unique_task_signature"
+        "unique_task_signature",
+        "per_similar_task_discrimination"
         ])
     parser.add_argument("--propDreamTasks", action="store_true", default=False)
     parser.add_argument("--propUseHandWrittenProperties", action="store_true", default=False)
@@ -453,7 +459,8 @@ def main(args):
              "list_prims": bootstrapTarget_extra()
     }
 
-    prims = primLibraries[args.pop("primitives")]
+    libraryName = args.pop("primitives")
+    prims = primLibraries[libraryName]
 
     haveLength = not args.pop("noLength")
     haveMap = not args.pop("noMap")
@@ -475,6 +482,7 @@ def main(args):
         prims = prims + [toutputToList, tinputToList]
 
     baseGrammar = Grammar.uniform([p for p in prims])
+    propSamplingGrammar = Grammar.uniform([p for p in primLibraries[args["propSamplingGrammar"]]])
 
     extractor_name = args.pop("extractor")
     print(extractor_name)
@@ -558,48 +566,189 @@ def main(args):
         test = []
 
     singleTask = args.pop("singleTask")
+    debug = args.pop("debug")
     if singleTask:
         train = [train[0]]
 
+    ##################################
+    # Load sampled tasks
+    ##################################
+
     print("Loading sampled tasks")
-    sampledFrontiers = loadSampledTasks()
-    print("Finished loading sampled tasks")
+    k = 1
+    # sampledFrontiers = loadSampledTasks(k=k, batchSize=100, n=100, dslName=libraryName, isSample=False)
+    # sampledFrontiers = loadEnumeratedTasks(k=1, mdlIncrement=0.5, n=5000, dslName=libraryName, upperBound=20)
 
-    featureExtractor = extractor([f.task for f in sampledFrontiers], grammar=baseGrammar, testingTasks=[], cuda=False, featureExtractorArgs=featureExtractorArgs)
-    pickleFile = "experimentOutputs/jrule/2021-04-29T00:06:25.721563/jrule_arity=3_BO=False_CO=False_dp=False_doshaping=False_ES=1_ET=600_epochs=99999_HR=1.0_it=1_MF=10_parallelTest=False_RT=7200_RR=False_RW=False_st=False_STM=True_TRR=default_K=2_topkNotMAP=False_tset=S12_DSL=False.pickle"
-    ecResult, _, _ = resume_from_path(pickleFile)
+    if debug:
+        sampledFrontiers = loadEnumeratedTasks(dslName=libraryName)[:500]
+    else:
+        sampledFrontiers = loadEnumeratedTasks(dslName=libraryName)
+    print("Finished loading {} sampled tasks".format(len(sampledFrontiers)))
 
-    nSim = 10
-    onlyUseTrueProperties = True
-    # scoreCutoff = None
-    # pseudoCounts = 1
-    # comparePropSimFittedToRnnEncoded(train, ecResult, baseGrammar, sampledFrontiers, featureExtractor, featureExtractorArgs, nSim, scoreCutoff, pseudoCounts)
-
-    numSolved = 0
-    for task in train:
-        f,w = getTaskSimilarFrontier(sampledFrontiers, featureExtractor, task, baseGrammar, featureExtractorArgs, nSim=nSim, onlyUseTrueProperties=onlyUseTrueProperties, verbose=True)
-        if len(f) == 0:
-            numSolved += 1
-
-    print("Solved {} out of {} tasks".format(numSolved, len(train)))
-
-
+    ##################################
+    # Training Recognition Model
+    ##################################
 
     # recognitionModel = RecognitionModel(
-    #     featureExtractor=extractor(trainTasks, grammar=baseGrammar, testingTasks=[], cuda=False, featureExtractorArgs=featureExtractorArgs),
-    #     grammar=baseGrammar,
-    #     cuda=False,
-    #     contextual=False,
-    #     previousRecognitionModel=False,
-    #     )
+    # featureExtractor=extractor(train, grammar=baseGrammar, testingTasks=[], cuda=torch.cuda.is_available(), featureExtractorArgs=featureExtractorArgs),
+    # grammar=baseGrammar,
+    # cuda=torch.cuda.is_available(),
+    # contextual=False,
+    # previousRecognitionModel=False,
+    # )
 
-    # trainedRecognizer = recognitionModel.train(frontiers=trainFrontiers, helmholtzFrontiers=[], helmholtzRatio=0.0, CPUs=40, lrModel=True, timeout=1, defaultRequest=arrow(tlist(tint), tlist(tint)), 
-    #     tasksToTrainFrontiers=tasksToTrainFrontiers)
-    
-    # path = "recognitionModels/{}_lr_{}_weightedFrontiers.pkl".format(datetime.datetime.now(), nSim)
-    # with open(path, 'wb') as handle:
+    # # count how many tasks can be tokenized
+    # excludeIdx = []
+    # for i,f in enumerate(sampledFrontiers):
+    #     if recognitionModel.featureExtractor.featuresOfTask(f.task) is None:
+    #         excludeIdx.append(i)
+    # sampledFrontiers = [f for i,f in enumerate(sampledFrontiers) if i not in excludeIdx]
+    # print("Can't get featuresOfTask for {} tasks. Now have {} frontiers".format(len(excludeIdx), len(sampledFrontiers)))
+
+    # ep, CPUs = args.pop("earlyStopping"), args.pop("CPUs")
+    # recognitionSteps = args.pop("recognitionSteps")
+    # recognitionTimeout = args.pop("recognitionTimeout")
+    # trainedRecognizer = recognitionModel.trainRecognizer(
+    # frontiers=sampledFrontiers, 
+    # helmholtzFrontiers=[],
+    # helmholtzRatio=args.pop("helmholtzRatio"),
+    # CPUs=CPUs,
+    # lrModel=False, 
+    # earlyStopping=ep, 
+    # holdout=ep,
+    # steps=recognitionSteps,
+    # timeout=recognitionTimeout,
+    # defaultRequest=arrow(tlist(tint), tlist(tint)))
+
+    # path = "recognitionModels/{}_enumerated_{}/learned_{}_enumeratedFrontiers_ep={}_RS={}_RT={}.pkl".format(libraryName, k, len(sampledFrontiers), ep, recognitionSteps, recognitionTimeout)
+    # with open(path,'wb') as handle:
+    #     print("Saved recognizer at: {}".format(path))
     #     dill.dump(trainedRecognizer, handle)
-    #     print('Stored recognizer at: {}'.format(path))
 
+    # loadPath = "enumerationResults/learned_2021-05-10 13:34:42.593000_t=1.pkl"
+    # with open(loadPath, "rb") as handle:
+    #     frontiers, recognitionTimes = dill.load(handle)
 
-    # explorationCompression(baseGrammar, train, testingTasks=test, featureExtractorArgs=featureExtractorArgs, **args)
+    ##################################
+    # Enumeration
+    ##################################
+
+    # propertyFeatureExtractor = extractor([f.task for f in sampledFrontiers], grammar=baseGrammar, testingTasks=[], cuda=False, featureExtractorArgs=featureExtractorArgs)
+    # nSim, pseudoCounts, onlyUseTrueProperties, weightedSim = 50, 1, True, False
+    # propSimGrammars, tasksSolved, _ = getPropSimGrammars(baseGrammar, train, sampledFrontiers, propertyFeatureExtractor, featureExtractorArgs, onlyUseTrueProperties, nSim, pseudoCounts, weightedSim, compressSimilar=False, verbose=False)
+
+    # loadPath = 'recognitionModels/josh_rich_enumerated_1/learned_9740_enumeratedFrontiers_ep=True_RS=None_RT=7200.pkl'
+    # with open(loadPath, "rb") as handle:
+    #     trainedRecognizer = dill.load(handle)
+
+    # recognizerGrammars = getRecognizerTaskGrammars(trainedRecognizer, train)
+    # enumerationTimeout, solver, maximumFrontier = args.pop("enumerationTimeout"), args.pop("solver"), args.pop("maximumFrontier")
+    # try:
+    #     CPUs = args.pop("CPUs")
+    # except:
+    #     pass
+    # for modelName, grammars in zip(["neuralRecognizer", "propSim"], [recognizerGrammars, propSimGrammars]):
+    #     bottomUpFrontiers, allRecognitionTimes = enumerateFromGrammars(grammars, train, modelName, enumerationTimeout, solver, CPUs, maximumFrontier, leaveHoldout=True, save=True)
+    #     nonEmptyFrontiers = [f for f in bottomUpFrontiers if not f.empty]
+    #     numTasksProgramDiscovered = len(nonEmptyFrontiers)
+    #     numTasksSolved = len([f.task for f in nonEmptyFrontiers if f.task.check(f.topK(1).entries[0].program, timeout=1.0, leaveHoldout=False)])
+    #     print("Enumerating from {} grammars for {} seconds: Potentially found solutions to {} tasks. {} / {} actually true for holdout example".format(modelName, enumerationTimeout, numTasksProgramDiscovered, numTasksSolved, numTasksProgramDiscovered))
+#
+    #####################
+    # Helmhholtz Sampling
+    #####################
+
+    # k = 2
+    # sampleAndSave(recognitionModel, [arrow(tlist(tint), tlist(tint))], dslName=libraryName, numSamples=10000, samplesPerStep=1000, CPUs=40, batchSize=100, k=k)
+    # f = loadSampledTasks(k=2, batchSize=2, n=4, dslName=libraryName)
+    # print(f)
+    
+    # featureExtractor=extractor(train, grammar=baseGrammar, testingTasks=[], cuda=torch.cuda.is_available(), featureExtractorArgs=featureExtractorArgs)
+    # enumerateAndSave(baseGrammar, train[0].request, featureExtractor, dslName=libraryName, numTasks=10000, k=1, batchSize=100, CPUs=args.pop("CPUs"))
+
+    #####################
+    # Plotting
+    #####################
+
+    # filenames = [
+    # # "enumerationResults/neuralRecognizer_2021-05-11 15:23:26.568699_t=600.pkl", "enumerationResults/neuralRecognizer_2021-05-11 18:04:39.262428_t=600.pkl", 
+    # # "enumerationResults/neuralRecognizer_2021-05-17 15:54:55.857341_t=600.pkl",
+    # "enumerationResults/neuralRecognizer_2021-05-23 04:43:46.411556_t=600.pkl",
+    # # "enumerationResults/neuralRecognizer_2021-05-23 04:43:46.411556_t=600.pkl",
+    # # "enumerationResults/propSim_2021-05-10 15:28:36.921856_t=600.pkl", "enumerationResults/propSim_2021-05-11 12:49:11.749481_t=600.pkl", 
+    # # "enumerationResults/propSim_2021-05-12 22:15:52.858092_t=600.pkl", "enumerationResults/propSim_2021-05-12 22:42:53.788790_t=600.pkl", 
+    # "enumerationResults/propSim_2021-05-23 04:57:26.284483_t=600.pkl",
+    # "enumerationResults/uniformGrammar_2021-05-11 13:49:32.922951_t=600.pkl"]
+    # modelNames = [
+    # # "neuralRecognizer (samples)", "neuralRecognizer (samples)", 
+    # "neuralRecognizer (enumerated)",
+    # # "neuralRecognizer (enumerated)",
+    # # "propSim (samples)", "propSim (samples)", 
+    # # "propSim2 (samples)", "propSim2 (samples)", 
+    # "propSim2 (enumerated)",
+    # "unifGrammarPrior"]
+    # plotFrontiers(filenames, modelNames)
+    
+    ######################
+    # Enumeration Proxy
+    ######################
+    
+    # nSimList = [5,50,200]
+    # scoreCutoff = 1.0
+    # pseudoCounts = 1
+    # fileName = "enumerationResults/neuralRecognizer_2021-05-18 15:27:58.504808_t=600.pkl"
+    # frontiers, times = dill.load(open(fileName, "rb"))
+    # unsolvedTasks = [f.task for f in frontiers if len(f.entries) == 0]
+
+    # propertyFeatureExtractor = extractor([f.task for f in sampledFrontiers], grammar=baseGrammar, testingTasks=[], cuda=False, featureExtractorArgs=featureExtractorArgs)
+    # comparePropSimFittedToRnnEncoded(train, frontiers, baseGrammar, sampledFrontiers, propertyFeatureExtractor, featureExtractorArgs, nSimList, scoreCutoff, pseudoCounts)
+
+    ######################
+    # Smarter PropSim
+    ######################
+
+    fileName = "enumerationResults/neuralRecognizer_2021-05-18 15:27:58.504808_t=600.pkl"
+    frontiers, times = dill.load(open(fileName, "rb"))
+    unsolvedTasks = [f.task for f in frontiers if len(f.entries) == 0]
+
+    propertyFeatureExtractor = extractor([f.task for f in sampledFrontiers], grammar=baseGrammar, testingTasks=[], cuda=False, featureExtractorArgs=featureExtractorArgs)
+    onlySampleFor100percentSimTasks = True
+    for i,task in enumerate(unsolvedTasks):
+        
+        similarTaskFrontiers, frontierWeights, solved = getTaskSimilarFrontier(sampledFrontiers, propertyFeatureExtractor, task, baseGrammar, featureExtractorArgs, nSim=5, onlyUseTrueProperties=True, verbose=True)
+        # if onlySampleFor100percentSimTasks:
+        #     print(len(similarTaskFrontiers))
+        #     print(frontierWeights)
+        #     hundredPercentSimilarTaskFrontiers = [f for j,f in enumerate(similarTaskFrontiers) if frontierWeights[j] == 1.0]
+        #     if len(hundredPercentSimilarTaskFrontiers) == 0:
+        #         continue
+        #     else:
+        #         print("Sampling properties to improve {} tasks with 100 percent true property overlap".format(len(hundredPercentSimilarTaskFrontiers)))
+        #         newPropertyFrontiers = sampleProperties(featureExtractorArgs, baseGrammar, tasks=[task], 
+        #             similarTasks=[f.task for f in hundredPercentSimilarTaskFrontiers], propertyRequest=arrow(tinput, toutput, tbool))
+        #         print(newPropertyFrontiers)
+        # else:
+        #     newPropertyFrontiers = sampleProperties(featureExtractorArgs, propSamplingGrammar, tasks=[task], 
+        #         similarTasks=[f.task for f in similarTaskFrontiers], propertyRequest=arrow(tinput, toutput, tbool))
+        #     print(newPropertyFrontiers)
+
+    # prims = {p.name:p for p in baseGrammar.primitives}
+    # programString = "(lambda (cut_slice 5 7 (take (second (take (* 3 9) (append $0 4))) (append (foldi (foldi $0 $0 (lambda (lambda (lambda empty)))) (slice 0 5 empty) (lambda (lambda (lambda (mapi (lambda (lambda 0)) $0))))) (if (is-even 2) (index 4 $0) 0)))))"
+    # p = Program.parse(programString)
+    # print("\nOriginal Program: {}\n".format(p))
+
+    # evalReduced, p = p.evalReduce(prims)
+    # while evalReduced:
+    #     evalReduced, temp = p.evalReduce(prims)
+    #     if temp == p:
+    #         break
+    #     else:
+    #         p = temp
+    # print("\nProgram after evalReductions: {}".format(p))
+
+    # savePath = "enumerationResults/{}_{}_t={}.pkl".format("neuralRecognizer", datetime.datetime.now(), 600)
+    # with open(savePath, "wb") as handle:
+    #     dill.dump((frontiers, None), handle)
+    # print(savePath)
+    # viewResults(trainedRecognizer)
+    # explorationCompression(baseGrammar, train, testingTasks=test, featureExtractorArgs=featu

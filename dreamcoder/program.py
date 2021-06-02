@@ -138,30 +138,33 @@ class Program(object):
     def isHole(self): return False
 
     @staticmethod
-    def parse(s):
+    def parse(s, primitives=None):
         s = parseSExpression(s)
-        def p(e):
+        def p(e, primitives=None):
             if isinstance(e,list):
                 if e[0] == '#':
                     assert len(e) == 2
-                    return Invented(p(e[1]))
+                    return Invented(p(e[1], primitives))
                 if e[0] == 'lambda':
                     assert len(e) == 2
-                    return Abstraction(p(e[1]))                    
-                f = p(e[0])
+                    return Abstraction(p(e[1], primitives))                    
+                f = p(e[0], primitives)
                 for x in e[1:]:
-                    f = Application(f,p(x))
+                    f = Application(f,p(x, primitives))
                 return f
             assert isinstance(e,str)
             if e[0] == '$': return Index(int(e[1:]))
-            if e in Primitive.GLOBALS: return Primitive.GLOBALS[e]
+            if primitives is not None:
+                if e in primitives: return primitives[e]
+            else:
+                if e in Primitive.GLOBALS: return Primitive.GLOBALS[e]
             if e == '??' or e == '?': return FragmentVariable.single
             if e == '<HOLE>': return Hole.single
             raise ParseFailure((s,e))
-        return p(s)
+        return p(s, primitives)
 
     @staticmethod
-    def _parse(s,n):
+    def _parse(s,n, primitives=None):
         while n < len(s) and s[n].isspace():
             n += 1
         for p in [
@@ -173,14 +176,14 @@ class Program(object):
                 Hole,
                 Primitive]:
             try:
-                return p._parse(s,n)
+                return p._parse(s,n,primitives)
             except ParseFailure:
                 continue
         raise ParseFailure(s)
 
     # parser helpers
     @staticmethod
-    def parseConstant(s,n,*constants):
+    def parseConstant(s,n,*constants,primitives=None):
         for constant in constants:
             try:
                 for i,c in enumerate(constant):
@@ -192,26 +195,29 @@ class Program(object):
     @staticmethod
     def parseHumanReadable(s):
         s = parseSExpression(s)
-        def p(s, environment):
+        def p(s, environment, primitives=None):
             if isinstance(s, list) and s[0] in ['lambda','\\']:
                 assert isinstance(s[1], list) and len(s) == 3
                 newEnvironment = list(reversed(s[1])) + environment
-                e = p(s[2], newEnvironment)
+                e = p(s[2], newEnvironment, primitives)
                 for _ in s[1]: e = Abstraction(e)
                 return e
             if isinstance(s, list):
-                a = p(s[0], environment)
+                a = p(s[0], environment, primitives)
                 for x in s[1:]:
-                    a = Application(a, p(x, environment))
+                    a = Application(a, p(x, environment, primitives))
                 return a
             for j,v in enumerate(environment):
                 if s == v: return Index(j)
-            if s in Primitive.GLOBALS: return Primitive.GLOBALS[s]
+            if primitives is not None:
+                if s in primitives: return primitives[s]
+            else:
+                if s in Primitive.GLOBALS: return Primitive.GLOBALS[s]
             assert False
-        return p(s, [])
-                
-                
+        return p(s, [], primitives)
 
+
+valToPrimitiveName = {"[]":"empty"}
 
 class Application(Program):
     '''Function application'''
@@ -237,6 +243,7 @@ class Application(Program):
     def betaReduce(self):
         # See if either the function or the argument can be reduced
         f = self.f.betaReduce()
+
         if f is not None: return Application(f,self.x)
         x = self.x.betaReduce()
         if x is not None: return Application(self.f,x)
@@ -248,6 +255,38 @@ class Application(Program):
         b = self.f.body
         v = self.x
         return b.substitute(Index(0), v.shift(1)).shift(-1)
+
+    def evalReduce(self, primitives=None):
+
+        # check if we can evaluate current parse tree node
+        evaluated = False
+        try:
+            evaluation = self.evaluate([])
+            evaluated = True
+        except:
+            pass
+        if evaluated:
+            try:
+                primitiveName = valToPrimitiveName.get(str(evaluation), str(evaluation))
+                parsedExpression = Program.parse(primitiveName)
+                if parsedExpression.name in primitives:
+                    print("SUCCESS: Replacing {} with {}".format(self, parsedExpression))
+                    return True, parsedExpression
+            except ParseFailure:
+                pass
+
+        # check if we can evaluate argument of Application
+        evalReduced, xNew = self.x.evalReduce(primitives)
+        if evalReduced:
+            return True, Application(self.f, xNew)
+
+        # check if we can evaluate f of Application
+        evalReduced, fNew = self.f.evalReduce(primitives)
+        if evalReduced:
+            return True, Application(fNew, self.x)
+
+        return False, self
+
 
     def isBetaLong(self):
         return (not self.f.isAbstraction) and self.f.isBetaLong() and self.x.isBetaLong()
@@ -374,14 +413,14 @@ class Application(Program):
     def size(self): return self.f.size() + self.x.size()
 
     @staticmethod
-    def _parse(s,n):
+    def _parse(s,n,primitives=None):
         while n < len(s) and s[n].isspace(): n += 1
         if n == len(s) or s[n] != '(': raise ParseFailure(s)
         n += 1
 
         xs = []
         while True:
-            x, n = Program._parse(s, n)
+            x, n = Program._parse(s, n, primitives)
             xs.append(x)
             while n < len(s) and s[n].isspace(): n += 1
             if n == len(s):
@@ -448,6 +487,8 @@ class Index(Program):
 
     def betaReduce(self): return None
 
+    def evalReduce(self, primitives=None): return False, self
+
     def isBetaLong(self): return True
 
     def freeVariables(self): return {self.i}
@@ -476,7 +517,7 @@ class Index(Program):
     def isIndex(self): return True
 
     @staticmethod
-    def _parse(s,n):
+    def _parse(s,n,primitives=None):
         while n < len(s) and s[n].isspace(): n += 1
         if n == len(s) or s[n] != '$':
             raise ParseFailure(s)
@@ -545,6 +586,11 @@ class Abstraction(Program):
         if b is None: return None
         return Abstraction(b)
 
+    def evalReduce(self, primitives=None):
+        reduced, newBody = self.body.evalReduce(primitives)
+        return reduced, Abstraction(newBody)
+
+
     def inferType(self, context, environment, freeVariables):
         (context, argumentType) = context.makeVariable()
         (context, returnType) = self.body.inferType(
@@ -572,15 +618,15 @@ class Abstraction(Program):
     def size(self): return self.body.size()
 
     @staticmethod
-    def _parse(s,n):
+    def _parse(s,n,primitives=None):
         n = Program.parseConstant(s,n,
-                                  '(\\','(lambda','(\u03bb')
+                                  '(\\','(lambda','(\u03bb', primitives)
             
         while n < len(s) and s[n].isspace(): n += 1
 
-        b, n = Program._parse(s,n)
+        b, n = Program._parse(s,n, primitives)
         while n < len(s) and s[n].isspace(): n += 1
-        n = Program.parseConstant(s,n,')')
+        n = Program.parseConstant(s,n,')', primitives)
         return Abstraction(b), n
 
 
@@ -620,6 +666,8 @@ class Primitive(Program):
 
     def betaReduce(self): return None
 
+    def evalReduce(self, primitives=None): return False, self
+
     def isBetaLong(self): return True
 
     def freeVariables(self): return set()
@@ -642,15 +690,17 @@ class Primitive(Program):
     def size(self): return 1
 
     @staticmethod
-    def _parse(s,n):
+    def _parse(s,n,primitives=None):
         while n < len(s) and s[n].isspace(): n += 1
         name = []
         while n < len(s) and not s[n].isspace() and s[n] not in '()':
             name.append(s[n])
             n += 1
         name = "".join(name)
-        if name in Primitive.GLOBALS:
-            return Primitive.GLOBALS[name], n
+        if primitives is not None:
+            if name in primitives: return primitives[name], n
+        else:
+            if name in Primitive.GLOBALS: return Primitive.GLOBALS[name], n
         raise ParseFailure(s)
 
     # TODO(@mtensor): needs to be fixed to handle both pickling lambda functions and unpickling in general.
@@ -708,6 +758,8 @@ class Invented(Program):
 
     def betaReduce(self): return self.body
 
+    def evalReduce(self, primitives=None): return self.body.evalReduce(primitives)
+
     def isBetaLong(self): return True
 
     def freeVariables(self): return set()
@@ -730,11 +782,11 @@ class Invented(Program):
     def size(self): return 1
 
     @staticmethod
-    def _parse(s,n):
+    def _parse(s,n,primitives=None):
         while n < len(s) and s[n].isspace(): n += 1
         if n < len(s) and s[n] == '#':
             n += 1
-            b,n = Program._parse(s,n)
+            b,n = Program._parse(s,n,primitives)
             return Invented(b),n
         
         raise ParseFailure(s)
@@ -757,6 +809,9 @@ class FragmentVariable(Program):
 
     def betaReduce(self):
         raise Exception('Attempt to beta reduce fragment variable')
+
+    def evalReduce(self, primitives=None):
+        raise Exception('Attempt to eval reduce fragment variable')
 
     def inferType(self, context, environment, freeVariables):
         return context.makeVariable()
@@ -793,9 +848,9 @@ class FragmentVariable(Program):
     def size(self): return 1
 
     @staticmethod
-    def _parse(s,n):
+    def _parse(s,n,primitives=None):
         while n < len(s) and s[n].isspace(): n += 1
-        n = Program.parseConstant(s,n,'??','?')
+        n = Program.parseConstant(s,n,'??','?',primitives)
         return FragmentVariable.single, n
 
 FragmentVariable.single = FragmentVariable()
@@ -819,6 +874,9 @@ class Hole(Program):
     def betaReduce(self):
         raise Exception('Attempt to beta reduce hole')
 
+    def evalReduce(self, primitives=None):
+        raise Exception('Attempt to eval reduce hole')
+
     def inferType(self, context, environment, freeVariables):
         return context.makeVariable()
 
@@ -832,10 +890,10 @@ class Hole(Program):
     def size(self): return 1
 
     @staticmethod
-    def _parse(s,n):
+    def _parse(s,n,primitives=None):
         while n < len(s) and s[n].isspace(): n += 1
         n = Program.parseConstant(s,n,
-                                  '<HOLE>')
+                                  '<HOLE>',primitives)
         return Hole.single, n
 
 

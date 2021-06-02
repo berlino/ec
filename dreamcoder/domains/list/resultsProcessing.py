@@ -7,6 +7,9 @@ from dreamcoder.program import *
 from dreamcoder.type import *
 from dreamcoder.utilities import eprint
 
+import math
+import matplotlib.pyplot as plt
+import numpy as np
 import torch
 
 def resume_from_path(resume):
@@ -204,45 +207,47 @@ def evaluateRecognizersForTask(baseGrammar, ecResults, recognizerNames=None, tas
                 toDisplay += "| {:.2f} ({}) ".format(float(g.productions[i][0]), recognizerNames[j])
             print(toDisplay)
 
-# def trainRecognitionModel(featureExtractor, expandedFrontiers, timeout):
 
-# timeout = 1200
-# path = "recognitionModels/{}_trainTasks={}_timeout={}".format(datetime.datetime.now(), len(expandedFrontiers), timeout)
-# trainedRecognizer = sleep_recognition(None, baseGrammar, [], [], [], expandedFrontiers, featureExtractor=featureExtractor, activation='tanh', CPUs=1, timeout=timeout, helmholtzFrontiers=[], helmholtzRatio=0, solver='ocaml', enumerationTimeout=0, skipEnumeration=True)
-# with open(path,'wb') as handle:
-#     dill.dump(trainedRecognizer, handle)
-#     print('Stored recognizer at: {}'.format(path))
+        uniformGrammarPrior = grammar.logLikelihood(task.request, program)
+        print("Uniform Grammar Prior: {}".format(uniformGrammarPrior))
+        logVariableGrammar = Grammar(2.0, [(0.0, p.infer(), p) for p in grammar.primitives], continuationType=None)
+        logVariableGrammarPrior = logVariableGrammar.logLikelihood(task.request, program)
+
+def plotFrontiers(fileNames, modelNames):
+    colors = {"neuralRecognizer (samples)":"blue", "neuralRecognizer (enumerated)": "purple", "propSim (samples)": "orange", "propSim2 (samples)":"red", "propSim2 (enumerated)":"brown", "unifGrammarPrior": "grey"}
+    labeled = set()
+    for i,fileName in enumerate(fileNames):
+        frontiers, times = dill.load(open(fileName, "rb"))
+
+        satisfiesHoldout = lambda f: f.task.check(f.topK(1).entries[0].program, timeout=1.0, leaveHoldout=False)
+        logPosteriors = sorted([-f.bestPosterior.logPosterior for f in frontiers if (len(f.entries) > 0 and satisfiesHoldout(f))])
+        print(fileName, len(logPosteriors))
+        label = ""
+        if modelNames[i] not in labeled:
+            label = modelNames[i]
+            labeled.add(modelNames[i])
+        plt.plot(logPosteriors, [i / len(frontiers) for i in range(len(logPosteriors))], c=colors[modelNames[i]], label=label, alpha=0.6)
+
+    plt.ylim(bottom=0, top=1)
+    plt.legend()
+    plt.savefig("enumerationResults/enumerationTimes.png")
+    return
 
 
 
-# trainedRecognizerPath = 'recognitionModels/2020-04-26 15:05:28.972185_trainTasks=2343_timeout=1200'
-# with open(trainedRecognizerPath, 'rb') as handle:
-#     trainedRecognizer = dill.load(handle)
-# print('{} Train Tasks'.format(len(nnTrainTasks)))
-# scoreTasks(trainedRecognizer, nnTrainTasks, taskToProgram, True)
-# print('\n {} Test Tasks'.format(len(nnTestTasks)))
-# scoreTasks(trainedRecognizer, nnTestTasks, taskToProgram, True)
-
-
-
-
-
-def viewResults():
+def viewResults(rec):
 
     pickleFile = "experimentOutputs/jrule/2021-04-29T00:06:25.721563/jrule_arity=3_BO=False_CO=False_dp=False_doshaping=False_ES=1_ET=600_epochs=99999_HR=1.0_it=1_MF=10_parallelTest=False_RT=7200_RR=False_RW=False_st=False_STM=True_TRR=default_K=2_topkNotMAP=False_tset=S12_DSL=False.pickle"
     result1, resumeGrammar, _ = resume_from_path(pickleFile)
 
-    pickleFile = "experimentOutputs/jrule/2021-04-27T20:49:31.738479/jrule_arity=3_BO=False_CO=False_dp=False_doshaping=False_ES=1_ET=600_epochs=99999_HR=1.0_it=1_MF=10_parallelTest=False_RT=7200_RR=False_RW=False_st=False_STM=True_TRR=default_K=2_topkNotMAP=False_tset=S12_DSL=False.pickle"
+    # pickleFile = "experimentOutputs/jrule/2021-04-27T20:49:31.738479/jrule_arity=3_BO=False_CO=False_dp=False_doshaping=False_ES=1_ET=600_epochs=99999_HR=1.0_it=1_MF=10_parallelTest=False_RT=7200_RR=False_RW=False_st=False_STM=True_TRR=default_K=2_topkNotMAP=False_tset=S12_DSL=False.pickle"
+    # result2, resumeGrammar, _ = resume_from_path(pickleFile)
+
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     result2, resumeGrammar, _ = resume_from_path(pickleFile)
+    result2.recognitionModel = rec
 
-    # lrResult, resumeGrammar, _ = resume_from_path(baselinePickleFile)
-    # trainedRecognizerPath = 'recognitionModels/2021-04-30 12:41:23.713226_trainTasks=100'
-    # with open(trainedRecognizerPath, 'rb') as handle:
-    #     trainedRecognizer = dill.load(handle)
-    #     trainedRecognizer.lrModel = True
-    # lrResult.recognitionModel = trainedRecognizer
-
-    recognizerNames = ['rnn_encoded', 'combined']
+    recognizerNames = ['rnn_encoded', 'rnn_encoded_2']
     evaluateRecognizers(resumeGrammar, [result1, result2], recognizerNames)
 
     # requests = [tlist(tint), tint, tint, tint, tint, tlist(tint)]

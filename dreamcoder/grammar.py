@@ -229,11 +229,13 @@ class Grammar(object):
         return context, returnValue
 
     def likelihoodSummary(self, context, environment, request, expression, silent=False):
+
         if request.isArrow():
             if not isinstance(expression, Abstraction):
                 if not silent:
                     eprint("Request is an arrow but I got", expression)
                 return context, None
+
             return self.likelihoodSummary(context,
                                           [request.arguments[0]] + environment,
                                           request.arguments[1],
@@ -257,11 +259,11 @@ class Grammar(object):
                 ls = LikelihoodSummary()
                 ls.constant = NEGATIVEINFINITY
                 return ls
-            
+
             if not silent:
                 eprint(f, "Not in candidates")
                 eprint("Candidates is", candidates)
-                # eprint("grammar:", grammar.productions)
+                eprint("grammar:", self.productions)
                 eprint("request is", request)
                 eprint("xs", xs)
                 eprint("environment", environment)
@@ -410,7 +412,7 @@ class Grammar(object):
                     uses[p] += u * math.exp(e.logPosterior)
         return uses
 
-    def insideOutside(self, frontiers, pseudoCounts, iterations=1):
+    def insideOutside(self, frontiers, pseudoCounts, iterations=1, frontierWeights=None):
         # Replace programs with (likelihood summary, uses)
         frontiers = [ Frontier([ FrontierEntry((summary, summary.toUses()),
                                                logPrior=summary.logLikelihood(self),
@@ -423,11 +425,15 @@ class Grammar(object):
         g = self
         for i in range(iterations):
             u = Uses()
-            for f in frontiers:
+            for i,f in enumerate(frontiers):
                 f = f.normalize()
                 for e in f:
                     _, eu = e.program
-                    u += math.exp(e.logPosterior) * eu
+                    if frontierWeights is not None:
+                        weight = 0.0 if frontierWeights == 0.0 else 10 ** (frontierWeights[i] - 1.0)
+                        u += weight * eu
+                    else:
+                        u += math.exp(e.logPosterior) * eu
 
             lv = math.log(u.actualVariables + pseudoCounts) - \
                  math.log(u.possibleVariables + pseudoCounts)
@@ -810,11 +816,12 @@ class Uses(object):
     '''Tracks uses of different grammar productions'''
 
     def __init__(self, possibleVariables=0., actualVariables=0.,
-                 possibleUses={}, actualUses={}):
+                 possibleUses=None, actualUses=None):
         self.actualVariables = actualVariables
         self.possibleVariables = possibleVariables
-        self.possibleUses = possibleUses
-        self.actualUses = actualUses
+
+        self.possibleUses = {} if possibleUses is None else possibleUses
+        self.actualUses = {} if actualUses is None else actualUses
 
     def __str__(self):
         return "Uses(actualVariables = %f, possibleVariables = %f, actualUses = %s, possibleUses = %s)" %\

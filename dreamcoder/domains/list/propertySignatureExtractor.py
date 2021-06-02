@@ -4,7 +4,7 @@ from dreamcoder.domains.list.makeListTasks import joshTasks
 from dreamcoder.dreaming import backgroundHelmholtzEnumeration
 from dreamcoder.enumeration import multicoreEnumeration
 from dreamcoder.grammar import Grammar
-from dreamcoder.likelihoodModel import PropertySignatureHeuristicModel, PropertyHeuristicModel
+from dreamcoder.likelihoodModel import PropertySignatureHeuristicModel, PropertyHeuristicModel, PropertySimTaskDiscriminatorHeuristic
 from dreamcoder.program import *
 from dreamcoder.recognition import variable
 from dreamcoder.task import Task
@@ -33,7 +33,8 @@ class PropertySignatureExtractor(nn.Module):
         # What should be the timeout for running a Helmholtz program?
         helmholtzEvaluationTimeout=0.01,
         grammar=None,
-        featureExtractorArgs={}
+        featureExtractorArgs={},
+        propertyType=arrow(tinput, toutput, tbool)
         ):
         super(PropertySignatureExtractor, self).__init__()
 
@@ -50,19 +51,7 @@ class PropertySignatureExtractor(nn.Module):
         self.tasks = tasks
         print("useEmbeddings: {}".format(self.useEmbeddings))
 
-        request = arrow(tinput, toutput, tbool)
-        self.propertyTasks = []
-
-        for i,t in enumerate(self.tasks):
-            print(i)
-            # if i == 1981:
-            #     continue
-            tCopy = copy.deepcopy(t)
-            tCopy.specialTask = ("property", None)
-            tCopy.request = request
-            tCopy.examples = [(tuplify([io[0][0], io[1]]), True) for io in tCopy.examples]
-            self.propertyTasks.append(tCopy)
-
+        self.propertyTasks = _convertToPropertyTasks(self.tasks, propertyType)
         print("Finished creating propertyTasks")
 
         if self.useEmbeddings:
@@ -197,7 +186,7 @@ class PropertySignatureExtractor(nn.Module):
 
             needToEvaluate = False if self.featureExtractorArgs["propUseHandWrittenProperties"] else True
             programName = programName if programName is not None else str(program)
-            likelihoodModel.score(program, self.propertyTasks[0], needToEvaluate, programName, addAll=False)
+            likelihoodModel.score(program, self.propertyTasks[0], needToEvaluate, programName)
 
         print("{} out of {} properties after filtering".format(len(likelihoodModel.properties), len(programs)))
         # for program, f, propertyValues in likelihoodModel.properties:
@@ -353,32 +342,40 @@ def testPropertySignatureFeatureExtractor(task_idx):
     return
 
 
-def sampleProperties(args, g, tasks):
+def sampleProperties(args, g, tasks, similarTasks=None, propertyRequest=arrow(tinput, toutput, tbool)):
 
     propertySamplingMethod = {
         "per_task_discrimination": PropertyHeuristicModel,
-        "unique_task_signature": PropertySignatureHeuristicModel
+        "unique_task_signature": PropertySignatureHeuristicModel,
+        "per_similar_task_discrimination": PropertySimTaskDiscriminatorHeuristic
     }[args["propScoringMethod"]]
 
-    # if we sample properties in this way, we don't need to enumerate the same properties
+    # if we sample properties by "unique_task_signature" we don't need to enumerate the same properties
     # for every task, as whether we choose to include the property or not depends on all tasks.
-    if args["propScoringMethod"] == "unique_task_signature":
-        tasksForPropertySampling = [tasks[0]]
-    else:
-        tasksForPropertySampling = tasks
+
+    propertyTasksToSolve = _convertToPropertyTasks(tasks, propertyRequest)
+    propertySimilarTasks = _convertToPropertyTasks(similarTasks, propertyRequest)
 
     print("Enumerating with {} CPUs".format(args["propCPUs"]))
-    frontiers, times, pcs, likelihoodModel = multicoreEnumeration(g,tasksForPropertySampling,solver=args["propSolver"],maximumFrontier= int(10e7),
+    frontiers, times, pcs, likelihoodModel = multicoreEnumeration(args["propSamplingGrammar"], propertyTasksToSolve,solver=args["propSolver"],maximumFrontier= int(10e7),
                                                  enumerationTimeout= args["propSamplingTimeout"], CPUs=args["propCPUs"],
                                                  evaluationTimeout=0.01,
-                                                 testing=True, allTasks=tasks, likelihoodModel=propertySamplingMethod)
+                                                 testing=True, likelihoodModel=propertySamplingMethod, similarTasks=propertySimilarTasks)
+    assert len(frontiers) == 1
+    return frontiers[0].entries
 
-    if args["propScoringMethod"] == "unique_task_signature":
-        assert len(frontiers) == 1
-        return frontiers[0].entries
-    elif args["propScoringMethod"] == "per_task_discrimination":
-        raise Exception("Not implemented yet")
-    return None
+def _convertToPropertyTasks(tasks, propertyRequest):
+    propertyTasks = []
+    for i,t in enumerate(tasks):
+        print(i)
+        # if i == 1981:
+        #     continue
+        tCopy = copy.deepcopy(t)
+        tCopy.specialTask = ("property", None)
+        tCopy.request = propertyRequest
+        tCopy.examples = [(tuplify([io[0][0], io[1]]), True) for io in tCopy.examples]
+        propertyTasks.append(tCopy)
+    return propertyTasks
 
 
 def testPropertySignatureExtractorHandwritten():

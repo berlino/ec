@@ -2,6 +2,7 @@ from dreamcoder.program import Primitive, Program
 from dreamcoder.grammar import Grammar
 from dreamcoder.type import tlist, tint, tbool, arrow, t0, t1, t2
 
+from collections import OrderedDict
 import math
 from functools import reduce
 
@@ -528,7 +529,7 @@ def josh_primitives(w):
             Primitive("singleton", arrow(t0, tlist(t0)), _single),
             Primitive("repeat", arrow(t0, tint, tlist(t0)), _repeat),
             Primitive("range", arrow(tint, tint, tint, tlist(tint)), _rangeGeneral),
-            Primitive("append", arrow(tlist(t0), t0, tlist(t0)), _append),
+            Primitive("append", arrow(tlist(t0), t0, tlist(t0)), lambda xs: lambda x: xs + [x]),
             Primitive("cons", arrow(t0, tlist(t0), tlist(t0)), _cons),
             Primitive("insert", arrow(t0, tint, tlist(t0), tlist(t0)), _insert),
             Primitive("++", arrow(tlist(t0), tlist(t0), tlist(t0)), _concat),
@@ -564,6 +565,7 @@ def josh_primitives(w):
             Primitive("min", arrow(tlist(tint), tint), min),
             Primitive("product", arrow(tlist(tint), tint), _product),
             Primitive("sum", arrow(tlist(tint), tint), sum),
+            # Primitive("unique", arrow(tlist(t0), tlist(t0)), lambda l: list(OrderedDict.fromkeys(l))),
             Primitive("unique", arrow(tlist(t0), tlist(t0)), lambda l: list(set(l))),
             Primitive("sort", arrow(tlist(tint), tlist(tint)), sorted),
             Primitive("reverse", arrow(tlist(t0), tlist(t0)), _reverse),

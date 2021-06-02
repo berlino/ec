@@ -10,11 +10,12 @@ from dreamcoder.domains.regex.groundtruthRegexes import gt_dict
 gt_dict = {"Data column no. "+str(num): r_str for num, r_str in gt_dict.items()}
 
 class AllOrNothingLikelihoodModel:
-    def __init__(self, timeout=None):
+    def __init__(self, timeout=None, leaveHoldout=False):
         self.timeout = timeout
+        self.leaveHoldout = leaveHoldout
 
     def score(self, program, task):
-        logLikelihood = task.logLikelihood(program, self.timeout)
+        logLikelihood = task.logLikelihood(program, self.timeout, self.leaveHoldout)
         return valid(logLikelihood), logLikelihood
 
 
@@ -35,6 +36,8 @@ class EuclideanLikelihoodModel:
 
 class PropertySignatureHeuristicModel:
     """
+    Score is dataset-specific (where by dataset we mean the list of tasks)!
+
     Used to evaluate whether an enumerated property is good, where a good property
     is one that results in a diffferent property signature than all the previously
     encountered ones
@@ -61,6 +64,11 @@ class PropertySignatureHeuristicModel:
 
 
     def _getTaskPropertyValue(self, f, task):
+        """
+        Args:
+            f (function): the property function
+            task (Task): one of the tasks we are interesed in solving
+        """
 
         taskPropertyValue = "mixed"
         try:
@@ -80,7 +88,7 @@ class PropertySignatureHeuristicModel:
 
         return taskPropertyValue
 
-    def score(self, program, task, needToEvaluate=True, programName=None, addAll=False):
+    def score(self, program, task, needToEvaluate=True, programName=None):
         """
         If needToEvaluate program is of type Program, else program is a python function
         """
@@ -94,12 +102,6 @@ class PropertySignatureHeuristicModel:
         f = _evaluateProgram(program) if needToEvaluate else program
         if f is None:
             return False, 0.0
-
-        # if self.tasks is too large we might choose to add all properties instead of filtering
-        # based on different task signature
-        if addAll:
-            self.properties.append((programName, f, None))
-            return True, 1.0
 
         for task in self.tasks:
             
@@ -118,11 +120,77 @@ class PropertySignatureHeuristicModel:
             return True, 1.0
 
 
+class PropertySimTaskDiscriminatorHeuristic:
+    """
+    Score is task-specific!
+
+    Used to evaluate whether an enumerated property is good, where a good property
+    is one that is allTrue or allFalse for the task we want to solve and is highly discriminative of this task 
+    compared to the SIMILAR tasks to it. More specifically a property if it is allTrue or allFalse and for the task
+    we want to solve and different than that for at least one similar task.
+    """
+
+    def __init__(self, timeout=None, similarTasks=None):
+        self.timeout = timeout
+        # these are the similar tasks we are interested in discriminating
+        self.similarTasks = similarTasks
+
+    def _getTaskPropertyValue(self, program, task):
+        
+        taskPropertyValue = "mixed"
+        try:
+            f = program.evaluate([])
+        except IndexError:
+            # free variable
+            return "mixed"
+        except Exception as e:
+            eprint("Exception during evaluation:", e)
+            return "mixed"
+
+        try:
+            exampleValues = [task.predict(f,x) for x,_ in task.examples]
+            if all([value is False for value in exampleValues]):
+                taskPropertyValue = "allFalse"
+            elif all([value is True for value in exampleValues]):
+                taskPropertyValue = "allTrue"
+
+        except Exception as e:
+            taskPropertyValue = "mixed"
+        return taskPropertyValue
+
+    def score(self, program, task):
+
+        if self.similarTasks is None:
+            raise Exception("You must provide all tasks to score function")
+
+        taskPropertyValue = self._getTaskPropertyValue(program, task)
+        if taskPropertyValue == "mixed":
+            return False, 0.0
+        elif taskPropertyValue == "allTrue" or taskPropertyValue == "allFalse":
+            taskOppositePropertyValue = "allTrue" if taskPropertyValue == "allFalse" else "allFalse"
+            simTasksPropertyValueCounts = {"allTrue": 0, "allFalse": 0}
+            for similarTask in self.similarTasks:
+                similarTaskPropertyValue = self._getTaskPropertyValue(program, similarTask)
+                if similarTaskPropertyValue in ["allTrue", "allFalse"]:
+                    simTasksPropertyValueCounts[similarTaskPropertyValue] += 1
+
+            score = ((simTasksPropertyValueCounts[taskOppositePropertyValue]) / len(self.similarTasks))
+            if score > 0:
+                print(task)
+                print("Property program: {}, Score: {}".format(program, score))
+            return score > 0, score
+        else:
+            raise Exception("taskPropertyValue got an unexpected value: {}".format(taskPropertyValue))
+
+
 class PropertyHeuristicModel:
     """
+    Score is task-specific!
+
     Used to evaluate whether an enumerated property is good, where a good property
-    is one that helps us guide the search for the true program correpsonding to
-    the task.
+    is one that is allTrue or allFalse for the task we want to solve and is highly discriminative of this task 
+    compared to the other tasks in our dataset. More specifically a property is good if the distribution of its values
+    across tasks, has high entropy.
     """
 
     def __init__(self, timeout=None, tasks=None):

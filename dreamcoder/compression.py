@@ -109,12 +109,13 @@ def ocamlInduce(g, frontiers, _=None,
         except OSError as exc:
             raise exc
 
-        g = response["DSL"]
-        g = Grammar(g["logVariable"],
+        responseDSL = response["DSL"]
+
+        g = Grammar(responseDSL["logVariable"],
                     [(l, p.infer(), p)
-                     for production in g["productions"]
+                     for production in responseDSL["productions"]
                      for l in [production["logProbability"]]
-                     for p in [Program.parse(production["expression"])]],
+                     for p in [Program.parse(production["expression"], {p.name:p for p in g.primitives if not p.isInvented})]],
                     continuationType=g0.continuationType)
 
         frontiers = {original.task:
@@ -122,7 +123,7 @@ def ocamlInduce(g, frontiers, _=None,
                                                  logLikelihood=e["logLikelihood"],
                                                  logPrior=g.logLikelihood(original.task.request, p))
                                    for e in new["programs"]
-                                   for p in [Program.parse(e["program"])]],
+                                   for p in [Program.parse(e["program"], {p.name:p for p in g.primitives if not p.isInvented})]],
                                   task=original.task)
                      for original, new in zip(frontiers, response["frontiers"])}
         frontiers = [frontiers.get(f.task, t2f[f.task])

@@ -62,7 +62,7 @@ class Task(object):
         if not hasattr(self, 'supervisedSolution'): return None
         return self.supervisedSolution
 
-    def check(self, e, timeout=None):
+    def check(self, e, timeout=None, leaveHoldout=False):
         if timeout is not None:
             def timeoutCallBack(_1, _2): raise EvaluationTimeout()
         try:
@@ -78,7 +78,8 @@ class Task(object):
                 eprint("Exception during evaluation:", e)
                 return False
 
-            for x, y in self.examples:
+            examples = self.examples[:-1] if leaveHoldout else self.examples
+            for x, y in examples:
                 if self.cache and (x, e) in EVALUATIONTABLE:
                     p = EVALUATIONTABLE[(x, e)]
                 else:
@@ -106,8 +107,8 @@ class Task(object):
                 signal.signal(signal.SIGVTALRM, lambda *_: None)
                 signal.setitimer(signal.ITIMER_VIRTUAL, 0)
 
-    def logLikelihood(self, e, timeout=None):
-        if self.check(e, timeout):
+    def logLikelihood(self, e, timeout=None, leaveHoldout=False):
+        if self.check(e, timeout, leaveHoldout):
             return 0.0
         else:
             return NEGATIVEINFINITY

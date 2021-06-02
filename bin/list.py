@@ -20,7 +20,6 @@ if __name__ == '__main__':
         CPUs=numberOfCPUs(),
         extras=list_options)
 
-    # viewResults()
     main(args)
     # testPropertySignatureExtractorHandwritten()
     # test_josh_rich_primitives()
