@@ -710,12 +710,19 @@ def main(args):
     fileName = "enumerationResults/neuralRecognizer_2021-05-18 15:27:58.504808_t=600.pkl"
     frontiers, times = dill.load(open(fileName, "rb"))
     unsolvedTasks = [f.task for f in frontiers if len(f.entries) == 0]
+    
+    specificTasks = ["023_1"]
+    if len(specificTasks) > 0:
+        unsolvedTasks = [t for t in unsolvedTasks if t.name in specificTasks]
 
     propertyFeatureExtractor = extractor([f.task for f in sampledFrontiers], grammar=baseGrammar, testingTasks=[], cuda=False, featureExtractorArgs=featureExtractorArgs)
     onlySampleFor100percentSimTasks = True
     for i,task in enumerate(unsolvedTasks):
         
         similarTaskFrontiers, frontierWeights, solved = getTaskSimilarFrontier(sampledFrontiers, propertyFeatureExtractor, task, baseGrammar, featureExtractorArgs, nSim=5, onlyUseTrueProperties=True, verbose=True)
+
+        print(similarTaskFrontiers[0].entries[0].program)
+
         # if onlySampleFor100percentSimTasks:
         #     print(len(similarTaskFrontiers))
         #     print(frontierWeights)
