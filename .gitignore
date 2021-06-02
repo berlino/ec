@@ -29,6 +29,7 @@ dev-container.img
 evolution
 launchers/
 data/*
+!data/prop_sig/
 !data/puddleworld/
 data/taskRankGraphs
 message
