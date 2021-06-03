@@ -27,6 +27,7 @@ def analysis_write_frontier_programs_tokens_csv(args):
         task.name : frontier
         for task, frontier in preloaded_frontiers.items() if not frontier.empty
     }
+    print(f"Writing out tokens from {len(tasks_to_preloaded_frontiers)} frontiers.")
     output_csv = preload_frontiers_file + ".csv"
     DELIMITER = ","
     with open(output_csv, "w") as f:
