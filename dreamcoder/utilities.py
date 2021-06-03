@@ -14,6 +14,13 @@ import heapq
 
 import hashlib
 
+def store_frontiers(result):
+    """Utility to write out frontiers to a pickle dump at a desired path."""
+    output_path = input("Output path for frontiers?")
+    with open(output_path, "wb") as f:
+        dill.dump(result.allFrontiers, f)
+    
+
 def pop_all_domain_specific_args(args_dict, iterator_fn):
     """Pops any additional domain-specific arguments that may have been added at the command line
     but are not present in the main iterator.

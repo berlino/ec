@@ -193,7 +193,7 @@ def arc_options(parser):
     parser.add_argument("--primitive_names_to_descriptions",
     default=PRIMITIVE_HUMAN_READABLE)
     parser.add_argument("--preload_frontiers", default=NONE)
-
+    parser.add_argument("--analysis_store_frontier_tokens", action="store_true")
     # parser.add_argument("-i", type=int, default=10)
 
 def check(filename, f, directory):
@@ -228,6 +228,11 @@ def run_tests(args):
         from dreamcoder.domains.arc.test_language_dc_recognition import main
         main(args)
         sys.exit(0)
+    
+def run_analyses(args):
+    if args.pop("analysis_store_frontier_tokens"):
+        language_utilities.analysis_write_frontier_programs_tokens_csv(args)
+        sys.exit(0)
 
 def main(args):
     """
@@ -248,6 +253,7 @@ def main(args):
     # }
     # 
     run_tests(args)
+    run_analyses(args)
 
     import os
 

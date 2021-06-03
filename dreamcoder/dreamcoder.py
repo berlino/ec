@@ -9,7 +9,7 @@ from dreamcoder.fragmentGrammar import *
 from dreamcoder.taskBatcher import *
 from dreamcoder.primitiveGraph import graphPrimitives
 from dreamcoder.dreaming import backgroundHelmholtzEnumeration
-
+import dreamcoder.utilities as utilities
 
 class ECResult():
     def __init__(self, _=None,
@@ -180,6 +180,7 @@ def ecIterator(grammar, tasks,
                unigramEnumerationTimeout=3600,
                preloaded_frontiers={}, # Dictionary from tasks to preloaded initial frontiers.
                no_background_helmholtz=False,
+               analysis_store_frontiers=False,
                ):
 
     if enumerationTimeout is None:
@@ -241,7 +242,8 @@ def ecIterator(grammar, tasks,
             "compressor",
             "custom_wake_generative",
             "preloaded_frontiers",
-            "no_background_helmholtz"
+            "no_background_helmholtz",
+            "analysis_store_frontiers"
             } and v is not None}
     if not useRecognitionModel:
         for k in {"helmholtzRatio", "recognitionTimeout", "biasOptimal", "mask",
@@ -312,6 +314,11 @@ def ecIterator(grammar, tasks,
                               t: Frontier([],
                                           task=t) for t in tasks})
 
+    # Save any frontiers if asked.
+    if analysis_store_frontiers:
+        utilities.store_frontiers(result)
+        sys.exit(0)
+        
     # Initialize any preloaded frontiers.
     for task in result.allFrontiers:
         if task.name in preloaded_frontiers:
@@ -969,6 +976,10 @@ def commandlineArguments(_=None,
                         featureExtractor=featureExtractor,
                         maximumFrontier=maximumFrontier,
                         cuda=cuda)
+    
+    parser.add_argument("--analysis_store_frontiers", action="store_true",
+        help="Writes out result frontiers from a resumed checkpoint to a desired filepath.")
+        
     if extras is not None:
         extras(parser)
     v = vars(parser.parse_args())
