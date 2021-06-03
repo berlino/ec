@@ -715,13 +715,11 @@ def main(args):
     if len(specificTasks) > 0:
         unsolvedTasks = [t for t in unsolvedTasks if t.name in specificTasks]
 
-    propertyFeatureExtractor = extractor([f.task for f in sampledFrontiers], grammar=baseGrammar, testingTasks=[], cuda=False, featureExtractorArgs=featureExtractorArgs)
-    onlySampleFor100percentSimTasks = True
-    for i,task in enumerate(unsolvedTasks):
+    # propertyFeatureExtractor = extractor([f.task for f in sampledFrontiers], grammar=baseGrammar, testingTasks=[], cuda=False, featureExtractorArgs=featureExtractorArgs)
+    # onlySampleFor100percentSimTasks = True
+    # for i,task in enumerate(unsolvedTasks):
         
-        similarTaskFrontiers, frontierWeights, solved = getTaskSimilarFrontier(sampledFrontiers, propertyFeatureExtractor, task, baseGrammar, featureExtractorArgs, nSim=5, onlyUseTrueProperties=True, verbose=True)
-
-        print(similarTaskFrontiers[0].entries[0].program)
+    #     similarTaskFrontiers, frontierWeights, solved = getTaskSimilarFrontier(sampledFrontiers, propertyFeatureExtractor, task, baseGrammar, featureExtractorArgs, nSim=5, onlyUseTrueProperties=True, verbose=True)
 
         # if onlySampleFor100percentSimTasks:
         #     print(len(similarTaskFrontiers))
@@ -753,9 +751,24 @@ def main(args):
     #         p = temp
     # print("\nProgram after evalReductions: {}".format(p))
 
-    # savePath = "enumerationResults/{}_{}_t={}.pkl".format("neuralRecognizer", datetime.datetime.now(), 600)
-    # with open(savePath, "wb") as handle:
-    #     dill.dump((frontiers, None), handle)
-    # print(savePath)
-    # viewResults(trainedRecognizer)
+    ########################################################################################################
+    # Enumerate from holes
+    ########################################################################################################
+    program = Program.parse("(lambda (insert 0 1 $0))", primitives={p.name:p for p in baseGrammar.primitives})
+    holes = baseGrammar.enumerateHoles(train[0].request, program)
+    sketch = holes[0][0]
+    frontiers, bestSearchTime, taskToNumberOfPrograms, likelihoodModel = multicoreEnumeration(baseGrammar, unsolvedTasks, _=None,
+                         enumerationTimeout=600,
+                         solver="python",
+                         CPUs=1,
+                         maximumFrontier=5,
+                         verbose=True,
+                         evaluationTimeout=1.0,
+                         testing=False,
+                         likelihoodModel=None,
+                         leaveHoldout=False,
+                         similarTasks=None,
+                         enumerateFromSketch=sketch)
+
+    print(frontiers)
     # explorationCompression(baseGrammar, train, testingTasks=test, featureExtractorArgs=featu

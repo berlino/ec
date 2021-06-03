@@ -139,6 +139,12 @@ class Program(object):
 
     @staticmethod
     def parse(s, primitives=None):
+        """
+        Args:
+            s (): string of expression to parse
+            primitives (dict): python dictionary with items: {Primitive.name: Primitive}
+
+        """
         s = parseSExpression(s)
         def p(e, primitives=None):
             if isinstance(e,list):

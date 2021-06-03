@@ -17,7 +17,8 @@ def multicoreEnumeration(g, tasks, _=None,
                          testing=False,
                          likelihoodModel=None,
                          leaveHoldout=False,
-                         similarTasks=None):
+                         similarTasks=None,
+                         enumerateFromSketch=None):
     '''g: Either a Grammar, or a map from task to grammar.
     Returns (list-of-frontiers, map-from-task-to-search-time, map-from-task-to-number-enumerated)'''
 
@@ -369,7 +370,7 @@ def solveForTask_python(_=None,
                         timeout=None,
                         CPUs=1,
                         likelihoodModel=None,
-                        evaluationTimeout=None, maximumFrontiers=None, testing=False):
+                        evaluationTimeout=None, maximumFrontiers=None, testing=False, enumerateFromSketch=None):
     return enumerateForTasks(g, tasks, likelihoodModel,
                              timeout=timeout,
                              testing=testing,
@@ -377,7 +378,7 @@ def solveForTask_python(_=None,
                              evaluationTimeout=evaluationTimeout,
                              maximumFrontiers=maximumFrontiers,
                              budgetIncrement=budgetIncrement,
-                             lowerBound=lowerBound, upperBound=upperBound)
+                             lowerBound=lowerBound, upperBound=upperBound, enumerateFromSketch=enumerateFromSketch)
 
 
 class EnumerationTimeout(Exception):
@@ -392,7 +393,9 @@ def enumerateForTasks(g, tasks, likelihoodModel, _=None,
                       evaluationTimeout=None,
                       lowerBound=0.,
                       upperBound=100.,
-                      budgetIncrement=1.0, maximumFrontiers=None):
+                      budgetIncrement=1.0, 
+                      maximumFrontiers=None,
+                      enumerateFromSketch=None):
     assert timeout is not None, \
         "enumerateForTasks: You must provide a timeout."
 
@@ -410,16 +413,24 @@ def enumerateForTasks(g, tasks, likelihoodModel, _=None,
     starting = time()
     previousBudget = lowerBound
     budget = lowerBound + budgetIncrement
+    if enumerateFromSketch is not None:
+        enumerator = g.enumerateFromSketch(Context.EMPTY, [], request, enumerateFromSketch,
+                                             maximumDepth=99,
+                                             upperBound=budget,
+                                             lowerBound=previousBudget)
+    else:
+        enumerator = g.enumeration(Context.EMPTY, [], request,
+                                             maximumDepth=99,
+                                             upperBound=budget,
+                                             lowerBound=previousBudget)
+
     try:
         totalNumberOfPrograms = 0
         while time() < starting + timeout and budget <= upperBound:
                 # any(len(h) < mf for h, mf in zip(hits, maximumFrontiers)) and \
             numberOfPrograms = 0
 
-            for prior, _, p in g.enumeration(Context.EMPTY, [], request,
-                                             maximumDepth=99,
-                                             upperBound=budget,
-                                             lowerBound=previousBudget):
+            for prior, _, p in enumerator:
                 descriptionLength = -prior
                 # Shouldn't see it on this iteration
                 assert descriptionLength <= budget
