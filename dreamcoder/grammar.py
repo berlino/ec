@@ -412,7 +412,7 @@ class Grammar(object):
                     uses[p] += u * math.exp(e.logPosterior)
         return uses
 
-    def insideOutside(self, frontiers, pseudoCounts, iterations=1, frontierWeights=None):
+    def insideOutside(self, frontiers, pseudoCounts, iterations=1, frontierWeights=None, weightByPrior=True):
         # Replace programs with (likelihood summary, uses)
         frontiers = [ Frontier([ FrontierEntry((summary, summary.toUses()),
                                                logPrior=summary.logLikelihood(self),
@@ -432,8 +432,10 @@ class Grammar(object):
                     if frontierWeights is not None:
                         weight = 0.0 if frontierWeights == 0.0 else 10 ** (frontierWeights[i] - 1.0)
                         u += weight * eu
-                    else:
+                    elif weightByPrior:
                         u += math.exp(e.logPosterior) * eu
+                    else:
+                        u += eu
 
             lv = math.log(u.actualVariables + pseudoCounts) - \
                  math.log(u.possibleVariables + pseudoCounts)
@@ -535,6 +537,7 @@ class Grammar(object):
     def sketchEnumeration(self,context,environment,request,sk,upperBound,
                            maximumDepth=20,
                            lowerBound=0.):
+
         '''Enumerates all sketch instantiations whose MDL satisfies: lowerBound <= MDL < upperBound'''
         if upperBound < 0. or maximumDepth == 1:
             return

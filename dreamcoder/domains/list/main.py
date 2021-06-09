@@ -13,6 +13,7 @@ import dill
 
 from dreamcoder.dreamcoder import explorationCompression
 from dreamcoder.enumeration import multicoreEnumeration
+from dreamcoder.likelihoodModel import UniqueTaskSignatureScore, TaskDiscriminationScore
 from dreamcoder.utilities import eprint, flatten, testTrainSplit, numberOfCPUs, getThisMemoryUsage, getMemoryUsageFraction, howManyGigabytesOfMemory
 from dreamcoder.program import *
 from dreamcoder.recognition import DummyFeatureExtractor, RecognitionModel
@@ -21,10 +22,15 @@ from dreamcoder.task import Task
 from dreamcoder.type import Context, arrow, tbool, tlist, tint, t0, UnificationFailure
 from dreamcoder.domains.list.listPrimitives import basePrimitives, primitives, McCarthyPrimitives, bootstrapTarget_extra, no_length, josh_primitives
 from dreamcoder.domains.list.makeListTasks import make_list_bootstrap_tasks, sortBootstrap, EASYLISTTASKS, joshTasks
-from dreamcoder.domains.list.propertySignatureExtractor import PropertySignatureExtractor, sampleProperties
+from dreamcoder.domains.list.property import Property
+from dreamcoder.domains.list.propertySignatureExtractor import PropertySignatureExtractor
 from dreamcoder.domains.list.resultsProcessing import resume_from_path, viewResults, plotFrontiers
-from dreamcoder.domains.list.taskProperties import handWrittenProperties, tinput, toutput
+from dreamcoder.domains.list.taskProperties import handWrittenProperties, getHandwrittenPropertiesFromTemplates, tinput, toutput
 from dreamcoder.domains.list.utilsProperties import *
+
+
+DATA_DIR = "data/prop_sig/"
+SAMPLED_PROPERTIES_DIR = "sampled_properties/"
 
 def retrieveJSONTasks(filename, features=False):
     """
@@ -307,8 +313,8 @@ def list_options(parser):
         "josh_rich",
         "property_prims",
         "list_prims"])
-    parser.add_argument("--propSamplingGrammar", default="same", choices=[
-        "same"
+    parser.add_argument("--propSamplingPrimitives", default="same", choices=[
+        "same",
         "josh_1",
         "josh_2",
         "josh_3",
@@ -337,6 +343,8 @@ def list_options(parser):
 
 
     # Arguments relating to properties
+    parser.add_argument("--verbose", action="store_true", default=False)
+    parser.add_argument("--taskSpecificInputs", action="store_true", default=False)
     parser.add_argument("--earlyStopping", action="store_true", default=False)
     parser.add_argument("--singleTask", action="store_true", default=False)
     parser.add_argument("--debug", action="store_true", default=False)
@@ -351,7 +359,11 @@ def list_options(parser):
         "per_similar_task_discrimination"
         ])
     parser.add_argument("--propDreamTasks", action="store_true", default=False)
-    parser.add_argument("--propUseHandWrittenProperties", action="store_true", default=False)
+    parser.add_argument("--propToUse", default="handwritten", choices=[
+        "handwritten",
+        "preloaded",
+        "sample"
+        ])
     parser.add_argument("--propNoEmbeddings", action="store_true", default=False)
 
 
@@ -360,8 +372,26 @@ def main(args):
     Takes the return value of the `commandlineArguments()` function as input and
     trains/tests the model on manipulating sequences of numbers.
     """
-
+    
+    verbose = args.pop("verbose")
+    libraryName = args.pop("primitives")
     dataset = args.pop("dataset")
+    singleTask = args.pop("singleTask")
+    debug = args.pop("debug")
+    taskSpecificInputs = args.pop("taskSpecificInputs")
+    hidden = args.pop("hidden")
+    propCPUs = args.pop("propCPUs")
+    propSolver = args.pop("propSolver")
+    propSamplingTimeout = args.pop("propSamplingTimeout")
+    propUseConjunction = args.pop("propUseConjunction")
+    propAddZeroToNinePrims = args.pop("propAddZeroToNinePrims")
+    propScoringMethod = args.pop("propScoringMethod")
+    propDreamTasks = args.pop("propDreamTasks")
+    propToUse = args.pop("propToUse")
+    propSamplingPrimitives = args.pop("propSamplingPrimitives")
+    propNoEmbeddings = args.pop("propNoEmbeddings")
+
+
     tasks = {
         "Lucas-old": lambda: retrieveJSONTasks("data/list_tasks.json") + sortBootstrap(),
         "bootstrap": make_list_bootstrap_tasks,
@@ -375,74 +405,6 @@ def main(args):
         "josh_3.1": lambda: joshTasks("3.1"),
         "josh_final": lambda: joshTasks("final"),
     }[dataset]()
-
-    # maxTasks = args.pop("maxTasks")
-    # if maxTasks and len(tasks) > maxTasks:
-    #     necessaryTasks = []  # maxTasks will not consider these
-    #     if dataset.startswith("Lucas2.0") and dataset != "Lucas2.0-depth1":
-    #         necessaryTasks = tasks[:105]
-
-    #     eprint("Unwilling to handle {} tasks, truncating..".format(len(tasks)))
-    #     random.shuffle(tasks)
-    #     del tasks[maxTasks:]
-    #     tasks = necessaryTasks + tasks
-
-    # if dataset.startswith("Lucas"):
-    #     # extra tasks for filter
-    #     tasks.extend([
-    #         Task("remove empty lists",
-    #              arrow(tlist(tlist(tbool)), tlist(tlist(tbool))),
-    #              [((ls,), list(filter(lambda l: len(l) > 0, ls)))
-    #               for _ in range(15)
-    #               for ls in [[[random.random() < 0.5 for _ in range(random.randint(0, 3))]
-    #                           for _ in range(4)]]]),
-    #         Task("keep squares",
-    #              arrow(tlist(tint), tlist(tint)),
-    #              [((xs,), list(filter(lambda x: int(math.sqrt(x)) ** 2 == x,
-    #                                   xs)))
-    #               for _ in range(15)
-    #               for xs in [[random.choice([0, 1, 4, 9, 16, 25])
-    #                           if random.random() < 0.5
-    #                           else random.randint(0, 9)
-    #                           for _ in range(7)]]]),
-    #         Task("keep primes",
-    #              arrow(tlist(tint), tlist(tint)),
-    #              [((xs,), list(filter(lambda x: x in {2, 3, 5, 7, 11, 13, 17,
-    #                                                   19, 23, 29, 31, 37}, xs)))
-    #               for _ in range(15)
-    #               for xs in [[random.choice([2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37])
-    #                           if random.random() < 0.5
-    #                           else random.randint(0, 9)
-    #                           for _ in range(7)]]]),
-    #     ])
-    #     for i in range(4):
-    #         tasks.extend([
-    #             Task("keep eq %s" % i,
-    #                  arrow(tlist(tint), tlist(tint)),
-    #                  [((xs,), list(filter(lambda x: x == i, xs)))
-    #                   for _ in range(15)
-    #                   for xs in [[random.randint(0, 6) for _ in range(5)]]]),
-    #             Task("remove eq %s" % i,
-    #                  arrow(tlist(tint), tlist(tint)),
-    #                  [((xs,), list(filter(lambda x: x != i, xs)))
-    #                   for _ in range(15)
-    #                   for xs in [[random.randint(0, 6) for _ in range(5)]]]),
-    #             Task("keep gt %s" % i,
-    #                  arrow(tlist(tint), tlist(tint)),
-    #                  [((xs,), list(filter(lambda x: x > i, xs)))
-    #                   for _ in range(15)
-    #                   for xs in [[random.randint(0, 6) for _ in range(5)]]]),
-    #             Task("remove gt %s" % i,
-    #                  arrow(tlist(tint), tlist(tint)),
-    #                  [((xs,), list(filter(lambda x: not x > i, xs)))
-    #                   for _ in range(15)
-    #                   for xs in [[random.randint(0, 6) for _ in range(5)]]])
-    #         ])
-
-    # def isIdentityTask(t):
-    #     return all( len(xs) == 1 and xs[0] == y for xs, y in t.examples  )
-    # eprint("Removed", sum(isIdentityTask(t) for t in tasks), "tasks that were just the identity function")
-    # tasks = [t for t in tasks if not isIdentityTask(t) ]
 
     primLibraries = {"base": basePrimitives,
              "McCarthy": McCarthyPrimitives,
@@ -459,33 +421,14 @@ def main(args):
              "list_prims": bootstrapTarget_extra()
     }
 
-    libraryName = args.pop("primitives")
     prims = primLibraries[libraryName]
-
-    haveLength = not args.pop("noLength")
-    haveMap = not args.pop("noMap")
-    haveUnfold = not args.pop("noUnfold")
-    eprint(f"Including map as a primitive? {haveMap}")
-    eprint(f"Including length as a primitive? {haveLength}")
-    eprint(f"Including unfold as a primitive? {haveUnfold}")
 
     if "josh" in dataset:
         tasks = [t for t in tasks if int(t.name[:3]) < 81 and "_1" in t.name]
     tasks = [t for t in tasks if (t.request == arrow(tlist(tint), tlist(tint)) and isinstance(t.examples[0][1],list) and isinstance(t.examples[0][0][0],list))]
 
-    # for t in tasks:
-    #     t.request = arrow(tinput, toutput)
-
-    if tasks[0].request == tinput and "tinput_to_tlist" not in [p.name for p in prims]:
-        toutputToList = Primitive("toutput_to_tlist", arrow(toutput, tlist(tint)), lambda x: x)
-        tinputToList = Primitive("tinput_to_tlist", arrow(tinput, tlist(tint)), lambda x: x)
-        prims = prims + [toutputToList, tinputToList]
-
     baseGrammar = Grammar.uniform([p for p in prims])
-    propSamplingGrammar = Grammar.uniform([p for p in primLibraries[args["propSamplingGrammar"]]])
-
     extractor_name = args.pop("extractor")
-    print(extractor_name)
     extractor = {
         "dummy": DummyFeatureExtractor,
         "learned": LearnedFeatureExtractor,
@@ -493,19 +436,10 @@ def main(args):
         "combined": CombinedExtractor
         }[extractor_name]
 
-
-
-    hidden = args.pop("hidden")
-    propCPUs = args.pop("propCPUs")
-    propSolver = args.pop("propSolver")
-    propSamplingTimeout = args.pop("propSamplingTimeout")
-    propUseConjunction = args.pop("propUseConjunction")
-    propAddZeroToNinePrims = args.pop("propAddZeroToNinePrims")
-    propScoringMethod = args.pop("propScoringMethod")
-    propDreamTasks = args.pop("propDreamTasks")
-    propUseHandWrittenProperties = args.pop("propUseHandWrittenProperties")
-    propSamplingGrammar = args.pop("propSamplingGrammar")
-    propNoEmbeddings = args.pop("propNoEmbeddings")
+    if propSamplingPrimitives != "same":
+        propertyPrimitives = primLibraries[propSamplingPrimitives]
+    else:
+        propertyPrimitives = baseGrammar.primitives
 
     if extractor_name == "learned":
         featureExtractorArgs = {"hidden":hidden}
@@ -518,16 +452,15 @@ def main(args):
             "propAddZeroToNinePrims": propAddZeroToNinePrims,
             "propScoringMethod": propScoringMethod,
             "propDreamTasks": propDreamTasks,
-            "propUseHandWrittenProperties": propUseHandWrittenProperties,
-            "propSamplingGrammar": propSamplingGrammar,
+            "propToUse": propToUse,
+            "propertyPrimitives": propertyPrimitives,
             "primLibraries": primLibraries,
             "propNoEmbeddings": propNoEmbeddings
         }
 
     timestamp = datetime.datetime.now().isoformat()
     outputDirectory = "experimentOutputs/jrule/%s"%timestamp
-
-    os.system("mkdir -p %s"%outputDirectory)
+    # os.system("mkdir -p %s"%outputDirectory)
     
     args.update({
         "featureExtractor": extractor,
@@ -535,40 +468,11 @@ def main(args):
         "evaluationTimeout": 0.0005,
     })
 
-    eprint("Got {} list tasks".format(len(tasks)))
-    split = args.pop("split")
 
-    if split:
-        train_some = defaultdict(list)
-        for t in tasks:
-            necessary = train_necessary(t)
-            if not necessary:
-                continue
-            if necessary == "some":
-                train_some[t.name.split()[0]].append(t)
-            else:
-                t.mustTrain = True
-        for k in sorted(train_some):
-            ts = train_some[k]
-            random.shuffle(ts)
-            ts.pop().mustTrain = True
-
-        test, train = testTrainSplit(tasks, split)
-        if True:
-            test = [t for t in test
-                    if t.name not in EASYLISTTASKS]
-
-        eprint(
-            "Alotted {} tasks for training and {} for testing".format(
-                len(train), len(test)))
-    else:
-        train = tasks
-        test = []
-
-    singleTask = args.pop("singleTask")
-    debug = args.pop("debug")
     if singleTask:
-        train = [train[0]]
+        tasks = [tasks[0]]
+
+    random.seed(args["seed"])
 
     ##################################
     # Load sampled tasks
@@ -580,7 +484,12 @@ def main(args):
     # sampledFrontiers = loadEnumeratedTasks(k=1, mdlIncrement=0.5, n=5000, dslName=libraryName, upperBound=20)
 
     if debug:
-        sampledFrontiers = loadEnumeratedTasks(dslName=libraryName)[:500]
+        sampledFrontiers = loadEnumeratedTasks(dslName=libraryName)
+        randomFrontierIndices = random.sample(range(len(sampledFrontiers)),k=1000)
+        sampledFrontiers = [f for i,f in enumerate(sampledFrontiers) if i in randomFrontierIndices]
+
+        # randomTaskIndices = random.sample(range(len(tasks)),k=20)
+        # tasks = [task for i,task in enumerate(tasks) if i in randomTaskIndices]
     else:
         sampledFrontiers = loadEnumeratedTasks(dslName=libraryName)
     print("Finished loading {} sampled tasks".format(len(sampledFrontiers)))
@@ -693,33 +602,43 @@ def main(args):
     # Enumeration Proxy
     ######################
     
-    # nSimList = [5,50,200]
-    # scoreCutoff = 1.0
-    # pseudoCounts = 1
-    # fileName = "enumerationResults/neuralRecognizer_2021-05-18 15:27:58.504808_t=600.pkl"
-    # frontiers, times = dill.load(open(fileName, "rb"))
-    # unsolvedTasks = [f.task for f in frontiers if len(f.entries) == 0]
+    nSimList = [50]
+    scoreCutoff = 1.0
+    pseudoCounts = 1
+    fileName = "enumerationResults/propSim_2021-05-23 04:57:26.284483_t=600.pkl"
+    frontiers, times = dill.load(open(fileName, "rb"))
+    unsolvedTasks = [f.task for f in frontiers if len(f.entries) == 0]
 
-    # propertyFeatureExtractor = extractor([f.task for f in sampledFrontiers], grammar=baseGrammar, testingTasks=[], cuda=False, featureExtractorArgs=featureExtractorArgs)
-    # comparePropSimFittedToRnnEncoded(train, frontiers, baseGrammar, sampledFrontiers, propertyFeatureExtractor, featureExtractorArgs, nSimList, scoreCutoff, pseudoCounts)
+    if propToUse == "handwritten":
+        properties = getHandwrittenPropertiesFromTemplates(tasks)
+    elif propToUse == "preloaded":
+        filename = "sampled_properties_{}_sampling_timeout={}s_seed={}.pkl".format("base", "60", "1")
+        properties = pickle.load(open(DATA_DIR + SAMPLED_PROPERTIES_DIR + filename, "rb"))
+
+    propertyFeatureExtractor = extractor(tasks, grammar=baseGrammar, cuda=False, featureExtractorArgs=featureExtractorArgs, properties=properties)
+    comparePropSimFittedToRnnEncoded(tasks, frontiers, baseGrammar, sampledFrontiers, propertyFeatureExtractor, featureExtractorArgs, nSimList, scoreCutoff, pseudoCounts, compressSimilar=False, weightByPrior=False, 
+        taskSpecificInputs=taskSpecificInputs, verbose=verbose)
 
     ######################
     # Smarter PropSim
     ######################
 
-    fileName = "enumerationResults/neuralRecognizer_2021-05-18 15:27:58.504808_t=600.pkl"
-    frontiers, times = dill.load(open(fileName, "rb"))
-    unsolvedTasks = [f.task for f in frontiers if len(f.entries) == 0]
+    # fileName = "enumerationResults/neuralRecognizer_2021-05-18 15:27:58.504808_t=600.pkl"
+    # frontiers, times = dill.load(open(fileName, "rb"))
+    # unsolvedTasks = [f.task for f in frontiers if len(f.entries) == 0]
     
-    specificTasks = ["023_1"]
-    if len(specificTasks) > 0:
-        unsolvedTasks = [t for t in unsolvedTasks if t.name in specificTasks]
+    # specificTasks = ["023_1"]
+    # if len(specificTasks) > 0:
+    #     unsolvedTasks = [t for t in unsolvedTasks if t.name in specificTasks]
 
-    # propertyFeatureExtractor = extractor([f.task for f in sampledFrontiers], grammar=baseGrammar, testingTasks=[], cuda=False, featureExtractorArgs=featureExtractorArgs)
+    # if propToUse == "handwritten":
+    #     properties = getHandwrittenPropertiesFromTemplates(train)
+
+    # propertyFeatureExtractor = extractor([f.task for f in sampledFrontiers], grammar=baseGrammar, cuda=False, featureExtractorArgs=featureExtractorArgs, properties=properties)
     # onlySampleFor100percentSimTasks = True
-    # for i,task in enumerate(unsolvedTasks):
-        
+    # for i,task in enumerate(train):
     #     similarTaskFrontiers, frontierWeights, solved = getTaskSimilarFrontier(sampledFrontiers, propertyFeatureExtractor, task, baseGrammar, featureExtractorArgs, nSim=5, onlyUseTrueProperties=True, verbose=True)
+    #     break
 
         # if onlySampleFor100percentSimTasks:
         #     print(len(similarTaskFrontiers))
@@ -733,7 +652,7 @@ def main(args):
         #             similarTasks=[f.task for f in hundredPercentSimilarTaskFrontiers], propertyRequest=arrow(tinput, toutput, tbool))
         #         print(newPropertyFrontiers)
         # else:
-        #     newPropertyFrontiers = sampleProperties(featureExtractorArgs, propSamplingGrammar, tasks=[task], 
+        #     newPropertyFrontiers = sampleProperties(featureExtractorArgs, propSamplingPrimitives, tasks=[task], 
         #         similarTasks=[f.task for f in similarTaskFrontiers], propertyRequest=arrow(tinput, toutput, tbool))
         #     print(newPropertyFrontiers)
 
@@ -754,21 +673,41 @@ def main(args):
     ########################################################################################################
     # Enumerate from holes
     ########################################################################################################
-    program = Program.parse("(lambda (insert 0 1 $0))", primitives={p.name:p for p in baseGrammar.primitives})
-    holes = baseGrammar.enumerateHoles(train[0].request, program)
-    sketch = holes[0][0]
-    frontiers, bestSearchTime, taskToNumberOfPrograms, likelihoodModel = multicoreEnumeration(baseGrammar, unsolvedTasks, _=None,
-                         enumerationTimeout=600,
-                         solver="python",
-                         CPUs=1,
-                         maximumFrontier=5,
-                         verbose=True,
-                         evaluationTimeout=1.0,
-                         testing=False,
-                         likelihoodModel=None,
-                         leaveHoldout=False,
-                         similarTasks=None,
-                         enumerateFromSketch=sketch)
+    # program = Program.parse("(lambda (insert 0 1 $0))", primitives={p.name:p for p in baseGrammar.primitives})
+    # holes = baseGrammar.enumerateHoles(train[0].request, program)
+    # sketch = holes[0][0]
 
-    print(frontiers)
+    # solution = Program.parse("(lambda (insert (if (gt? (length $0) 4) 5 8) 1 $0))", primitives={p.name:p for p in baseGrammar.primitives})
+    # print(baseGrammar.logLikelihood(train[0].request, program))
+    # print(baseGrammar.logLikelihood(train[0].request, solution))
+    # print(fittedGrammar.logLikelihood(train[0].request, solution))
+
+    # frontiers, bestSearchTime, taskToNumberOfPrograms, likelihoodModel = multicoreEnumeration(baseGrammar, unsolvedTasks, _=None,
+    #                      enumerationTimeout=600,
+    #                      solver="python",
+    #                      CPUs=1,
+    #                      maximumFrontier=5,
+    #                      verbose=True,
+    #                      evaluationTimeout=1.0,
+    #                      testing=False,
+    #                      likelihoodModel=None,
+    #                      leaveHoldout=False,
+    #                      similarTasks=None,
+    #                      enumerateFromSketch=sketch)
+
+    ########################################################################################################
+    # Sample properties
+     ########################################################################################################
+
+    # grammarName = "base"
+    # seed = 1
+    # save = True
+    # propertyRequest = arrow(tinput, toutput, tbool)
+    
+    # grammar = getPropertySamplingGrammar(baseGrammar, grammarName, frontiers, pseudoCounts=1, seed=seed)
+    # properties = sampleProperties(grammar, train, propertyRequest, featureExtractor, featureExtractorArgs, save)
+
+    ########################################################################################################
+    
+    # print(frontiers)
     # explorationCompression(baseGrammar, train, testingTasks=test, featureExtractorArgs=featu

@@ -9,9 +9,53 @@ from dreamcoder.compression import induceGrammar
 from dreamcoder.enumeration import multicoreEnumeration
 from dreamcoder.frontier import Frontier, FrontierEntry
 from dreamcoder.grammar import Grammar
-from dreamcoder.domains.list.propertySignatureExtractor import PropertySignatureExtractor
+from dreamcoder.likelihoodModel import UniqueTaskSignatureScore, TaskDiscriminationScore
+from dreamcoder.task import Task
 from dreamcoder.type import Context, arrow, tlist, tint
 from dreamcoder.utilities import *
+from dreamcoder.domains.list.property import Property
+
+
+def createFrontiersWithInputsFromTask(frontiers, task):
+    
+    newFrontiers = []
+    frontiers = [f for f in frontiers if len(f.entries) > 0]
+
+    for frontier in frontiers:
+        func = frontier.entries[0].program.evaluate([])
+        try:
+            newExamples = [(i,task.predict(func,i)) for i,o in task.examples]
+        except:
+            continue
+        newTask = Task(frontier.task.name, frontier.task.request, newExamples, features=None, cache=False)
+        newFrontier = Frontier(frontier.entries, newTask)
+        newFrontiers.append(newFrontier)
+
+    print("Dropping {} out of {} due to error when executing on specified inputs".format(len(frontiers) - len(newFrontiers), len(frontiers)))
+    return newFrontiers
+
+
+def sampleProperties(args, propertyGrammar, tasks, propertyRequest, similarTasks=None):
+
+    # if we sample properties by "unique_task_signature" we don't need to enumerate the same properties
+    # for every task, as whether we choose to include the property or not depends on all tasks.
+    propertyTasksToSolve = convertToPropertyTasks(tasks, propertyRequest)
+    if args["propScoringMethod"] == "unique_task_signature":
+        likelihoodModel = UniqueTaskSignatureScore(timeout=0.1, tasks=propertyTasksToSolve)
+        propertyTasksToEnumerate = [propertyTasksToSolve[0]]
+        similarTasks = None
+    else:
+        raise NotImplementedError
+
+    print("Enumerating with {} CPUs".format(args["propCPUs"]))
+    frontiers, times, pcs, likelihoodModel = multicoreEnumeration(propertyGrammar, propertyTasksToEnumerate, solver=args["propSolver"],maximumFrontier= int(10e7),
+                                                 enumerationTimeout= args["propSamplingTimeout"], CPUs=args["propCPUs"],
+                                                 evaluationTimeout=0.01,
+                                                 testing=True, likelihoodModel=likelihoodModel, similarTasks=similarTasks)
+    assert len(frontiers) == 1
+
+    properties = [Property(program=entry.program.evaluate([]), request=propertyRequest, name=str(entry.program), logPrior=entry.logPosterior) for entry in frontiers[0].entries]
+    return properties, likelihoodModel
 
 
 def _getSimilarityScore(taskSig, trainTaskSig, onlyUseTrueProperties):
@@ -37,6 +81,19 @@ def _reduceByEvaluating(p, primitives):
         else:
             p = temp
     return p
+
+def convertToPropertyTasks(tasks, propertyRequest):
+    propertyTasks = []
+    for i,t in enumerate(tasks):
+        # if i == 1981:
+        #     continue
+        tCopy = copy.deepcopy(t)
+        tCopy.specialTask = ("property", None)
+        tCopy.request = propertyRequest
+        # tCopy.examples = [io for io in tCopy.examples]
+        # tCopy.examples = [(tuplify([io[0][0], (io[1],)]), True) for io in tCopy.examples]
+        propertyTasks.append(tCopy)
+    return propertyTasks
 
 
 def makeTaskFromProgram(program, request, featureExtractor, differentOutputs=True, filterIdentityTask=True):
@@ -107,15 +164,16 @@ def getTaskSimilarFrontier(allFrontiers, propertyFeatureExtractor, task, grammar
             break
 
 
-
     vprint("\n{} Most Similar Prop Sig Tasks\n--------------------------------------------------------------------------------".format(nSim), verbose)
     frontiersToUse, frontierWeights = [], []
     for idx in simDf.head(nSim).index.values:        
         vprint("\nTask percent true property overlap: {}".format(simDf.loc[idx, "score"]), verbose)
-        vprint(propertyFeatureExtractor.tasks[idx].describe(), verbose)
+        vprint(allFrontiers[idx].task.describe(), verbose)
         vprint("\nProgram ({}): {}".format(simDf.loc[idx, "programPrior"], simDf.loc[idx, "program"]), verbose)
-        evalReducedProgram = _reduceByEvaluating(simDf.loc[idx, "program"], {p.name: p for p in grammar.primitives})
-        vprint("\nEvaluation Reduced Program ({}): {}".format(grammar.logLikelihood(propertyFeatureExtractor.tasks[idx].request, evalReducedProgram), evalReducedProgram), verbose)
+
+        
+        # evalReducedProgram = _reduceByEvaluating(simDf.loc[idx, "program"], {p.name: p for p in grammar.primitives})
+        # vprint("\nEvaluation Reduced Program ({}): {}".format(grammar.logLikelihood(propertyFeatureExtractor.tasks[idx].request, evalReducedProgram), evalReducedProgram), verbose)
 
         # TODO: remove eventually
         frontier = allFrontiers[idx]
@@ -140,26 +198,31 @@ def getSimilarTasksByProperty(task, allFrontiers, propertyFeatureExtractor, only
 
     """
 
-    assert isinstance(propertyFeatureExtractor, PropertySignatureExtractor)
+    # propertyFeatureExtractor.featuresOfTask(task, onlyUseTrueProperties=onlyUseTrueProperties)
+    # taskSig = propertyFeatureExtractor.booleanPropSig.numpy()
 
-    propertyFeatureExtractor.featuresOfTask(task)
-    taskSig = propertyFeatureExtractor.booleanPropSig.numpy()
-    truePropertiesIdx = list(np.argwhere(taskSig == 1).squeeze())
-    vprint("\n{} true properties for task {}\n".format(len(truePropertiesIdx), task.name), verbose)
-    for idx in truePropertiesIdx:
-        vprint(propertyFeatureExtractor.properties[idx][0], verbose)
-
-    # for performance reasons we can only keep the columns (properties) that are true for the task of interest
     if onlyUseTrueProperties:
-        properties = [el for i,el in enumerate(propertyFeatureExtractor.properties) if i in truePropertiesIdx]
-        taskSig = taskSig[truePropertiesIdx]
+        taskPropertyValueToInt = {"allFalse":0, "allTrue":1, "mixed":0}
+        taskSig = np.array([taskPropertyValueToInt[prop.getValue(task)] for prop in propertyFeatureExtractor.properties])
+        allTrueIdx = np.argwhere(taskSig == 1).reshape(-1)
+        vprint("\n{} true properties for task {}\n".format(len(allTrueIdx), task.name), verbose)
+        for idx in allTrueIdx:
+            vprint(propertyFeatureExtractor.properties[idx].name, verbose)
+
+        # for performance reasons we only keep the columns (properties) that are true for the task of interest
+        properties = [el for i,el in enumerate(propertyFeatureExtractor.properties) if i in allTrueIdx]
+        taskSig = taskSig[allTrueIdx]
     else:
-        properties = propertyFeatureExtractor.properties
+        raise NotImplementedError
+
+    sampledTasks = [f.task for f in allFrontiers]
 
     data, propertyNames = [], []
-    for (propertyName, f, propertySig) in properties:
-        data.append(propertySig)
-        propertyNames.append(propertyName)
+    for prop in properties:
+        taskValues = [taskPropertyValueToInt[value] for value in prop.getTaskSignature(sampledTasks)]
+
+        data.append(taskValues)
+        propertyNames.append(prop.name)
 
     df = pd.DataFrame(data=data, index=propertyNames)
 
@@ -215,7 +278,7 @@ def loadEnumeratedTasks(dslName, k=1, numExamples=11):
                 filteredFrontiers.append(f)
 
     print("Removed {} tasks cause they had too long outputs".format(numTooLong))
-    print("Removed {} tasks cause they were the long type".format(numWrongType))
+    print("Removed {} tasks cause they were the wrong type".format(numWrongType))
     return filteredFrontiers
 
 #     bounds = [0.0]
@@ -272,42 +335,47 @@ def getRecognizerTaskGrammars(trainedRecognizer, tasks):
     grammars = {task: grammar.untorch() for task, grammar in grammars.items() if grammar is not None}
     return grammars
 
-def getPropSimGrammars(baseGrammar, tasks, sampledFrontiers, propertyFeatureExtractor, featureExtractorArgs, onlyUseTrueProperties, nSim, pseudoCounts, weightedSim, compressSimilar, verbose):
+def getPropSimGrammars(baseGrammar, tasks, sampledFrontiers, propertyFeatureExtractor, featureExtractorArgs, onlyUseTrueProperties, nSimList, pseudoCounts, weightedSim, compressSimilar, weightByPrior, recomputeTasksWithTaskSpecificInputs, verbose):
+    """
+    Returns:
+        grammars (dict): every key is a task (Task) and its value is its corresponding grammar (Grammar) fitted on the most similar tasks
+        taskSolved (set): set of tasks solved running PropSim (i.e. for which one of the 10,000 enumerated programs satisfied all I/O examples)
+        task2Frontiers (dict): every key is a task (Task) and its value is the corresponding frontiers (list(Frontier)), one frontier for each similar task
+    """
 
     tasksSolved = set()
     grammars = {}
     task2Frontiers = {}
 
     for task in tasks:
-        frontiers,w,solved = getTaskSimilarFrontier(sampledFrontiers, propertyFeatureExtractor, task, baseGrammar, featureExtractorArgs, nSim=nSim, onlyUseTrueProperties=onlyUseTrueProperties, verbose=verbose)
+        # use the sampled programs to create new specs with the same inputs as the task we want to solve
+        if recomputeTasksWithTaskSpecificInputs: 
+            newFrontiers = createFrontiersWithInputsFromTask(sampledFrontiers, task)
+        else:
+            newFrontiers = sampledFrontiers
+        frontiers,w,solved = getTaskSimilarFrontier(newFrontiers, propertyFeatureExtractor, task, baseGrammar, featureExtractorArgs, nSim=max(nSimList), onlyUseTrueProperties=onlyUseTrueProperties, verbose=verbose)
         task2Frontiers[task] = frontiers
-
-        print("---------------------------------------------------------------------------------")
-        print(task.describe())
-        print("---------------------------------------------------------------------------------")
-        
-        # equally weight all similar tasks
-        for f in frontiers:
-            f.entries[0].logPosterior = 0
-            f.entries[0].logPrior = 0
 
         if compressSimilar:
             if len([f for f in frontiers if not f.empty]) == 0:
                 eprint("No compression frontiers; not inducing a grammar this iteration.")
             else:
-
-                taskGrammar, compressionFrontiers = induceGrammar(baseGrammar, frontiers,
-                                                              topK=1,
-                                                              pseudoCounts=pseudoCounts, a=0,
-                                                              aic=1.0, structurePenalty=1.5,
-                                                              topk_use_only_likelihood=False,
-                                                              backend="ocaml", CPUs=1, iteration=0)
-                print("Finished inducing grammar")
+                raise NotImplementedError
+                # taskGrammar, compressionFrontiers = induceGrammar(baseGrammar, frontiers,
+                #                                               topK=1,
+                #                                               pseudoCounts=pseudoCounts, a=0,
+                #                                               aic=1.0, structurePenalty=1.5,
+                #                                               topk_use_only_likelihood=False,
+                #                                               backend="ocaml", CPUs=1, iteration=0)
+                # print("Finished inducing grammar")
         else:
-            weights = w if weightedSim else None
-            taskGrammar = baseGrammar.insideOutside(frontiers, pseudoCounts, iterations=1, frontierWeights=weights)
+            taskGrammars = {}
+            for nSim in nSimList:
+                weights = w if weightedSim else None
+                taskGrammar = baseGrammar.insideOutside(frontiers[:nSim], pseudoCounts, iterations=1, frontierWeights=weights, weightByPrior=weightByPrior)
+                taskGrammars[nSim] = taskGrammar
 
-        grammars[task] = taskGrammar
+        grammars[task] = taskGrammars
         if solved:
             tasksSolved.add(task)
 
@@ -332,24 +400,27 @@ def enumerateFromGrammars(grammars, tasks, modelName, enumerationTimeout, solver
     return bottomUpFrontiers, allRecognitionTimes
 
 
-def comparePropSimFittedToRnnEncoded(train, frontiers, grammar, sampledFrontiers, propertyFeatureExtractor, featureExtractorArgs, nSimList, scoreCutoff, pseudoCounts, compressSimilar):
+def comparePropSimFittedToRnnEncoded(train, frontiers, grammar, sampledFrontiers, propertyFeatureExtractor, featureExtractorArgs, nSimList, scoreCutoff, pseudoCounts, compressSimilar, weightByPrior, taskSpecificInputs, verbose=False):
     """
     Given a frontier of tasks prints out the logposterior of tasks in train using:
         - the RNN-encoded neural recogntion model
         - the unigram grammar fitted on nSim most similar tasks
-
     """
 
-    uniformGrammarPriors, logVariableGrammarPriors, fittedLogPosteriors, rnnLogPosteriors = 0.0, 0.0, 0.0, 0.0
+    uniformGrammarPriors, logVariableGrammarPriors, fittedLogPosteriors, baselineLogPosteriors = 0.0, 0.0, 0.0, 0.0
     fittedLogPosteriorsDict, fittedWeightedLogPosteriorsDict, fittedLogPosteriorsConsolidationDict = {}, {}, {}
     numSolvedPrograms = 0.0
     taskToFrontier = {f.task:f for f in frontiers if len(f.entries) > 0}
 
-    consolidationGrammars, tasksSolved, task2SimFrontiers = getPropSimGrammars(grammar, train, sampledFrontiers, propertyFeatureExtractor, featureExtractorArgs, onlyUseTrueProperties=True, nSim=max(nSimList), pseudoCounts=pseudoCounts, weightedSim=False, compressSimilar=compressSimilar, verbose=False)
+    task2FittedGrammars, tasksSolved, task2SimFrontiers = getPropSimGrammars(grammar, train, sampledFrontiers, propertyFeatureExtractor, featureExtractorArgs, 
+        onlyUseTrueProperties=True, nSimList=nSimList, pseudoCounts=pseudoCounts, weightedSim=False, compressSimilar=False, weightByPrior=weightByPrior, 
+        recomputeTasksWithTaskSpecificInputs=taskSpecificInputs, verbose=verbose)
+    if compressSimilar:
+        raise NotImplementedError
 
     for task in train:
 
-        # can only do analysis if we have program for task from rnn_encoder enumeration
+        # can only do analysis if we have program for task from some enumeration run
         if task in taskToFrontier:
             bestFrontier = taskToFrontier[task].topK(1)
             if len(bestFrontier) > 0:
@@ -361,61 +432,43 @@ def comparePropSimFittedToRnnEncoded(train, frontiers, grammar, sampledFrontiers
             continue
 
 
-        print("\n-------------------------------------------------------------------------------")
-        print(task.describe())
-        print("---------------------------------------------------------------------------------")
+        vprint("\n-------------------------------------------------------------------------------", verbose)
+        vprint(task.describe(), verbose)
+        vprint("---------------------------------------------------------------------------------", verbose)
         uniformGrammarPrior = grammar.logLikelihood(task.request, program)
-        print("Uniform Grammar Prior: {}".format(uniformGrammarPrior))
+        vprint("Uniform Grammar Prior: {}".format(uniformGrammarPrior), verbose)
         logVariableGrammar = Grammar(2.0, [(0.0, p.infer(), p) for p in grammar.primitives], continuationType=None)
         logVariableGrammarPrior = logVariableGrammar.logLikelihood(task.request, program)
-        print("Log Variable Program Prior: {}".format(logVariableGrammarPrior))
-        print("---------------------------------------------------------------------------------")
+        vprint("Log Variable Program Prior: {}".format(logVariableGrammarPrior), verbose)
+        vprint("---------------------------------------------------------------------------------", verbose)
 
-
-        # if scoreCutoff is not None:
-        #     numAboveCutoff = len([w for w in frontierWeights if w >= scoreCutoff])
-        #     print("{} simTasks with score >= {}".format(numAboveCutoff, scoreCutoff))
-
-        #     for nSim in nSimList:
-        #         taskGrammar = grammar.insideOutside(taskFrontiers[:numAboveCutoff if numAboveCutoff > 0 else nSim], pseudoCounts, iterations=1, frontierWeights=None)
-        #         fittedLogPosterior = taskGrammar.logLikelihood(task.request, program)
-        #         print("Task Fitted Grammar LP ({} tasks with score > {} / {}): {}".format(numAboveCutoff, scoreCutoff, nSim, fittedLogPosterior))
-        #         fittedLogPosteriors100pDict[nSim] = fittedLogPosteriors100pDict.get(nSim, []) + [fittedLogPosterior]
-
-        # for nSim in nSimList:
-        #     taskGrammar = grammar.insideOutside(task2SimFrontiers[task][:nSim], pseudoCounts, iterations=1, frontierWeights=None)
-        #     fittedLogPosterior = taskGrammar.logLikelihood(task.request, program)
-        #     print("Task Fitted Grammar LP ({} weighted frontiers): {}".format(nSim, fittedLogPosterior))
-        #     fittedWeightedLogPosteriorsDict[nSim] = fittedWeightedLogPosteriorsDict.get(nSim, []) + [fittedLogPosterior]    
 
         for nSim in nSimList:
-            taskGrammar = grammar.insideOutside(task2SimFrontiers[task][:nSim], pseudoCounts, iterations=1, frontierWeights=None)
-            fittedLogPosterior = taskGrammar.logLikelihood(task.request, program)
-            print("Task Fitted Grammar LP ({} frontiers): {}".format(nSim, fittedLogPosterior))
+            fittedLogPosterior = task2FittedGrammars[task][nSim].logLikelihood(task.request, program)
+            vprint("PropSim Grammar LP ({} frontiers): {}".format(nSim, fittedLogPosterior), verbose)
             fittedLogPosteriorsDict[nSim] = fittedLogPosteriorsDict.get(nSim, []) + [fittedLogPosterior]
 
-        for nSim in nSimList:
-            fittedLogPosterior = consolidationGrammars[task].logLikelihood(task.request, program)
-            print("SimTask Consolidation Grammar LP ({} frontiers): {}".format(nSim, fittedLogPosterior))
-            fittedLogPosteriorsConsolidationDict[nSim] = fittedLogPosteriorsConsolidationDict.get(nSim, []) + [fittedLogPosterior]
+        if compressSimilar:
+            raise NotImplementedError
+            # for nSim in nSimList:
+            #     fittedLogPosterior = consolidationGrammars[task].logLikelihood(task.request, program)
+            #     print("PropSim Consolidation Grammar LP ({} frontiers): {}".format(nSim, fittedLogPosterior))
+            #     fittedLogPosteriorsConsolidationDict[nSim] = fittedLogPosteriorsConsolidationDict.get(nSim, []) + [fittedLogPosterior]
 
-        rnnLogPosterior = bestFrontier.entries[0].logPosterior
-        print("RNN Recognition model LP: {}\n".format(rnnLogPosterior))
+        baselineLogPosterior = bestFrontier.entries[0].logPosterior
+        vprint("Baseline LogPosterior: {}\n".format(baselineLogPosterior), verbose)
 
         uniformGrammarPriors += uniformGrammarPrior
         logVariableGrammarPriors += logVariableGrammarPrior
-        rnnLogPosteriors += rnnLogPosterior
+        baselineLogPosteriors += logPosterior
 
 
-    print("Uniform Grammar Prior: {}".format(uniformGrammarPriors / numSolvedPrograms))
-    print("Log Variable Grammar Prior: {}".format(logVariableGrammarPriors / numSolvedPrograms))
-    print("Mean RNN-Encoded Log Posterior: {}".format(rnnLogPosteriors / numSolvedPrograms))
-    # for nSim, logPosteriors in fittedWeightedLogPosteriorsDict.items():
-    #     print("Mean Fitted Log Posterior (weighted {} frontiers): {}".format(nSim, sum(logPosteriors) / numSolvedPrograms))
+    print("Mean Uniform Grammar Prior: {}".format(uniformGrammarPriors / numSolvedPrograms))
+    print("Mean Log Variable Grammar Prior: {}".format(logVariableGrammarPriors / numSolvedPrograms))
+    print("Mean Baseline Log Posterior: {}".format(baselineLogPosteriors / numSolvedPrograms))
     for nSim, logPosteriors in fittedLogPosteriorsDict.items():
         print("Mean Fitted Log Posterior ({} frontiers): {}".format(nSim, sum(logPosteriors) / numSolvedPrograms))
-    for nSim, logPosteriors in fittedLogPosteriorsConsolidationDict.items():
-        print("Mean SimTask Consolidation Log Posterior ({} frontiers): {}".format(nSim, sum(logPosteriors) / numSolvedPrograms))
-    # for nSim, logPosteriors in fittedLogPosteriors100pDict.items():
-    #     print("Mean Fitted Log Posterior (100p, {} deault frontiers): {}".format(nSim, sum(logPosteriors) / numSolvedPrograms))
+    if compressSimilar:
+        for nSim, logPosteriors in fittedLogPosteriorsConsolidationDict.items():
+            print("Mean SimTask Consolidation Log Posterior ({} frontiers): {}".format(nSim, sum(logPosteriors) / numSolvedPrograms))
 

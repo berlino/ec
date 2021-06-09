@@ -5,7 +5,9 @@ from collections import Counter
 import math
 import numpy as np
 
+from dreamcoder.domains.list.property import getTaskPropertyValue, Property
 from dreamcoder.domains.regex.groundtruthRegexes import gt_dict
+from dreamcoder.program import Program
 
 gt_dict = {"Data column no. "+str(num): r_str for num, r_str in gt_dict.items()}
 
@@ -34,22 +36,14 @@ class EuclideanLikelihoodModel:
         logLikelihood = float(-distance)  # FIXME: this is really naive
         return exp(logLikelihood) > self.successCutoff, logLikelihood
 
-class PropertySignatureHeuristicModel:
-    """
-    Score is dataset-specific (where by dataset we mean the list of tasks)!
 
-    Used to evaluate whether an enumerated property is good, where a good property
-    is one that results in a diffferent property signature than all the previously
-    encountered ones
-    """
-
+class PropertyScore:
     def __init__(self, timeout=None, tasks=None):
         self.timeout = timeout
         self.tasks = tasks
-        self.taskPropertyDict = {}
+        self.cachedProgramHashToPropValues = {}
         self.properties = []
         self.taskPropertyValueToInt = {"allFalse":0, "allTrue":1, "mixed":0}
-
 
     def _evaluateProgram(self, program):
         try:
@@ -63,34 +57,21 @@ class PropertySignatureHeuristicModel:
         return f
 
 
-    def _getTaskPropertyValue(self, f, task):
+class UniqueTaskSignatureScore(PropertyScore):
+    """
+    Score is dataset-specific (where by dataset we mean the list of tasks)!
+
+    Used to evaluate whether an enumerated property is good, where a good property
+    is one that results in a diffferent property signature than all the previously
+    encountered ones
+    """
+
+    def __init__(self, timeout=None, tasks=None):
+        super().__init__(timeout=timeout, tasks=tasks)
+        self.propertyValuesHashes = set()
+
+    def score(self, program, task, programName=None, programRequest=None):
         """
-        Args:
-            f (function): the property function
-            task (Task): one of the tasks we are interesed in solving
-        """
-
-        taskPropertyValue = "mixed"
-        try:
-            exampleValues = [task.predict(f,x) for x,_ in task.examples]
-            if all([value is False for value in exampleValues]):
-                taskPropertyValue = "allFalse"
-            elif all([value is True for value in exampleValues]):
-                taskPropertyValue = "allTrue"
-
-        except Exception as e:
-            # print(str(e))
-            # print("Task name: {}".format(task.name))
-            # print("Task example input: {}".format(task.examples[0][0][0]))
-            # print("Task example output: {}".format(task.examples[0][0][1]))
-            # print("Program: {}".format(program))
-            taskPropertyValue = "mixed"
-
-        return taskPropertyValue
-
-    def score(self, program, task, needToEvaluate=True, programName=None):
-        """
-        If needToEvaluate program is of type Program, else program is a python function
         """
 
         if self.tasks is None:
@@ -99,161 +80,155 @@ class PropertySignatureHeuristicModel:
         numTasks = len(self.tasks)
         propertyValues = []
 
-        f = _evaluateProgram(program) if needToEvaluate else program
+        f = self._evaluateProgram(program) if isinstance(program, Program) else program
         if f is None:
             return False, 0.0
-
-        for task in self.tasks:
-            
-            taskPropertyValue = self._getTaskPropertyValue(f, task)
-            propertyValues.append(self.taskPropertyValueToInt[taskPropertyValue])
         
-        key = str(propertyValues)
-        noAddCondition = (key in self.taskPropertyDict) or (all([val == "mixed" for val in propertyValues]))
-        numFitered = 0
+        # get value of property for tasks
+        propertyValues = []
+        for task in self.tasks:
+            taskValue = getTaskPropertyValue(f, task)
+            propertyValues.append(taskValue)
 
+        # hash property values to check if observationally equivalent property has already been calculated
+        propertyHash = str(propertyValues)
+        # property for which all tasks result in mixed is useless
+        noAddCondition = (propertyHash in self.propertyValuesHashes) or (all([val == "mixed" for val in propertyValues]))
         if noAddCondition:
             return False, 0.0
         else:
-            self.taskPropertyDict[key] = propertyValues
-            self.properties.append((programName, f, propertyValues))
+            self.propertyValuesHashes.add(propertyHash)
+            sampledProperty = Property(program=f, name=programName, request=programRequest)
+            for task, value in zip(self.tasks, propertyValues):
+                sampledProperty.updateCachedTaskEvaluations(task, value)
+            self.properties.append(sampledProperty)
             return True, 1.0
 
+    def scoreProperty(self, prop, tasksForPropertyScoring):
+        def getPropertyValues(prop, tasksForPropertyScoring):    
+            assert isinstance(prop, Property)
+            taskValues = []         
+            for task in tasksForPropertyScoring:
+                taskValue = prop.getValue(task)
+                taskValues.append(taskValue)
+            return taskValues
 
-class PropertySimTaskDiscriminatorHeuristic:
+        propertyValues = getPropertyValues(prop, tasksForPropertyScoring)
+
+        # hash property values to check if observationally equivalent property has already been calculated
+        propertyHash = str(propertyValues)
+        # property for which all tasks result in mixed is useless
+        noAddCondition = (propertyHash in self.propertyValuesHashes) or (all([val == "mixed" for val in propertyValues]))
+        if noAddCondition:
+            return 0.0
+        else:
+            self.propertyValuesHashes.add(propertyHash)
+            return 1.0
+
+
+# class PropertySimTaskDiscriminatorHeuristic(PropertyScore):
+#     """
+#     Score is task-specific!
+
+#     Used to evaluate whether an enumerated property is good, where a good property
+#     is one that is allTrue or allFalse for the task we want to solve and is highly discriminative of this task 
+#     compared to the SIMILAR tasks to it. More specifically a property if it is allTrue or allFalse and for the task
+#     we want to solve and different than that for at least one similar task.
+#     """
+
+#     def __init__(self, timeout=None, tasks=None):
+#         super().__init__(timeout=timeout, tasks=tasks)
+
+#     def score(self, program, task):
+
+#         similarTasks = [t for t in tasks if t != task]
+#         taskPropertyValue = getTaskPropertyValue(program, task)
+#         if taskPropertyValue == "mixed":
+#             return False, 0.0
+#         elif taskPropertyValue == "allTrue" or taskPropertyValue == "allFalse":
+#             taskOppositePropertyValue = "allTrue" if taskPropertyValue == "allFalse" else "allFalse"
+#             simTasksPropertyValueCounts = {"allTrue": 0, "allFalse": 0}
+#             for similarTask in similarTasks:
+#                 similarTaskPropertyValue = getTaskPropertyValue(program, similarTask)
+#                 if similarTaskPropertyValue in ["allTrue", "allFalse"]:
+#                     simTasksPropertyValueCounts[similarTaskPropertyValue] += 1
+
+#             score = ((simTasksPropertyValueCounts[taskOppositePropertyValue]) / len(similarTasks))
+#             if score > 0:
+#                 print(task)
+#                 print("Property program: {}, Score: {}".format(program, score))
+#             return score > 0, score
+#         else:
+#             raise Exception("taskPropertyValue got an unexpected value: {}".format(taskPropertyValue))
+
+
+class TaskDiscriminationScore(PropertyScore):
     """
     Score is task-specific!
 
     Used to evaluate whether an enumerated property is good, where a good property
     is one that is allTrue or allFalse for the task we want to solve and is highly discriminative of this task 
-    compared to the SIMILAR tasks to it. More specifically a property if it is allTrue or allFalse and for the task
-    we want to solve and different than that for at least one similar task.
+    compared to the other tasks in our dataset. Learning the value of the property for this task helps a lot
+    with discrimination.
     """
 
-    def __init__(self, timeout=None, similarTasks=None):
-        self.timeout = timeout
-        # these are the similar tasks we are interested in discriminating
-        self.similarTasks = similarTasks
+    def __init__(self, timeout=None, tasks=None):
+        super().__init__(timeout=timeout, tasks=tasks)
 
-    def _getTaskPropertyValue(self, program, task):
-        
-        taskPropertyValue = "mixed"
-        try:
-            f = program.evaluate([])
-        except IndexError:
-            # free variable
-            return "mixed"
-        except Exception as e:
-            eprint("Exception during evaluation:", e)
-            return "mixed"
+    def score(self, program, task, programName=None, programRequest=None):
+        """
 
-        try:
-            exampleValues = [task.predict(f,x) for x,_ in task.examples]
-            if all([value is False for value in exampleValues]):
-                taskPropertyValue = "allFalse"
-            elif all([value is True for value in exampleValues]):
-                taskPropertyValue = "allTrue"
+        Returns:
+            keep (boolean): True if we should keep property because the score exceeds the threshold
+            score (int): property score in range [0,1] (the higher the more discriminative)
+        """
 
-        except Exception as e:
-            taskPropertyValue = "mixed"
-        return taskPropertyValue
-
-    def score(self, program, task):
-
-        if self.similarTasks is None:
+        if self.tasks is None:
             raise Exception("You must provide all tasks to score function")
 
-        taskPropertyValue = self._getTaskPropertyValue(program, task)
-        if taskPropertyValue == "mixed":
+        f = self._evaluateProgram(program) if isinstance(program, Program) else program
+        if f is None:
+            return False, 0.0
+
+        taskPropertyValue = getTaskPropertyValue(f, task)
+        if taskPropertyValue == "mixed" or taskPropertyValue is False:
             return False, 0.0
         elif taskPropertyValue == "allTrue" or taskPropertyValue == "allFalse":
-            taskOppositePropertyValue = "allTrue" if taskPropertyValue == "allFalse" else "allFalse"
-            simTasksPropertyValueCounts = {"allTrue": 0, "allFalse": 0}
-            for similarTask in self.similarTasks:
-                similarTaskPropertyValue = self._getTaskPropertyValue(program, similarTask)
-                if similarTaskPropertyValue in ["allTrue", "allFalse"]:
-                    simTasksPropertyValueCounts[similarTaskPropertyValue] += 1
 
-            score = ((simTasksPropertyValueCounts[taskOppositePropertyValue]) / len(self.similarTasks))
+            # get value of property for tasks
+            propertyValues = []
+            for task in self.tasks:
+                taskValue = getTaskPropertyValue(f, task)
+                propertyValues.append(taskValue)
+
+            numTasksOfSameValue = len([val for val in propertyValues if val == taskPropertyValue])
+            score = 1.0 - ((numTasksOfSameValue - 1.0) / (len(self.tasks)-1))
+
             if score > 0:
-                print(task)
-                print("Property program: {}, Score: {}".format(program, score))
+                prop = Property(program=f, name=programName, request=programRequest)
+                for task, value in zip(self.tasks, propertyValues):
+                    prop.updateCachedTaskEvaluations(task, value)
+                self.properties.append(prop)
+
             return score > 0, score
         else:
             raise Exception("taskPropertyValue got an unexpected value: {}".format(taskPropertyValue))
 
+    def scoreProperty(self, prop, propertyTask, tasksForPropertyScoring):
+        def getPropertyValues(prop, tasksForPropertyScoring):    
+            assert isinstance(prop, Property)
+            taskValues = []         
+            for task in tasksForPropertyScoring:
+                taskValue = prop.getValue(task)
+                taskValues.append(taskValue)
+            return taskValues
 
-class PropertyHeuristicModel:
-    """
-    Score is task-specific!
-
-    Used to evaluate whether an enumerated property is good, where a good property
-    is one that is allTrue or allFalse for the task we want to solve and is highly discriminative of this task 
-    compared to the other tasks in our dataset. More specifically a property is good if the distribution of its values
-    across tasks, has high entropy.
-    """
-
-    def __init__(self, timeout=None, tasks=None):
-        self.timeout = timeout
-        self.tasks = tasks
-        self.propertyToTaskValues = {}
-
-    def _getTaskPropertyValue(self, program, task):
-        
-        taskPropertyValue = "mixed"
-        try:
-            f = program.evaluate([])
-        except IndexError:
-            # free variable
-            return False
-        except Exception as e:
-            eprint("Exception during evaluation:", e)
-            return False
-
-        try:
-            exampleValues = [task.predict(f,x) for x,_ in task.examples]
-            if all([value is False for value in exampleValues]):
-                taskPropertyValue = "allFalse"
-            elif all([value is True for value in exampleValues]):
-                taskPropertyValue = "allTrue"
-
-        except Exception as e:
-            # print(str(e))
-            # print("Task name: {}".format(task.name))
-            # print("Task example input: {}".format(task.examples[0][0][0]))
-            # print("Task example output: {}".format(task.examples[0][0][1]))
-            # print("Program: {}".format(program))
-            taskPropertyValue = "mixed"
-        return taskPropertyValue
-
-    def score(self, program, task):
-
-        if self.tasks is None:
-            raise Exception("You must provide all tasks to score function")
-        
-        numTasks = len(self.tasks)
-
-        taskPropertyValue = self._getTaskPropertyValue(program, task)
-        if taskPropertyValue == "mixed" or taskPropertyValue is False:
-            return False, 0.0
-        elif taskPropertyValue == "allTrue" or taskPropertyValue == "allFalse":
-            propertyValueCounts = self.propertyToTaskValues.get(program, None)
-            
-            if propertyValueCounts is None:
-                propertyValueCounts = {"mixed":0, "allFalse":0, "allTrue":0}
-                for task in self.tasks:
-                    temp = self._getTaskPropertyValue(program, task)
-                    propertyValueCounts[temp] += 1
-            self.propertyToTaskValues[program] = propertyValueCounts
-
-            score = 1.0 - ((propertyValueCounts[taskPropertyValue] - 1.0) / numTasks)
-            # print(program)
-            # print("propertyHeuristicScore", score)
-            # print("propertyValueCounts", propertyValueCounts)
-
-            return score > 0.1, score
-        else:
-            raise Exception("taskPropertyValue got an unexpected value: {}".format(taskPropertyValue))
+        propertyValues = getPropertyValues(prop, tasksForPropertyScoring)
+        taskPropertyValue = prop.getValue(propertyTask)
+        numTasksOfSameValue = len([val for val in propertyValues if val == taskPropertyValue])
+        score = 1.0 - (numTasksOfSameValue / (len(tasksForPropertyScoring)))
+        assert score >= 0 and score <= 1
+        return taskPropertyValue, score
 
 
 def longest_common_substr(arr):

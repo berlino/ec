@@ -1,10 +1,13 @@
 from dreamcoder.domains.list.listPrimitives import bootstrapTarget_extra
 from dreamcoder.domains.list.taskProperties import handWrittenProperties, handWrittenPropertyFuncs, tinput, toutput
 from dreamcoder.domains.list.makeListTasks import joshTasks
+from dreamcoder.domains.list.property import Property
+from dreamcoder.domains.list.utilsProperties import convertToPropertyTasks, sampleProperties
+
 from dreamcoder.dreaming import backgroundHelmholtzEnumeration
 from dreamcoder.enumeration import multicoreEnumeration
 from dreamcoder.grammar import Grammar
-from dreamcoder.likelihoodModel import PropertySignatureHeuristicModel, PropertyHeuristicModel, PropertySimTaskDiscriminatorHeuristic
+from dreamcoder.likelihoodModel import UniqueTaskSignatureScore, TaskDiscriminationScore
 from dreamcoder.program import *
 from dreamcoder.recognition import variable
 from dreamcoder.task import Task
@@ -23,8 +26,8 @@ class PropertySignatureExtractor(nn.Module):
     special = None
     
     def __init__(self, 
-        tasks=[], 
-        testingTasks=[], 
+        tasks=[],
+        similarTasks=None,
         cuda=False, 
         H=64,
         embedSize=16,
@@ -34,7 +37,8 @@ class PropertySignatureExtractor(nn.Module):
         helmholtzEvaluationTimeout=0.01,
         grammar=None,
         featureExtractorArgs={},
-        propertyType=arrow(tinput, toutput, tbool)
+        propertyRequest=arrow(tinput, toutput, tbool),
+        properties=None
         ):
         super(PropertySignatureExtractor, self).__init__()
 
@@ -49,9 +53,11 @@ class PropertySignatureExtractor(nn.Module):
         self.grammar = grammar
 
         self.tasks = tasks
+        self.similarTasks = similarTasks
         print("useEmbeddings: {}".format(self.useEmbeddings))
 
-        self.propertyTasks = _convertToPropertyTasks(self.tasks, propertyType)
+        self.propertyRequest = propertyRequest
+        self.propertyTasks = convertToPropertyTasks(self.tasks, self.propertyRequest)
         print("Finished creating propertyTasks")
 
         if self.useEmbeddings:
@@ -92,7 +98,8 @@ class PropertySignatureExtractor(nn.Module):
             self.CUDA=True
             self.cuda()  # I think this should work?
 
-        self.properties = self._getProperties()
+        self.properties = properties if properties is not None else self._getProperties()
+        assert len(self.properties) > 0
 
         self.linear = nn.Linear(len(self.properties) * self.embedSize, H)
         self.hidden = nn.Linear(H, H)
@@ -123,16 +130,16 @@ class PropertySignatureExtractor(nn.Module):
         return dreamtTasks
 
     def _getPropertyGrammar(self):
+        medianLL = median(list(self.grammar.expression2likelihood.values()))
         maxLL = max(list(self.grammar.expression2likelihood.values()))
+        # if it is 0 it means the grammar is uniform
+        maxLL = maxLL if maxLL < 0 else 3
 
-        if self.featureExtractorArgs["propSamplingGrammar"] != "same":
-            propertyPrimitives = self.featureExtractorArgs["primLibraries"][self.featureExtractorArgs["propSamplingGrammar"]]
-        else:
-            propertyPrimitives = self.grammar.primitives
-
+        propertyPrimitives = self.featureExtractorArgs["propertyPrimitives"]
         toutputToList = Primitive("toutput_to_tlist", arrow(toutput, tlist(tint)), lambda x: x)
         tinputToList = Primitive("tinput_to_tlist", arrow(tinput, tlist(tint)), lambda x: x)
-        propertyPrimitives = propertyPrimitives + [toutputToList, tinputToList]
+        propertyPrimitives = propertyPrimitives + [tinputToList, toutputToList]
+        # self.grammar.expression2likelihood[toutputToList] = medianLL
 
         if self.featureExtractorArgs["propAddZeroToNinePrims"]:
 
@@ -147,54 +154,21 @@ class PropertySignatureExtractor(nn.Module):
             propertyPrimitives.append(Primitive("and", arrow(tbool, tbool, tbool), lambda a: lambda b: a and b))
 
         productions = [(self.grammar.expression2likelihood.get(p, maxLL), p) for p in propertyPrimitives]
-        propertyGrammar = Grammar.fromProductions(productions)
+        propertyGrammar = Grammar.fromProductions(productions, logVariable=maxLL)
         print("property grammar: {}".format(propertyGrammar))
         return propertyGrammar
 
 
     def _getProperties(self):
 
-        if self.featureExtractorArgs["propUseHandWrittenProperties"] is True:
-
-            self.maxTaskInt = min(20, max([k for xs in self.argumentsWithType[tlist(tint)] for k in xs]))
-            self.maxInputListLength = max([len(xs) for xs in self.argumentsWithType[tlist(tint)]])
-            self.maxOutputListLength = self.maxInputListLength
-
-            groupedProperties = handWrittenProperties(grouped=True)
-            programs = handWrittenPropertyFuncs(groupedProperties, 0, self.maxTaskInt, self.maxInputListLength, self.maxOutputListLength)
-
+        self.propertyGrammar = self._getPropertyGrammar()
+        if self.featureExtractorArgs["propDreamTasks"]:
+            dreamtTasks = sellf._getHelmholtzTasks(1000)
+            properties, likelihoodModel = sampleProperties(self.featureExtractorArgs, self.propertyGrammar, dreamtTasks, self.propertyRequest, similarTasks=self.similarTasks)
         else:
-            self.propertyGrammar = self._getPropertyGrammar()
-            if self.featureExtractorArgs["propDreamTasks"]:
-                dreamtTasks = sellf._getHelmholtzTasks(1000)
-                properties = sampleProperties(self.featureExtractorArgs, self.propertyGrammar, dreamtTasks)
-            else:
-                frontierEntries = sampleProperties(self.featureExtractorArgs, self.propertyGrammar, self.propertyTasks)
-            programs = [(None, frontierEntry.program) for frontierEntry in frontierEntries]
+            properties, likelihoodModel = sampleProperties(self.featureExtractorArgs, self.propertyGrammar, self.propertyTasks, self.propertyRequest, similarTasks=self.similarTasks)
         
-            print("Enumerated {} property programs".format(len(programs)))
-
-        likelihoodModel = PropertySignatureHeuristicModel(tasks=self.propertyTasks)
-        
-        for programName, program in programs:
-
-            print(programName)
-            # print("p: {} (logprior: {})".format(frontierEntry.program, frontierEntry.logPrior))
-            
-            # the scoring is a function of all tasks which are already stored in likelihoodModel so
-            # what we pass in the second argument does not matter
-
-            needToEvaluate = False if self.featureExtractorArgs["propUseHandWrittenProperties"] else True
-            programName = programName if programName is not None else str(program)
-            likelihoodModel.score(program, self.propertyTasks[0], needToEvaluate, programName)
-
-        print("{} out of {} properties after filtering".format(len(likelihoodModel.properties), len(programs)))
-        # for program, f, propertyValues in likelihoodModel.properties:
-        #     print(program)
-        #     print(propertyValues)
-        #     print('---------------------------------------------------')
-
-        return likelihoodModel.properties[::]
+        return properties
 
 
     def forward(self, v, v2=None):
@@ -204,7 +178,10 @@ class PropertySignatureExtractor(nn.Module):
         output = v.view(-1)
         return output
 
-    def featuresOfTask(self, t):
+    def featuresOfTask(self, t, onlyUseTrueProperties=True):
+
+        if onlyUseTrueProperties:
+            taskPropertyValueToInt = {"allFalse":0, "allTrue":1, "mixed":0}
 
         def getPropertyValue(propertyName, propertyFunc, t):
             """
@@ -215,14 +192,14 @@ class PropertySignatureExtractor(nn.Module):
 
             Returns:
                 value_idx (int): The index of the property corresponding to propertyFunc for task t.
-                0 corresponds to False, 1 corresponds to True and 2 corresponds to Mixed
+                0 corresponds to False, 1 corresponds to True and 0 corresponds to Mixed
             """
 
-            taskPropertyValueToInt = {"allFalse":0, "allTrue":1, "mixed":0}
-
             specBooleanValues = []
+            print(t.describe())
             for example in t.examples:
                 exampleInput, exampleOutput = example[0][0], example[1]
+                print("{} -> {}".format(exampleInput, exampleOutput))
                 try:
                     if not isinstance(exampleOutput, list):
                         exampleOutput = [exampleOutput]
@@ -254,16 +231,14 @@ class PropertySignatureExtractor(nn.Module):
                 return taskPropertyValueToInt["allFalse"]
             return taskPropertyValueToInt["mixed"]
 
-        propertyValues = []
-        for propertyName, propertyProgram, _ in self.properties:
-            propertyValue = getPropertyValue(propertyName, propertyProgram, t)
-            propertyValues.append(propertyValue)
+        booleanPropertyValues = []
+        for prop in self.properties:
+            propertyValue = prop.getValue(t)
+            # propertyValue = getPropertyValue(propertyName, propertyProgram, t)
+            booleanPropertyValues.append(taskPropertyValueToInt[propertyValue])
         
-        booleanPropSig = torch.LongTensor(propertyValues)
+        booleanPropSig = torch.LongTensor(booleanPropertyValues)
         self.booleanPropSig = booleanPropSig
-
-        # for i,el in enumerate(self.properties):
-        #     print("{}: {}".format(el[0], booleanPropSig[i]))
 
         if self.useEmbeddings:
             embeddedPropSig = self.embedding(booleanPropSig).flatten()
@@ -340,42 +315,6 @@ def testPropertySignatureFeatureExtractor(task_idx):
     for i,propertyName in enumerate([propertyName for propertyName, propertyFunc in featureExtractor.properties]):
         print("{}: {}".format(propertyName, propertySig[i]))
     return
-
-
-def sampleProperties(args, g, tasks, similarTasks=None, propertyRequest=arrow(tinput, toutput, tbool)):
-
-    propertySamplingMethod = {
-        "per_task_discrimination": PropertyHeuristicModel,
-        "unique_task_signature": PropertySignatureHeuristicModel,
-        "per_similar_task_discrimination": PropertySimTaskDiscriminatorHeuristic
-    }[args["propScoringMethod"]]
-
-    # if we sample properties by "unique_task_signature" we don't need to enumerate the same properties
-    # for every task, as whether we choose to include the property or not depends on all tasks.
-
-    propertyTasksToSolve = _convertToPropertyTasks(tasks, propertyRequest)
-    propertySimilarTasks = _convertToPropertyTasks(similarTasks, propertyRequest)
-
-    print("Enumerating with {} CPUs".format(args["propCPUs"]))
-    frontiers, times, pcs, likelihoodModel = multicoreEnumeration(args["propSamplingGrammar"], propertyTasksToSolve,solver=args["propSolver"],maximumFrontier= int(10e7),
-                                                 enumerationTimeout= args["propSamplingTimeout"], CPUs=args["propCPUs"],
-                                                 evaluationTimeout=0.01,
-                                                 testing=True, likelihoodModel=propertySamplingMethod, similarTasks=propertySimilarTasks)
-    assert len(frontiers) == 1
-    return frontiers[0].entries
-
-def _convertToPropertyTasks(tasks, propertyRequest):
-    propertyTasks = []
-    for i,t in enumerate(tasks):
-        print(i)
-        # if i == 1981:
-        #     continue
-        tCopy = copy.deepcopy(t)
-        tCopy.specialTask = ("property", None)
-        tCopy.request = propertyRequest
-        tCopy.examples = [(tuplify([io[0][0], io[1]]), True) for io in tCopy.examples]
-        propertyTasks.append(tCopy)
-    return propertyTasks
 
 
 def testPropertySignatureExtractorHandwritten():

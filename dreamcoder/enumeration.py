@@ -40,12 +40,7 @@ def multicoreEnumeration(g, tasks, _=None,
       if likelihoodModel is None:
         # Use an all or nothing likelihood model.
         likelihoodModel = AllOrNothingLikelihoodModel(timeout=evaluationTimeout, leaveHoldout=leaveHoldout) 
-      else:
-        if similarTasks is not None:
-          likelihoodModel = likelihoodModel(similarTasks=similarTasks)
-        else:
-          likelihoodModel = likelihoodModel(tasks=tasks)
-      
+
     solver = solvers[solver]
 
     if not isinstance(g, dict):
@@ -174,7 +169,8 @@ def multicoreEnumeration(g, tasks, _=None,
                                  evaluationTimeout=evaluationTimeout,
                                  maximumFrontiers=maximumFrontiers(j),
                                  testing=testing,
-                                 likelihoodModel=likelihoodModel)
+                                 likelihoodModel=likelihoodModel,
+                                 enumerateFromSketch=enumerateFromSketch)
                 id2CPUs[nextID] = allocation[j]
                 id2job[nextID] = j
                 nextID += 1
@@ -263,7 +259,9 @@ def solveForTask_ocaml(_=None,
                        timeout=None,
                        testing=None, # FIXME: unused
                        likelihoodModel=None,
-                       evaluationTimeout=None, maximumFrontiers=None):
+                       evaluationTimeout=None, 
+                       maximumFrontiers=None,
+                       enumerateFromSketch=None):
 
     import json
 
@@ -413,8 +411,9 @@ def enumerateForTasks(g, tasks, likelihoodModel, _=None,
     starting = time()
     previousBudget = lowerBound
     budget = lowerBound + budgetIncrement
+
     if enumerateFromSketch is not None:
-        enumerator = g.enumerateFromSketch(Context.EMPTY, [], request, enumerateFromSketch,
+        enumerator = g.sketchEnumeration(Context.EMPTY, [], request, enumerateFromSketch,
                                              maximumDepth=99,
                                              upperBound=budget,
                                              lowerBound=previousBudget)

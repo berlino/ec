@@ -4,9 +4,12 @@ try:
 except ModuleNotFoundError:
     import bin.binutil  # alt import if called as module
 
-from dreamcoder.domains.list.propertySignatureExtractor import testPropertySignatureExtractorHandwritten
+# from dreamcoder.domains.list.taskProperties import handWritteProperties, handWrittenPropertyFuncs, tinput, toutput
+from dreamcoder.likelihoodModel import UniqueTaskSignatureScore, TaskDiscriminationScore
 from dreamcoder.domains.list.listPrimitives import test_josh_rich_primitives
 from dreamcoder.domains.list.main import main, list_options
+from dreamcoder.domains.list.property import Property
+from dreamcoder.domains.list.propertySignatureExtractor import testPropertySignatureExtractorHandwritten
 from dreamcoder.domains.list.resultsProcessing import viewResults
 from dreamcoder.dreamcoder import commandlineArguments
 from dreamcoder.utilities import numberOfCPUs
