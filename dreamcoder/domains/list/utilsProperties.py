@@ -142,7 +142,20 @@ def enumerateAndSave(grammar, request, featureExtractor, dslName, numTasks, k, b
     return
 
 
-def getTaskSimilarFrontier(allFrontiers, propertyFeatureExtractor, task, grammar, featureExtractorArgs, nSim=20, onlyUseTrueProperties=True, verbose=False):
+def getPropertySimTasksMatrix(allFrontiers, properties, taskPropertyValueToInt = {"allFalse":0, "allTrue":1, "mixed":0}):
+    """
+
+    Returns:
+        A matrix of size (len(allFrontiers), len(properties))
+    """
+    matrix = []
+    for f in allFrontiers:
+        taskSig = [taskPropertyValueToInt[prop.getValue(f.task)] for prop in properties]
+        matrix.append(taskSig)
+    return np.array(matrix)
+
+
+def getTaskSimilarFrontier(allFrontiers, propertyFeatureExtractor, propertySimTasksMatrix, task, grammar, featureExtractorArgs, nSim=20, onlyUseTrueProperties=True, verbose=False):
     """
     Returns:
         frontiersToUse (list): A list of Frontier objects of the nSim most similar tasks to task. List of frontier is used to fit unigram / fit 
@@ -151,7 +164,7 @@ def getTaskSimilarFrontier(allFrontiers, propertyFeatureExtractor, task, grammar
 
     vprint("\n------------------------------------------------ Task {} ----------------------------------------------------".format(task), verbose)
     vprint(task.describe(), verbose)
-    simDf = getSimilarTasksByProperty(task, allFrontiers, propertyFeatureExtractor, onlyUseTrueProperties=onlyUseTrueProperties, verbose=verbose)
+    simDf = getSimilarTasksByProperty(task, allFrontiers, propertyFeatureExtractor, propertySimTasksMatrix, onlyUseTrueProperties=onlyUseTrueProperties, verbose=verbose)
 
 
     # check if any of the similar tasks programs are actually solutions for the task we want to solve
@@ -182,7 +195,7 @@ def getTaskSimilarFrontier(allFrontiers, propertyFeatureExtractor, task, grammar
     return frontiersToUse, frontierWeights, solved
 
 
-def getSimilarTasksByProperty(task, allFrontiers, propertyFeatureExtractor, onlyUseTrueProperties, verbose=False):
+def getSimilarTasksByProperty(task, allFrontiers, propertyFeatureExtractor, propertySimTasksMatrix, onlyUseTrueProperties, verbose=False):
     """
     Args:
         task (Task): the task we want to solve.
@@ -205,26 +218,17 @@ def getSimilarTasksByProperty(task, allFrontiers, propertyFeatureExtractor, only
         taskPropertyValueToInt = {"allFalse":0, "allTrue":1, "mixed":0}
         taskSig = np.array([taskPropertyValueToInt[prop.getValue(task)] for prop in propertyFeatureExtractor.properties])
         allTrueIdx = np.argwhere(taskSig == 1).reshape(-1)
+        taskSig = taskSig[allTrueIdx]
         vprint("\n{} true properties for task {}\n".format(len(allTrueIdx), task.name), verbose)
         for idx in allTrueIdx:
             vprint(propertyFeatureExtractor.properties[idx].name, verbose)
 
         # for performance reasons we only keep the columns (properties) that are true for the task of interest
         properties = [el for i,el in enumerate(propertyFeatureExtractor.properties) if i in allTrueIdx]
-        taskSig = taskSig[allTrueIdx]
     else:
         raise NotImplementedError
 
-    sampledTasks = [f.task for f in allFrontiers]
-
-    data, propertyNames = [], []
-    for prop in properties:
-        taskValues = [taskPropertyValueToInt[value] for value in prop.getTaskSignature(sampledTasks)]
-
-        data.append(taskValues)
-        propertyNames.append(prop.name)
-
-    df = pd.DataFrame(data=data, index=propertyNames)
+    df = pd.DataFrame(data=propertySimTasksMatrix[:, allTrueIdx].T, index=[p.name for p in properties])
 
     simSeries = df.apply(lambda col: _getSimilarityScore(taskSig, col, onlyUseTrueProperties), axis=0)
     simDf = simSeries.to_frame(name="score")
@@ -349,13 +353,14 @@ def getPropSimGrammars(baseGrammar, tasks, sampledFrontiers, propertyFeatureExtr
         grammars[nSim] = {}
     task2Frontiers = {}
 
+    propertySimTasksMatrix = getPropertySimTasksMatrix(sampledFrontiers, propertyFeatureExtractor.properties)
     for task in tasks:
         # use the sampled programs to create new specs with the same inputs as the task we want to solve
         if recomputeTasksWithTaskSpecificInputs: 
             newFrontiers = createFrontiersWithInputsFromTask(sampledFrontiers, task)
         else:
             newFrontiers = sampledFrontiers
-        frontiers,w,solved = getTaskSimilarFrontier(newFrontiers, propertyFeatureExtractor, task, baseGrammar, featureExtractorArgs, nSim=max(nSimList), onlyUseTrueProperties=onlyUseTrueProperties, verbose=verbose)
+        frontiers, weights, solved = getTaskSimilarFrontier(newFrontiers, propertyFeatureExtractor, propertySimTasksMatrix, task, baseGrammar, featureExtractorArgs, nSim=max(nSimList), onlyUseTrueProperties=onlyUseTrueProperties, verbose=verbose)
         task2Frontiers[task] = frontiers
 
         if compressSimilar:
@@ -372,7 +377,7 @@ def getPropSimGrammars(baseGrammar, tasks, sampledFrontiers, propertyFeatureExtr
                 # print("Finished inducing grammar")
         else:
             for nSim in nSimList:
-                weights = w if weightedSim else None
+                weights = weights if weightedSim else None
                 taskGrammar = baseGrammar.insideOutside(frontiers[:nSim], pseudoCounts, iterations=1, frontierWeights=weights, weightByPrior=weightByPrior)
                 grammars[nSim][task] = taskGrammar
         if solved:
@@ -399,7 +404,7 @@ def enumerateFromGrammars(grammars, tasks, modelName, enumerationTimeout, solver
     return bottomUpFrontiers, allRecognitionTimes
 
 
-def comparePropSimFittedToRnnEncoded(train, frontiers, grammar, sampledFrontiers, propertyFeatureExtractor, featureExtractorArgs, nSimList, scoreCutoff, pseudoCounts, compressSimilar, weightByPrior, taskSpecificInputs, verbose=False):
+def comparePropSimFittedToRnnEncoded(train, frontiers, grammar, sampledFrontiers, propertyFeatureExtractor, featureExtractorArgs, nSimList, scoreCutoff, pseudoCounts, weightedSim, compressSimilar, weightByPrior, taskSpecificInputs, verbose=False):
     """
     Given a frontier of tasks prints out the logposterior of tasks in train using:
         - the RNN-encoded neural recogntion model
@@ -412,8 +417,9 @@ def comparePropSimFittedToRnnEncoded(train, frontiers, grammar, sampledFrontiers
     taskToFrontier = {f.task:f for f in frontiers if len(f.entries) > 0}
 
     task2FittedGrammars, tasksSolved, task2SimFrontiers = getPropSimGrammars(grammar, train, sampledFrontiers, propertyFeatureExtractor, featureExtractorArgs, 
-        onlyUseTrueProperties=True, nSimList=nSimList, pseudoCounts=pseudoCounts, weightedSim=False, compressSimilar=False, weightByPrior=weightByPrior, 
+        onlyUseTrueProperties=True, nSimList=nSimList, pseudoCounts=pseudoCounts, weightedSim=weightedSim, compressSimilar=False, weightByPrior=weightByPrior, 
         recomputeTasksWithTaskSpecificInputs=taskSpecificInputs, verbose=verbose)
+
     if compressSimilar:
         raise NotImplementedError
 
@@ -470,4 +476,6 @@ def comparePropSimFittedToRnnEncoded(train, frontiers, grammar, sampledFrontiers
     if compressSimilar:
         for nSim, logPosteriors in fittedLogPosteriorsConsolidationDict.items():
             print("Mean SimTask Consolidation Log Posterior ({} frontiers): {}".format(nSim, sum(logPosteriors) / numSolvedPrograms))
+
+    return task2FittedGrammars
 
