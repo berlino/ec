@@ -558,6 +558,7 @@ def main(args):
         filename = DATA_DIR + GRAMMARS_DIR + "nSim=50_weightedSim=False_taskSpecificInputs=False_seed=1.pkl"
         propSimGrammars = dill.load(open(filename, "rb"))
     except FileNotFoundError:
+        print("Couldn't find pickled fitted grammars, regenerating")
         propSimGrammars, tasksSolved, _ = getPropSimGrammars(baseGrammar, tasks, sampledFrontiers, propertyFeatureExtractor, featureExtractorArgs, onlyUseTrueProperties, [nSim], pseudoCounts, weightedSim, 
             compressSimilar=False, weightByPrior=False, recomputeTasksWithTaskSpecificInputs=False, verbose=False)
 
