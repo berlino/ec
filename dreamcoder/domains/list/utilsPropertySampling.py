@@ -5,6 +5,24 @@ from dreamcoder.domains.list.utilsProperties import convertToPropertyTasks
 from dreamcoder.likelihoodModel import TaskDiscriminationScore
 
 
+def updateSavedPropertiesWithNewCacheTable(properties, propertiesPath):
+
+    oldProperties = dill.load(open(propertiesPath, "rb"))
+
+    for oldP in oldProperties:
+        matchingProperty = [p for p in properties if p.name == oldP.name][0]
+        for spec, propertyValue in matchingProperty.cachedTaskEvaluations.items():
+            if spec in oldP.cachedTaskEvaluations:
+                assert oldP.cachedTaskEvaluations[spec] == propertyValue
+            else:
+                oldP.cachedTaskEvaluations[spec] = propertyValue
+
+    dill.dump(oldProperties, open(propertiesPath, "wb"))
+
+    print("Updating cache table and rewriting properties at: {}".format(propertiesPath))
+    return
+
+
 def getPropertySamplingGrammar(baseGrammar, grammarName, frontiers, pseudoCounts=1, seed=0):
     if grammarName == "random":
         random.seed(seed)

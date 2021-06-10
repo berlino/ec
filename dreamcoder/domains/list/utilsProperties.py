@@ -345,6 +345,8 @@ def getPropSimGrammars(baseGrammar, tasks, sampledFrontiers, propertyFeatureExtr
 
     tasksSolved = set()
     grammars = {}
+    for nSim in nSimList:
+        grammars[nSim] = {}
     task2Frontiers = {}
 
     for task in tasks:
@@ -369,13 +371,10 @@ def getPropSimGrammars(baseGrammar, tasks, sampledFrontiers, propertyFeatureExtr
                 #                                               backend="ocaml", CPUs=1, iteration=0)
                 # print("Finished inducing grammar")
         else:
-            taskGrammars = {}
             for nSim in nSimList:
                 weights = w if weightedSim else None
                 taskGrammar = baseGrammar.insideOutside(frontiers[:nSim], pseudoCounts, iterations=1, frontierWeights=weights, weightByPrior=weightByPrior)
-                taskGrammars[nSim] = taskGrammar
-
-        grammars[task] = taskGrammars
+                grammars[nSim][task] = taskGrammar
         if solved:
             tasksSolved.add(task)
 
@@ -444,7 +443,7 @@ def comparePropSimFittedToRnnEncoded(train, frontiers, grammar, sampledFrontiers
 
 
         for nSim in nSimList:
-            fittedLogPosterior = task2FittedGrammars[task][nSim].logLikelihood(task.request, program)
+            fittedLogPosterior = task2FittedGrammars[nSim][task].logLikelihood(task.request, program)
             vprint("PropSim Grammar LP ({} frontiers): {}".format(nSim, fittedLogPosterior), verbose)
             fittedLogPosteriorsDict[nSim] = fittedLogPosteriorsDict.get(nSim, []) + [fittedLogPosterior]
 

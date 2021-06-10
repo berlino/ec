@@ -27,6 +27,7 @@ from dreamcoder.domains.list.propertySignatureExtractor import PropertySignature
 from dreamcoder.domains.list.resultsProcessing import resume_from_path, viewResults, plotFrontiers
 from dreamcoder.domains.list.taskProperties import handWrittenProperties, getHandwrittenPropertiesFromTemplates, tinput, toutput
 from dreamcoder.domains.list.utilsProperties import *
+from dreamcoder.domains.list.utilsPropertySampling import updateSavedPropertiesWithNewCacheTable
 
 
 DATA_DIR = "data/prop_sig/"
@@ -343,6 +344,7 @@ def list_options(parser):
 
 
     # Arguments relating to properties
+    parser.add_argument("--save", action="store_true", default=False)
     parser.add_argument("--verbose", action="store_true", default=False)
     parser.add_argument("--taskSpecificInputs", action="store_true", default=False)
     parser.add_argument("--earlyStopping", action="store_true", default=False)
@@ -373,6 +375,7 @@ def main(args):
     trains/tests the model on manipulating sequences of numbers.
     """
     
+    save = args.pop("save")
     verbose = args.pop("verbose")
     libraryName = args.pop("primitives")
     dataset = args.pop("dataset")
@@ -457,6 +460,12 @@ def main(args):
             "primLibraries": primLibraries,
             "propNoEmbeddings": propNoEmbeddings
         }
+        if propToUse == "handwritten":
+            properties = getHandwrittenPropertiesFromTemplates(tasks)
+        elif propToUse == "preloaded":
+            propertiesFilename = "sampled_properties_fitted_60s_sampling_timeout.pkl"
+            properties = dill.load(open(DATA_DIR + SAMPLED_PROPERTIES_DIR + propertiesFilename, "rb"))
+        propertyFeatureExtractor = extractor(tasks, grammar=baseGrammar, cuda=False, featureExtractorArgs=featureExtractorArgs, properties=properties)
 
     timestamp = datetime.datetime.now().isoformat()
     outputDirectory = "experimentOutputs/jrule/%s"%timestamp
@@ -468,11 +477,11 @@ def main(args):
         "evaluationTimeout": 0.0005,
     })
 
-
     if singleTask:
         tasks = [tasks[0]]
 
     random.seed(args["seed"])
+
 
     ##################################
     # Load sampled tasks
@@ -485,11 +494,11 @@ def main(args):
 
     if debug:
         sampledFrontiers = loadEnumeratedTasks(dslName=libraryName)
-        randomFrontierIndices = random.sample(range(len(sampledFrontiers)),k=1000)
+        randomFrontierIndices = random.sample(range(len(sampledFrontiers)),k=10)
         sampledFrontiers = [f for i,f in enumerate(sampledFrontiers) if i in randomFrontierIndices]
 
-        # randomTaskIndices = random.sample(range(len(tasks)),k=20)
-        # tasks = [task for i,task in enumerate(tasks) if i in randomTaskIndices]
+        randomTaskIndices = random.sample(range(len(tasks)),k=5)
+        tasks = [task for i,task in enumerate(tasks) if i in randomTaskIndices]
     else:
         sampledFrontiers = loadEnumeratedTasks(dslName=libraryName)
     print("Finished loading {} sampled tasks".format(len(sampledFrontiers)))
@@ -542,26 +551,24 @@ def main(args):
     # Enumeration
     ##################################
 
-    # propertyFeatureExtractor = extractor([f.task for f in sampledFrontiers], grammar=baseGrammar, testingTasks=[], cuda=False, featureExtractorArgs=featureExtractorArgs)
-    # nSim, pseudoCounts, onlyUseTrueProperties, weightedSim = 50, 1, True, False
-    # propSimGrammars, tasksSolved, _ = getPropSimGrammars(baseGrammar, train, sampledFrontiers, propertyFeatureExtractor, featureExtractorArgs, onlyUseTrueProperties, nSim, pseudoCounts, weightedSim, compressSimilar=False, verbose=False)
+    nSim, pseudoCounts, onlyUseTrueProperties, weightedSim = 50, 1, True, False
+    propSimGrammars, tasksSolved, _ = getPropSimGrammars(baseGrammar, tasks, sampledFrontiers, propertyFeatureExtractor, featureExtractorArgs, onlyUseTrueProperties, [nSim], pseudoCounts, weightedSim, 
+        compressSimilar=False, weightByPrior=False, recomputeTasksWithTaskSpecificInputs=False, verbose=False)
 
     # loadPath = 'recognitionModels/josh_rich_enumerated_1/learned_9740_enumeratedFrontiers_ep=True_RS=None_RT=7200.pkl'
     # with open(loadPath, "rb") as handle:
     #     trainedRecognizer = dill.load(handle)
-
     # recognizerGrammars = getRecognizerTaskGrammars(trainedRecognizer, train)
-    # enumerationTimeout, solver, maximumFrontier = args.pop("enumerationTimeout"), args.pop("solver"), args.pop("maximumFrontier")
-    # try:
-    #     CPUs = args.pop("CPUs")
-    # except:
-    #     pass
-    # for modelName, grammars in zip(["neuralRecognizer", "propSim"], [recognizerGrammars, propSimGrammars]):
-    #     bottomUpFrontiers, allRecognitionTimes = enumerateFromGrammars(grammars, train, modelName, enumerationTimeout, solver, CPUs, maximumFrontier, leaveHoldout=True, save=True)
-    #     nonEmptyFrontiers = [f for f in bottomUpFrontiers if not f.empty]
-    #     numTasksProgramDiscovered = len(nonEmptyFrontiers)
-    #     numTasksSolved = len([f.task for f in nonEmptyFrontiers if f.task.check(f.topK(1).entries[0].program, timeout=1.0, leaveHoldout=False)])
-    #     print("Enumerating from {} grammars for {} seconds: Potentially found solutions to {} tasks. {} / {} actually true for holdout example".format(modelName, enumerationTimeout, numTasksProgramDiscovered, numTasksSolved, numTasksProgramDiscovered))
+
+    enumerationTimeout, solver, maximumFrontier, CPUs = args.pop("enumerationTimeout"), args.pop("solver"), args.pop("maximumFrontier"), args.pop("CPUs")
+    modelName = "propSim"
+    grammars = propSimGrammars[nSim]
+
+    bottomUpFrontiers, allRecognitionTimes = enumerateFromGrammars(grammars, tasks, modelName, enumerationTimeout, solver, CPUs, maximumFrontier, leaveHoldout=True, save=save)
+    nonEmptyFrontiers = [f for f in bottomUpFrontiers if not f.empty]
+    numTasksProgramDiscovered = len(nonEmptyFrontiers)
+    numTasksSolved = len([f.task for f in nonEmptyFrontiers if f.task.check(f.topK(1).entries[0].program, timeout=1.0, leaveHoldout=False)])
+    print("Enumerating from {} grammars for {} seconds: {} / {} actually true for holdout example".format(modelName, enumerationTimeout, numTasksProgramDiscovered, numTasksSolved, numTasksProgramDiscovered))
 #
     #####################
     # Helmhholtz Sampling
@@ -602,22 +609,18 @@ def main(args):
     # Enumeration Proxy
     ######################
     
-    nSimList = [50]
-    scoreCutoff = 1.0
-    pseudoCounts = 1
-    fileName = "enumerationResults/propSim_2021-05-23 04:57:26.284483_t=600.pkl"
-    frontiers, times = dill.load(open(fileName, "rb"))
-    unsolvedTasks = [f.task for f in frontiers if len(f.entries) == 0]
+    # nSimList = [50]
+    # scoreCutoff = 1.0
+    # pseudoCounts = 1
+    # fileName = "enumerationResults/propSim_2021-05-23 04:57:26.284483_t=600.pkl"
+    # frontiers, times = dill.load(open(fileName, "rb"))
+    # unsolvedTasks = [f.task for f in frontiers if len(f.entries) == 0]
 
-    if propToUse == "handwritten":
-        properties = getHandwrittenPropertiesFromTemplates(tasks)
-    elif propToUse == "preloaded":
-        filename = "sampled_properties_{}_sampling_timeout={}s_seed={}.pkl".format("base", "60", "1")
-        properties = pickle.load(open(DATA_DIR + SAMPLED_PROPERTIES_DIR + filename, "rb"))
+    # comparePropSimFittedToRnnEncoded(tasks, frontiers, baseGrammar, sampledFrontiers, propertyFeatureExtractor, featureExtractorArgs, nSimList, scoreCutoff, pseudoCounts, compressSimilar=False, weightByPrior=False, 
+    #     taskSpecificInputs=taskSpecificInputs, verbose=verbose)
 
-    propertyFeatureExtractor = extractor(tasks, grammar=baseGrammar, cuda=False, featureExtractorArgs=featureExtractorArgs, properties=properties)
-    comparePropSimFittedToRnnEncoded(tasks, frontiers, baseGrammar, sampledFrontiers, propertyFeatureExtractor, featureExtractorArgs, nSimList, scoreCutoff, pseudoCounts, compressSimilar=False, weightByPrior=False, 
-        taskSpecificInputs=taskSpecificInputs, verbose=verbose)
+    # propertiesPath = DATA_DIR + SAMPLED_PROPERTIES_DIR + propertiesFilename
+    # updateSavedPropertiesWithNewCacheTable(properties, propertiesPath)
 
     ######################
     # Smarter PropSim
