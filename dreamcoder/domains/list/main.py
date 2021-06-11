@@ -555,7 +555,7 @@ def main(args):
     ##################################
     nSim, pseudoCounts, onlyUseTrueProperties = 50, 1, True
     try:
-        filename = DATA_DIR + GRAMMARS_DIR + "nSim=50_weightedSim=False_taskSpecificInputs=False_seed=1.pkl"
+        filename = DATA_DIR + GRAMMARS_DIR + "propToUse={}_nSim={}_weightedSim={}_taskSpecificInputs={}.pkl".format(propToUse, nSim, weightedSim, taskSpecificInputs)
         propSimGrammars = dill.load(open(filename, "rb"))
     except FileNotFoundError:
         print("Couldn't find pickled fitted grammars, regenerating")
@@ -596,14 +596,16 @@ def main(args):
     # # "enumerationResults/propSim_2021-05-10 15:28:36.921856_t=600.pkl", "enumerationResults/propSim_2021-05-11 12:49:11.749481_t=600.pkl", 
     # # "enumerationResults/propSim_2021-05-12 22:15:52.858092_t=600.pkl", "enumerationResults/propSim_2021-05-12 22:42:53.788790_t=600.pkl", 
     # "enumerationResults/propSim_2021-05-23 04:57:26.284483_t=600.pkl",
+    # "enumerationResults/propSim_2021-06-10 00:01:40.381552_t=600.pkl",
     # "enumerationResults/uniformGrammar_2021-05-11 13:49:32.922951_t=600.pkl"]
     # modelNames = [
     # # "neuralRecognizer (samples)", "neuralRecognizer (samples)", 
-    # "neuralRecognizer (enumerated)",
+    # "neuralRecognizer",
     # # "neuralRecognizer (enumerated)",
     # # "propSim (samples)", "propSim (samples)", 
     # # "propSim2 (samples)", "propSim2 (samples)", 
-    # "propSim2 (enumerated)",
+    # "propSim2 (handwritten properties)",
+    # "propSim2 (sampled properties)",
     # "unifGrammarPrior"]
     # plotFrontiers(filenames, modelNames)
     

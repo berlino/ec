@@ -213,24 +213,25 @@ def evaluateRecognizersForTask(baseGrammar, ecResults, recognizerNames=None, tas
         logVariableGrammar = Grammar(2.0, [(0.0, p.infer(), p) for p in grammar.primitives], continuationType=None)
         logVariableGrammarPrior = logVariableGrammar.logLikelihood(task.request, program)
 
-def plotFrontiers(fileNames, modelNames):
-    colors = {"neuralRecognizer (samples)":"blue", "neuralRecognizer (enumerated)": "purple", "propSim (samples)": "orange", "propSim2 (samples)":"red", "propSim2 (enumerated)":"brown", "unifGrammarPrior": "grey"}
-    labeled = set()
-    for i,fileName in enumerate(fileNames):
+def plotFrontiers(fileNames, modelNames, save=True):
+
+    plt.rcParams["axes.prop_cycle"] = plt.cycler("color", plt.cm.viridis(np.linspace(0,1, len(fileNames))))
+
+    for modelIdx,fileName in enumerate(fileNames):
         frontiers, times = dill.load(open(fileName, "rb"))
 
         satisfiesHoldout = lambda f: f.task.check(f.topK(1).entries[0].program, timeout=1.0, leaveHoldout=False)
         logPosteriors = sorted([-f.bestPosterior.logPosterior for f in frontiers if (len(f.entries) > 0 and satisfiesHoldout(f))])
         print(fileName, len(logPosteriors))
-        label = ""
-        if modelNames[i] not in labeled:
-            label = modelNames[i]
-            labeled.add(modelNames[i])
-        plt.plot(logPosteriors, [i / len(frontiers) for i in range(len(logPosteriors))], c=colors[modelNames[i]], label=label, alpha=0.6)
+        print(modelIdx)
+        print(modelNames)
+        plt.plot(logPosteriors, [i / len(frontiers) for i in range(len(logPosteriors))], label=modelNames[modelIdx], alpha=0.6)
 
     plt.ylim(bottom=0, top=1)
     plt.legend()
-    plt.savefig("enumerationResults/enumerationTimes.png")
+    plt.show()
+    if save:
+        plt.savefig("enumerationResults/enumerationTimes.png")
     return
 
 
