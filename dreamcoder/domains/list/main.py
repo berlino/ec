@@ -328,7 +328,7 @@ def list_options(parser):
     parser.add_argument(
         "--dataset",
         type=str,
-        default="Lucas-old",
+        default="josh_3",
         choices=[
             "josh_1",
             "josh_2",
@@ -500,7 +500,7 @@ def main(args):
         randomFrontierIndices = random.sample(range(len(sampledFrontiers)),k=100)
         sampledFrontiers = [f for i,f in enumerate(sampledFrontiers) if i in randomFrontierIndices]
 
-        randomTaskIndices = random.sample(range(len(tasks)),k=1)
+        randomTaskIndices = random.sample(range(len(tasks)),k=2)
         tasks = [task for i,task in enumerate(tasks) if i in randomTaskIndices]
     else:
         sampledFrontiers = loadEnumeratedTasks(dslName=libraryName)

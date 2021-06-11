@@ -353,9 +353,12 @@ def getPropSimGrammars(baseGrammar, tasks, sampledFrontiers, propertyFeatureExtr
         grammars[nSim] = {}
     task2Frontiers = {}
 
+    print("Creating Similar Task Matrix")
     propertySimTasksMatrix = getPropertySimTasksMatrix(sampledFrontiers, propertyFeatureExtractor.properties)
+    print("Finished Creating Similar Task Matrix")
     for task in tasks:
         # use the sampled programs to create new specs with the same inputs as the task we want to solve
+        print("Find {} most similar tasks for task: {}".format(nSimList[0], task.name))
         if recomputeTasksWithTaskSpecificInputs: 
             newFrontiers = createFrontiersWithInputsFromTask(sampledFrontiers, task)
         else:
