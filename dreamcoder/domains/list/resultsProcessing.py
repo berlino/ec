@@ -1,7 +1,7 @@
 import dill
 
 from dreamcoder.domains.list.listPrimitives import basePrimitives, primitives, McCarthyPrimitives, bootstrapTarget_extra, no_length, josh_primitives
-from dreamcoder.domains.list.taskProperties import handWrittenProperties, tinput, toutput
+from dreamcoder.domains.list.handwrittenProperties import handWrittenProperties, tinput, toutput
 from dreamcoder.grammar import Context, Grammar
 from dreamcoder.program import *
 from dreamcoder.type import *

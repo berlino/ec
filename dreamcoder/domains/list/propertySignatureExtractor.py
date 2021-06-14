@@ -1,5 +1,5 @@
 from dreamcoder.domains.list.listPrimitives import bootstrapTarget_extra
-from dreamcoder.domains.list.taskProperties import handWrittenProperties, handWrittenPropertyFuncs, tinput, toutput
+from dreamcoder.domains.list.handwrittenProperties import handWrittenProperties, handWrittenPropertyFuncs, tinput, toutput
 from dreamcoder.domains.list.makeListTasks import joshTasks
 from dreamcoder.domains.list.property import Property
 from dreamcoder.domains.list.utilsProperties import convertToPropertyTasks, sampleProperties

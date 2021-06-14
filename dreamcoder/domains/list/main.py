@@ -20,12 +20,13 @@ from dreamcoder.recognition import DummyFeatureExtractor, RecognitionModel
 from dreamcoder.grammar import Grammar
 from dreamcoder.task import Task
 from dreamcoder.type import Context, arrow, tbool, tlist, tint, t0, UnificationFailure
+from dreamcoder.domains.list.corePropSim import *
 from dreamcoder.domains.list.listPrimitives import basePrimitives, primitives, McCarthyPrimitives, bootstrapTarget_extra, no_length, josh_primitives
 from dreamcoder.domains.list.makeListTasks import make_list_bootstrap_tasks, sortBootstrap, EASYLISTTASKS, joshTasks
 from dreamcoder.domains.list.property import Property
 from dreamcoder.domains.list.propertySignatureExtractor import PropertySignatureExtractor
 from dreamcoder.domains.list.resultsProcessing import resume_from_path, viewResults, plotFrontiers
-from dreamcoder.domains.list.taskProperties import handWrittenProperties, getHandwrittenPropertiesFromTemplates, tinput, toutput
+from dreamcoder.domains.list.handwrittenProperties import handWrittenProperties, getHandwrittenPropertiesFromTemplates, tinput, toutput
 from dreamcoder.domains.list.utilsProperties import *
 from dreamcoder.domains.list.utilsPropertySampling import updateSavedPropertiesWithNewCacheTable
 
@@ -345,6 +346,9 @@ def list_options(parser):
 
 
     # Arguments relating to properties
+    parser.add_argument("--nSim", type=int, default=50)
+    parser.add_argument("--propPseudocounts", type=int, default=1)
+    parser.add_argument("--onlyUseTrueProperties", action="store_true", default=False)
     parser.add_argument("--save", action="store_true", default=False)
     parser.add_argument("--verbose", action="store_true", default=False)
     parser.add_argument("--weightedSim", action="store_true", default=False)
@@ -377,6 +381,9 @@ def main(args):
     trains/tests the model on manipulating sequences of numbers.
     """
     
+    nSim = args.pop("nSim")
+    propPseudocounts = args.pop("propPseudocounts")
+    onlyUseTrueProperties = args.pop("onlyUseTrueProperties")
     weightedSim = args.pop("weightedSim")
     save = args.pop("save")
     verbose = args.pop("verbose")
@@ -497,10 +504,10 @@ def main(args):
 
     if debug:
         sampledFrontiers = loadEnumeratedTasks(dslName=libraryName)
-        randomFrontierIndices = random.sample(range(len(sampledFrontiers)),k=100)
+        randomFrontierIndices = random.sample(range(len(sampledFrontiers)),k=1000)
         sampledFrontiers = [f for i,f in enumerate(sampledFrontiers) if i in randomFrontierIndices]
 
-        randomTaskIndices = random.sample(range(len(tasks)),k=2)
+        randomTaskIndices = random.sample(range(len(tasks)),k=10)
         tasks = [task for i,task in enumerate(tasks) if i in randomTaskIndices]
     else:
         sampledFrontiers = loadEnumeratedTasks(dslName=libraryName)
@@ -553,14 +560,14 @@ def main(args):
     ##################################
     # Enumeration
     ##################################
-    nSim, pseudoCounts, onlyUseTrueProperties = 50, 1, True
     try:
-        filename = DATA_DIR + GRAMMARS_DIR + "propToUse={}_nSim={}_weightedSim={}_taskSpecificInputs={}.pkl".format(propToUse, nSim, weightedSim, taskSpecificInputs)
-        propSimGrammars = dill.load(open(filename, "rb"))
+        filename = "propToUse={}_nSim={}_weightedSim={}_taskSpecificInputs={}_seed={}.pkl".format(propToUse, nSim, weightedSim, taskSpecificInputs, args["seed"])
+        path = DATA_DIR + GRAMMARS_DIR + filename
+        propSimGrammars = dill.load(open(path, "rb"))
     except FileNotFoundError:
         print("Couldn't find pickled fitted grammars, regenerating")
-        propSimGrammars, tasksSolved, _ = getPropSimGrammars(baseGrammar, tasks, sampledFrontiers, propertyFeatureExtractor, featureExtractorArgs, onlyUseTrueProperties, [nSim], pseudoCounts, weightedSim, 
-            compressSimilar=False, weightByPrior=False, recomputeTasksWithTaskSpecificInputs=False, verbose=False)
+        propSimGrammars, tasksSolved, _ = getPropSimGrammars(baseGrammar, tasks, sampledFrontiers, propertyFeatureExtractor, featureExtractorArgs, onlyUseTrueProperties, [nSim], propPseudocounts, weightedSim, 
+        compressSimilar=False, weightByPrior=False, recomputeTasksWithTaskSpecificInputs=False, verbose=verbose)
 
     enumerationTimeout, solver, maximumFrontier, CPUs = args.pop("enumerationTimeout"), args.pop("solver"), args.pop("maximumFrontier"), args.pop("CPUs")
     modelName = "propSim"
@@ -597,6 +604,7 @@ def main(args):
     # # "enumerationResults/propSim_2021-05-12 22:15:52.858092_t=600.pkl", "enumerationResults/propSim_2021-05-12 22:42:53.788790_t=600.pkl", 
     # "enumerationResults/propSim_2021-05-23 04:57:26.284483_t=600.pkl",
     # "enumerationResults/propSim_2021-06-10 00:01:40.381552_t=600.pkl",
+    # "enumerationResults/helmholtz_fitted_2021-06-11 13:17:47.928151_t=600.pkl",
     # "enumerationResults/uniformGrammar_2021-05-11 13:49:32.922951_t=600.pkl"]
     # modelNames = [
     # # "neuralRecognizer (samples)", "neuralRecognizer (samples)", 
@@ -606,6 +614,7 @@ def main(args):
     # # "propSim2 (samples)", "propSim2 (samples)", 
     # "propSim2 (handwritten properties)",
     # "propSim2 (sampled properties)",
+    # "helmholtzFitted",
     # "unifGrammarPrior"]
     # plotFrontiers(filenames, modelNames)
     
@@ -613,22 +622,17 @@ def main(args):
     # Enumeration Proxy
     ######################
     
-    # nSimList = [50]
-    # scoreCutoff = 1.0
-    # pseudoCounts = 1
     # fileName = "enumerationResults/propSim_2021-05-23 04:57:26.284483_t=600.pkl"
     # frontiers, times = dill.load(open(fileName, "rb"))
     # unsolvedTasks = [f.task for f in frontiers if len(f.entries) == 0]
 
-    # task2FittedGrammars = comparePropSimFittedToRnnEncoded(tasks, frontiers, baseGrammar, sampledFrontiers, propertyFeatureExtractor, featureExtractorArgs, nSimList, scoreCutoff, pseudoCounts, 
+    # task2FittedGrammars = comparePropSimFittedToRnnEncoded(tasks, frontiers, baseGrammar, sampledFrontiers, propertyFeatureExtractor, featureExtractorArgs, [nSim], propPseudocounts, 
     #     weightedSim=weightedSim, compressSimilar=False, weightByPrior=False, taskSpecificInputs=taskSpecificInputs, verbose=verbose)
 
     # if save:
     #     filename = DATA_DIR + GRAMMARS_DIR + "nSim={}_weightedSim={}_taskSpecificInputs={}_seed={}.pkl".format(nSimList[0], weightedSim, taskSpecificInputs, args["seed"])
+    #     print("Saved task2Grammars at: {}".format(filename))
     #     dill.dump(task2FittedGrammars, open(filename, "wb"))
-
-    # propertiesPath = DATA_DIR + SAMPLED_PROPERTIES_DIR + propertiesFilename
-    # updateSavedPropertiesWithNewCacheTable(properties, propertiesPath)
 
     ######################
     # Smarter PropSim

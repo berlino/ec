@@ -6,13 +6,14 @@ from dreamcoder.type import arrow, tbool
 
 class Property:
     
-    def __init__(self, program, request, name=None, logPrior=None):
+    def __init__(self, program, request, name=None, logPrior=None, valueRange=None):
         self.program = program
         self.request = request
         self.name = name if name is not None else str(program)
         # only applicable if property was sampled from Grammar
         self.logPrior = logPrior
         self.cachedTaskEvaluations = {}
+        self.valueRange = valueRange if valueRange is not None else ["allTrue", "mixed", "allFalse"]
 
     def __str__(self):
         return self.name
