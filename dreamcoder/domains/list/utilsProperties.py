@@ -14,7 +14,7 @@ from dreamcoder.task import Task
 from dreamcoder.type import Context, arrow, tlist, tint
 from dreamcoder.utilities import *
 from dreamcoder.domains.list.property import Property
-from dreamcoder.domains.list.corePropSim import getPropSimGrammars
+from dreamcoder.domains.list.propSim import getPropSimGrammars
 
 
 def createFrontiersWithInputsFromTask(frontiers, task):
