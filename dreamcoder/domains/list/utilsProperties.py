@@ -9,7 +9,7 @@ from dreamcoder.compression import induceGrammar
 from dreamcoder.enumeration import multicoreEnumeration
 from dreamcoder.frontier import Frontier, FrontierEntry
 from dreamcoder.grammar import Grammar
-from dreamcoder.likelihoodModel import UniqueTaskSignatureScore, TaskDiscriminationScore
+from dreamcoder.likelihoodModel import UniqueTaskSignatureScore, TaskDiscriminationScore, TaskSurprisalScore, GeneralUniqueTaskSignatureScore
 from dreamcoder.task import Task
 from dreamcoder.type import Context, arrow, tlist, tint
 from dreamcoder.utilities import *
@@ -34,29 +34,6 @@ def createFrontiersWithInputsFromTask(frontiers, task):
 
     print("Dropping {} out of {} due to error when executing on specified inputs".format(len(frontiers) - len(newFrontiers), len(frontiers)))
     return newFrontiers
-
-
-def sampleProperties(args, propertyGrammar, tasks, propertyRequest, similarTasks=None):
-
-    # if we sample properties by "unique_task_signature" we don't need to enumerate the same properties
-    # for every task, as whether we choose to include the property or not depends on all tasks.
-    propertyTasksToSolve = convertToPropertyTasks(tasks, propertyRequest)
-    if args["propScoringMethod"] == "unique_task_signature":
-        likelihoodModel = UniqueTaskSignatureScore(timeout=0.1, tasks=propertyTasksToSolve)
-        propertyTasksToEnumerate = [propertyTasksToSolve[0]]
-        similarTasks = None
-    else:
-        raise NotImplementedError
-
-    print("Enumerating with {} CPUs".format(args["propCPUs"]))
-    frontiers, times, pcs, likelihoodModel = multicoreEnumeration(propertyGrammar, propertyTasksToEnumerate, solver=args["propSolver"],maximumFrontier= int(10e7),
-                                                 enumerationTimeout= args["propSamplingTimeout"], CPUs=args["propCPUs"],
-                                                 evaluationTimeout=0.01,
-                                                 testing=True, likelihoodModel=likelihoodModel, similarTasks=similarTasks)
-    assert len(frontiers) == 1
-
-    properties = [Property(program=entry.program.evaluate([]), request=propertyRequest, name=str(entry.program), logPrior=entry.logPosterior) for entry in frontiers[0].entries]
-    return properties, likelihoodModel
 
 
 def _reduceByEvaluating(p, primitives):
@@ -202,149 +179,6 @@ def loadEnumeratedTasks(dslName, k=1, numExamples=11):
 #     return allFrontiers
 
 
-def getPropertySimTasksMatrix(allFrontiers, properties, taskPropertyValueToInt):
-    """
-
-    Returns:
-        A matrix of size (len(allFrontiers), len(properties))
-    """
-    matrix = []
-    for f in allFrontiers:
-        taskSig = [taskPropertyValueToInt[prop.getValue(f.task)] for prop in properties]
-        matrix.append(taskSig)
-    return np.array(matrix)
-
-
-def getTaskSimilarFrontier(allFrontiers, propertyFeatureExtractor, propertySimTasksMatrix, valuesToInt, task, grammar, featureExtractorArgs, nSim=20, propertyToPriorDistribution=None, onlyUseTrueProperties=True, verbose=False):
-    """
-    Returns:
-        frontiersToUse (list): A list of Frontier objects of the nSim most similar tasks to task. List of frontier is used to fit unigram / fit 
-        bigram / train recognition model
-    """
-
-    vprint("\n------------------------------------------------ Task {} ----------------------------------------------------".format(task), verbose)
-    vprint(task.describe(), verbose)
-    simDf = createSimilarTasksDf(task, allFrontiers, propertyFeatureExtractor, propertySimTasksMatrix, propertyToPriorDistribution, valuesToInt, onlyUseTrueProperties=onlyUseTrueProperties, verbose=verbose)
-
-
-    # check if any of the similar tasks programs are actually solutions for the task we want to solve
-    solved = False
-    for idx in simDf.head(nSim).index.values:
-        simProgram = allFrontiers[idx].entries[0].program
-        solved = task.check(simProgram, timeout=1)
-        if solved:
-            vprint("\nFound program solution: {}".format(simProgram), verbose)
-            break
-
-
-    vprint("\n{} Most Similar Prop Sig Tasks\n--------------------------------------------------------------------------------".format(nSim), verbose)
-    frontiersToUse, frontierWeights = [], []
-    for idx in simDf.head(nSim).index.values:        
-        vprint("\nTask percent true property overlap: {}".format(simDf.loc[idx, "score"]), verbose)
-        vprint(allFrontiers[idx].task.describe(), verbose)
-        vprint("\nProgram ({}): {}".format(simDf.loc[idx, "programPrior"], simDf.loc[idx, "program"]), verbose)
-
-        
-        # evalReducedProgram = _reduceByEvaluating(simDf.loc[idx, "program"], {p.name: p for p in grammar.primitives})
-        # vprint("\nEvaluation Reduced Program ({}): {}".format(grammar.logLikelihood(propertyFeatureExtractor.tasks[idx].request, evalReducedProgram), evalReducedProgram), verbose)
-
-        # TODO: remove eventually
-        frontier = allFrontiers[idx]
-        frontiersToUse.append(allFrontiers[idx])
-        frontierWeights.append(simDf.loc[idx, "score"])
-    return frontiersToUse, frontierWeights, solved
-
-
-def _getPriorBasedSimilarityScore(taskSig, trainTaskSig, propertyToPriorDistribution):
-
-    taskProbsPerPropValue = propertyToPriorDistribution[taskSig, np.arange(propertyToPriorDistribution.shape[1])]
-    trainTaskProbsPerPropValue = propertyToPriorDistribution[trainTaskSig, np.arange(propertyToPriorDistribution.shape[1])]
-
-
-    # The weight of each property p_i is the probability of (p_i(taskSig), p_i(trainTaskSig))
-    weights = 1.0 / np.multiply(taskProbsPerPropValue,trainTaskProbsPerPropValue)
-    
-    # vector of 0s where different value and 1s where same
-    similarityVector = np.zeros(taskSig.shape[0])
-    samePropertyVals = np.equal(trainTaskSig,taskSig)
-    similarityVector[np.where(samePropertyVals)] = 1.0
-
-    similarityVector = np.multiply(similarityVector, weights)
-
-    return np.sum(similarityVector)
-
-def _getSimilarityScore(taskSig, trainTaskSig, onlyUseTrueProperties):
-
-    similarityVector = np.zeros(taskSig.shape[0])
-    samePropertyVals = np.equal(trainTaskSig,taskSig)
-
-    if onlyUseTrueProperties:
-        similarityVector[np.where((samePropertyVals) & (taskSig == 1))] = 1
-        denominator = (taskSig == 1).sum()
-    else:
-        similarityVector[np.where((samePropertyVals))] = 1
-        denominator = taskSig.shape[0]
-
-    return np.sum(similarityVector.astype(int)) / denominator
-
-def createSimilarTasksDf(task, allFrontiers, propertyFeatureExtractor, propertySimTasksMatrix, propertyToPriorDistribution, valuesToInt, onlyUseTrueProperties, verbose=False):
-    """
-    Args:
-        task (Task): the task we want to solve.
-        allFrontiers (list(Frontiers)): list of all the sampled frontiers
-        propertyFeatureExtractor (PropertySignatureExtractor): the property signature feature extractor to use to compute properties
-        onlyUseTrueProperties (boolean): whether to calculate similarity score only using true properties of task or all of them. if 
-        onlyUseTrueProperties any task with allTrue for all allTrue properties of task, will be deemed 100% similar even if for other
-        properties their values differ.
-
-    Returns:
-        A dataframe where rows are tasks (indexed by task idx corresponding to propertyFeatureExtractor.tasks) with one column for the 
-        similarity score of every task
-
-    """
-
-    # propertyFeatureExtractor.featuresOfTask(task, onlyUseTrueProperties=onlyUseTrueProperties)
-    # taskSig = propertyFeatureExtractor.booleanPropSig.numpy()
-
-    if onlyUseTrueProperties:
-        taskSig = np.array([valuesToInt[prop.getValue(task)] for prop in propertyFeatureExtractor.properties])
-        
-        taskProbsPerPropValue = list(propertyToPriorDistribution[taskSig, np.arange(propertyToPriorDistribution.shape[1])])
-        sortedTaskProbsPerPropValue = sorted([(i,score) for i,score in enumerate(taskProbsPerPropValue)], key=lambda x: x[1], reverse=True)
-
-        n = 20
-        vprint("{} Highest scoring properties:".format(n), verbose)
-        for i,propertyScore in sortedTaskProbsPerPropValue[:n]:
-            vprint("{} -> {}".format(propertyScore, propertyFeatureExtractor.properties[i]), verbose)
-        # allTrueIdx = np.argwhere(taskSig == 1).reshape(-1)
-        # taskSig = taskSig[allTrueIdx]
-        # vprint("\n{} true properties for task {}\n".format(len(allTrueIdx), task.name), verbose)
-        # for idx in allTrueIdx:
-        #     vprint(propertyFeatureExtractor.properties[idx].name, verbose)
-
-        # for performance reasons we only keep the columns (properties) that are true for the task of interest
-        # properties = [el for i,el in enumerate(propertyFeatureExtractor.properties) if i in allTrueIdx]
-        properties = propertyFeatureExtractor.properties
-    else:
-        raise NotImplementedError
-
-    df = pd.DataFrame(data=propertySimTasksMatrix[:, :].T, index=[p.name for p in properties])
-
-    if propertyToPriorDistribution is not None:
-        simSeries = df.apply(lambda col: _getPriorBasedSimilarityScore(taskSig, col, propertyToPriorDistribution[:, :]), axis=0)
-    else:
-        simSeries = df.apply(lambda col: _getSimilarityScore(taskSig, col, onlyUseTrueProperties), axis=0)
-    simDf = simSeries.to_frame(name="score")
-
-    # normalize score to make in range 0 to 1
-    # simDf["score"] = simDf["score"] / simDf["score"].max()
-    simDf["program"] = [allFrontiers[int(idx)].entries[0].program for idx in simDf.index]
-    simDf["programPrior"] = [allFrontiers[int(idx)].entries[0].logPrior for idx in simDf.index]
-    simDf["maxOutputListLength"] = [-max([len(o) for i,o in allFrontiers[int(idx)].task.examples]) for idx in simDf.index]
-    simDf = simDf.drop_duplicates(subset=["program"])
-
-    return simDf.sort_values(["score", "programPrior", "maxOutputListLength"], ascending=False)
-
 
 def loadSampledTasks(k=1, batchSize=100, n=10000, dslName="jrule", isSample=True):
 
@@ -391,7 +225,7 @@ def enumerateFromGrammars(grammars, tasks, modelName, enumerationTimeout, solver
     return bottomUpFrontiers, allRecognitionTimes
 
 
-def comparePropSimFittedToRnnEncoded(train, frontiers, grammar, sampledFrontiers, propertyFeatureExtractor, featureExtractorArgs, nSimList, pseudoCounts, weightedSim, compressSimilar, weightByPrior, taskSpecificInputs, verbose=False):
+def comparePropSimFittedToRnnEncoded(train, frontiers, grammar, sampledFrontiers, propertyFeatureExtractor, featureExtractorArgs, nSimList, pseudoCounts, weightedSim, compressSimilar, weightByPrior, taskSpecificInputs, onlyUseTrueProperties, computePriorFromTasks, verbose=False):
     """
     Given a frontier of tasks prints out the logposterior of tasks in train using:
         - the RNN-encoded neural recogntion model
@@ -403,8 +237,8 @@ def comparePropSimFittedToRnnEncoded(train, frontiers, grammar, sampledFrontiers
     taskToFrontier = {f.task:f for f in frontiers if len(f.entries) > 0}
 
     task2FittedGrammars, tasksSolved, task2SimFrontiers = getPropSimGrammars(grammar, train, sampledFrontiers, propertyFeatureExtractor, featureExtractorArgs, 
-        onlyUseTrueProperties=True, nSimList=nSimList, pseudoCounts=pseudoCounts, weightedSim=weightedSim, compressSimilar=False, weightByPrior=weightByPrior, 
-        recomputeTasksWithTaskSpecificInputs=taskSpecificInputs, verbose=verbose)
+        onlyUseTrueProperties=onlyUseTrueProperties, nSimList=nSimList, pseudoCounts=pseudoCounts, weightedSim=weightedSim, compressSimilar=False, weightByPrior=weightByPrior, 
+        recomputeTasksWithTaskSpecificInputs=taskSpecificInputs, computePriorFromTasks=computePriorFromTasks, verbose=verbose)
 
     if compressSimilar:
         raise NotImplementedError

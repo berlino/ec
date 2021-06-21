@@ -5,11 +5,13 @@ from collections import Counter
 import math
 import numpy as np
 
-from dreamcoder.domains.list.property import getTaskPropertyValue, Property
+from dreamcoder.domains.list.property import getTaskPropertyValue, getTaskPropertyValues, getTaskAllSamePropertyValue, getTaskPropertyEntropy, Property
 from dreamcoder.domains.regex.groundtruthRegexes import gt_dict
 from dreamcoder.program import Program
 
 gt_dict = {"Data column no. "+str(num): r_str for num, r_str in gt_dict.items()}
+MIN_NUM_NON_ERROR_EXAMPLES = 3
+NUM_SAMPLES = 10
 
 class AllOrNothingLikelihoodModel:
     def __init__(self, timeout=None, leaveHoldout=False):
@@ -43,7 +45,6 @@ class PropertyScore:
         self.tasks = tasks
         self.cachedProgramHashToPropValues = {}
         self.properties = []
-        self.taskPropertyValueToInt = {"allFalse":0, "allTrue":1, "mixed":0}
 
     def _evaluateProgram(self, program):
         try:
@@ -56,8 +57,55 @@ class PropertyScore:
             return None
         return f
 
+class TaskSurprisalScore(PropertyScore):
+    def __init__(self, timeout=None, tasks=None):
+        super().__init__(timeout=timeout, tasks=tasks)
 
-class UniqueTaskSignatureScore(PropertyScore):
+    def score(self, program, task, programName=None, programRequest=None):
+        f = self._evaluateProgram(program) if isinstance(program, Program) else program
+        if f is None:
+            return False, 0.0
+
+        taskToValues = {}
+        for t in self.tasks:
+            taskToValues[t] = getTaskPropertyValues(f, t)
+
+        # calculate expected (over programs/tasks) entropy of property distribution minus entropy of
+        # property distribution for this task
+        numNonErrorValues = len(taskToValues[task])
+        if numNonErrorValues < MIN_NUM_NON_ERROR_EXAMPLES:
+            return False, 0.0
+
+        propertyTaskEntropy = {}
+        for i in range(MIN_NUM_NON_ERROR_EXAMPLES, numNonErrorValues+1): 
+            propertyTaskEntropy[i] = getTaskPropertyEntropy(numExamples=i, values=taskToValues[task], nSamples=NUM_SAMPLES)
+        # print("propertyTaskEntropy", propertyTaskEntropy)
+
+        taskEntropies = []
+        otherTasksEntropies = []
+        for t in self.tasks:
+            if t != task:
+                try:
+                    # print("numNonErrorValues: {}, otherTask nonErrroValues: {}".format(numNonErrorValues, len(taskToValues[t])))
+                    numExamplesToUse = min(numNonErrorValues, len(taskToValues[t]))
+                    if numExamplesToUse < MIN_NUM_NON_ERROR_EXAMPLES:
+                        continue
+                    else:
+                        otherTaskEntropy = getTaskPropertyEntropy(numExamples=numExamplesToUse, values=taskToValues[t], nSamples=NUM_SAMPLES)
+                        otherTasksEntropies.append(otherTaskEntropy)
+                        taskEntropies.append(propertyTaskEntropy[numExamplesToUse])
+                except Exception as e:
+                    # print(e)
+                    pass
+
+        taskMeanEntropy = np.mean(taskEntropies)
+        otherTasksMeanEntropy = np.mean(otherTasksEntropies)
+        # print("otherTasksMeanEntropy: {}\ntaskMeanEntropy: {}".format(otherTasksMeanEntropy, taskMeanEntropy))
+        score = otherTasksMeanEntropy - taskMeanEntropy
+        return (score > 1.0 and taskMeanEntropy == 0.0), score
+
+
+class GeneralUniqueTaskSignatureScore(PropertyScore):
     """
     Score is dataset-specific (where by dataset we mean the list of tasks)!
 
@@ -78,7 +126,65 @@ class UniqueTaskSignatureScore(PropertyScore):
             raise Exception("You must provide all tasks to score function")
         
         numTasks = len(self.tasks)
-        propertyValues = []
+
+        f = self._evaluateProgram(program) if isinstance(program, Program) else program
+        if f is None:
+            return False, 0.0
+        
+        # get value of property for tasks
+        hashElements = []
+        allSameValues = set()
+        allSameForAllTasks = True
+        for taskIdx,t in enumerate(self.tasks):
+            isAllSame, value = getTaskAllSamePropertyValue(f, t)
+            if isAllSame:
+                # make value hashable
+                value = str(value)
+                hashElements.append(str(taskIdx))
+                # hashElements.append(value)
+                allSameValues.add(value)
+            else:
+                allSameForAllTasks = False
+
+        # hash property values to check if observationally equivalent property has already been calculated
+        propertyHash = str("_".join(hashElements))
+        # property for which all tasks result in mixed is useless
+        noAddCondition = (propertyHash in self.propertyValuesHashes) or (allSameForAllTasks)
+        if noAddCondition:
+            return False, 0.0
+        else:
+            print("program", program)
+            print("propertyHash", propertyHash)
+            self.propertyValuesHashes.add(propertyHash)
+            self.properties.append((program, allSameValues))
+            return True, 1.0
+
+    def scoreProperty(self, prop, tasksForPropertyScoring):
+        raise Exception("scoreProperty not implemented for GeneralUniqueTaskSignature")
+
+
+class UniqueTaskSignatureScore(PropertyScore):
+    """
+    Score is dataset-specific (where by dataset we mean the list of tasks)!
+
+    Used to evaluate whether an enumerated property is good, where a good property
+    is one that results in a diffferent property signature than all the previously
+    encountered ones
+    """
+
+    def __init__(self, timeout=None, tasks=None):
+        super().__init__(timeout=timeout, tasks=tasks)
+        self.propertyValuesHashes = set()
+        self.taskPropertyValueToInt = {"allFalse":0, "allTrue":1, "mixed":2}
+
+    def score(self, program, task, programName=None, programRequest=None):
+        """
+        """
+
+        if self.tasks is None:
+            raise Exception("You must provide all tasks to score function")
+        
+        numTasks = len(self.tasks)
 
         f = self._evaluateProgram(program) if isinstance(program, Program) else program
         if f is None:
@@ -86,8 +192,8 @@ class UniqueTaskSignatureScore(PropertyScore):
         
         # get value of property for tasks
         propertyValues = []
-        for task in self.tasks:
-            taskValue = getTaskPropertyValue(f, task)
+        for t in self.tasks:
+            taskValue = getTaskPropertyValue(f, t)
             propertyValues.append(taskValue)
 
         # hash property values to check if observationally equivalent property has already been calculated
@@ -99,9 +205,9 @@ class UniqueTaskSignatureScore(PropertyScore):
         else:
             self.propertyValuesHashes.add(propertyHash)
             sampledProperty = Property(program=f, name=programName, request=programRequest)
-            for task, value in zip(self.tasks, propertyValues):
-                sampledProperty.updateCachedTaskEvaluations(task, value)
-            self.properties.append(sampledProperty)
+            for t, value in zip(self.tasks, propertyValues):
+                sampledProperty.updateCachedTaskEvaluations(t, value)
+            # self.properties.append(sampledProperty)
             return True, 1.0
 
     def scoreProperty(self, prop, tasksForPropertyScoring):
@@ -174,6 +280,7 @@ class TaskDiscriminationScore(PropertyScore):
 
     def __init__(self, timeout=None, tasks=None):
         super().__init__(timeout=timeout, tasks=tasks)
+        self.taskPropertyValueToInt = {"allFalse":0, "allTrue":1, "mixed":2}
 
     def score(self, program, task, programName=None, programRequest=None):
         """

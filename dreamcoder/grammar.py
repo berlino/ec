@@ -430,7 +430,7 @@ class Grammar(object):
                 for e in f:
                     _, eu = e.program
                     if frontierWeights is not None:
-                        weight = 0.0 if frontierWeights == 0.0 else 10 ** (frontierWeights[i] - 1.0)
+                        weight = frontierWeights[i]
                         u += weight * eu
                     elif weightByPrior:
                         u += math.exp(e.logPosterior) * eu

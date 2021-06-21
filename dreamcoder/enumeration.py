@@ -17,7 +17,6 @@ def multicoreEnumeration(g, tasks, _=None,
                          testing=False,
                          likelihoodModel=None,
                          leaveHoldout=False,
-                         similarTasks=None,
                          enumerateFromSketch=None):
     '''g: Either a Grammar, or a map from task to grammar.
     Returns (list-of-frontiers, map-from-task-to-search-time, map-from-task-to-number-enumerated)'''

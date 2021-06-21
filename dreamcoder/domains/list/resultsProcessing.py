@@ -213,29 +213,6 @@ def evaluateRecognizersForTask(baseGrammar, ecResults, recognizerNames=None, tas
         logVariableGrammar = Grammar(2.0, [(0.0, p.infer(), p) for p in grammar.primitives], continuationType=None)
         logVariableGrammarPrior = logVariableGrammar.logLikelihood(task.request, program)
 
-def plotFrontiers(fileNames, modelNames, save=True):
-
-    plt.rcParams["axes.prop_cycle"] = plt.cycler("color", plt.cm.viridis(np.linspace(0,1, len(fileNames))))
-
-    for modelIdx,fileName in enumerate(fileNames):
-        frontiers, times = dill.load(open(fileName, "rb"))
-
-        satisfiesHoldout = lambda f: f.task.check(f.topK(1).entries[0].program, timeout=1.0, leaveHoldout=False)
-        logPosteriors = sorted([-f.bestPosterior.logPosterior for f in frontiers if (len(f.entries) > 0 and satisfiesHoldout(f))])
-        print(fileName, len(logPosteriors))
-        print(modelIdx)
-        print(modelNames)
-        plt.plot(logPosteriors, [i / len(frontiers) for i in range(len(logPosteriors))], label=modelNames[modelIdx], alpha=0.6)
-
-    plt.ylim(bottom=0, top=1)
-    plt.legend()
-    plt.show()
-    if save:
-        plt.savefig("enumerationResults/enumerationTimes.png")
-    return
-
-
-
 def viewResults(rec):
 
     pickleFile = "experimentOutputs/jrule/2021-04-29T00:06:25.721563/jrule_arity=3_BO=False_CO=False_dp=False_doshaping=False_ES=1_ET=600_epochs=99999_HR=1.0_it=1_MF=10_parallelTest=False_RT=7200_RR=False_RW=False_st=False_STM=True_TRR=default_K=2_topkNotMAP=False_tset=S12_DSL=False.pickle"

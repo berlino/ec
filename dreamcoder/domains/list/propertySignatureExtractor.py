@@ -2,7 +2,8 @@ from dreamcoder.domains.list.listPrimitives import bootstrapTarget_extra
 from dreamcoder.domains.list.handwrittenProperties import handWrittenProperties, handWrittenPropertyFuncs, tinput, toutput
 from dreamcoder.domains.list.makeListTasks import joshTasks
 from dreamcoder.domains.list.property import Property
-from dreamcoder.domains.list.utilsProperties import convertToPropertyTasks, sampleProperties
+from dreamcoder.domains.list.utilsProperties import convertToPropertyTasks
+from dreamcoder.domains.list.utilsPropertySampling import convertToPropertyTasks, enumerateProperties
 
 from dreamcoder.dreaming import backgroundHelmholtzEnumeration
 from dreamcoder.enumeration import multicoreEnumeration
@@ -26,8 +27,8 @@ class PropertySignatureExtractor(nn.Module):
     special = None
     
     def __init__(self, 
-        tasks=[],
-        similarTasks=None,
+        tasksToSolve=[],
+        allTasks=None,
         cuda=False, 
         H=64,
         embedSize=16,
@@ -52,12 +53,13 @@ class PropertySignatureExtractor(nn.Module):
         self.featureExtractorArgs = featureExtractorArgs
         self.grammar = grammar
 
-        self.tasks = tasks
-        self.similarTasks = similarTasks
+        self.allTasks = allTasks
+        self.tasksToSolve = tasksToSolve
         print("useEmbeddings: {}".format(self.useEmbeddings))
 
         self.propertyRequest = propertyRequest
-        self.propertyTasks = convertToPropertyTasks(self.tasks, self.propertyRequest)
+        self.propertyAllTasks = convertToPropertyTasks(self.allTasks, self.propertyRequest)
+        self.propertyTasksToSolve = convertToPropertyTasks(self.tasksToSolve, self.propertyRequest)
         print("Finished creating propertyTasks")
 
         if self.useEmbeddings:
@@ -68,17 +70,17 @@ class PropertySignatureExtractor(nn.Module):
 
         # maps from a requesting type to all of the inputs that we ever saw with that request
         self.requestToInputs = {
-            tp: [list(map(lambda ex: ex[0][0], t.examples)) for t in tasks if t.request == tp ]
-            for tp in {t.request for t in tasks}
+            tp: [list(map(lambda ex: ex[0][0], t.examples)) for t in self.allTasks if t.request == tp ]
+            for tp in {t.request for t in self.allTasks}
         }
 
         inputTypes = {t
-                      for task in tasks
+                      for task in self.allTasks
                       for t in task.request.functionArguments()}
         # maps from a type to all of the inputs that we ever saw having that type
         self.argumentsWithType = {
             tp: [ x
-                  for t in tasks
+                  for t in self.allTasks
                   for xs,_ in t.examples
                   for tpp, x in zip(t.request.functionArguments(), xs)
                   if tpp == tp]
@@ -87,8 +89,8 @@ class PropertySignatureExtractor(nn.Module):
 
         self.requestToNumberOfExamples = {
             tp: [ len(t.examples)
-                  for t in tasks if t.request == tp ]
-            for tp in {t.request for t in tasks}
+                  for t in self.allTasks if t.request == tp ]
+            for tp in {t.request for t in self.allTasks}
         }
         self.helmholtzTimeout = helmholtzTimeout
         self.helmholtzEvaluationTimeout = helmholtzEvaluationTimeout
@@ -111,7 +113,7 @@ class PropertySignatureExtractor(nn.Module):
             dreamTasks (list(Task)): python list of helmholtz-sampled Task objects
         """
 
-        helmholtzFrontiers = backgroundHelmholtzEnumeration(tasks, dslGrammar, 3,
+        helmholtzFrontiers = backgroundHelmholtzEnumeration(self.tasksToSolve, dslGrammar, 3,
                                                             evaluationTimeout=0.001,
                                                             special="unique")
         frontiers = helmholtzFrontiers()
@@ -136,10 +138,10 @@ class PropertySignatureExtractor(nn.Module):
         maxLL = maxLL if maxLL < 0 else 3
 
         propertyPrimitives = self.featureExtractorArgs["propertyPrimitives"]
-        toutputToList = Primitive("toutput_to_tlist", arrow(toutput, tlist(tint)), lambda x: x)
-        tinputToList = Primitive("tinput_to_tlist", arrow(tinput, tlist(tint)), lambda x: x)
-        propertyPrimitives = propertyPrimitives + [tinputToList, toutputToList]
-        # self.grammar.expression2likelihood[toutputToList] = medianLL
+        if tinput in self.propertyRequest.functionArguments():
+            toutputToList = Primitive("toutput_to_tlist", arrow(toutput, tlist(tint)), lambda x: x)
+            tinputToList = Primitive("tinput_to_tlist", arrow(tinput, tlist(tint)), lambda x: x)
+            propertyPrimitives = propertyPrimitives + [tinputToList, toutputToList]
 
         if self.featureExtractorArgs["propAddZeroToNinePrims"]:
 
@@ -164,9 +166,9 @@ class PropertySignatureExtractor(nn.Module):
         self.propertyGrammar = self._getPropertyGrammar()
         if self.featureExtractorArgs["propDreamTasks"]:
             dreamtTasks = sellf._getHelmholtzTasks(1000)
-            properties, likelihoodModel = sampleProperties(self.featureExtractorArgs, self.propertyGrammar, dreamtTasks, self.propertyRequest, similarTasks=self.similarTasks)
+            properties, likelihoodModel = enumerateProperties(self.featureExtractorArgs, self.propertyGrammar, dreamtTasks, self.propertyRequest, allTasks=self.propertyAllTasks)
         else:
-            properties, likelihoodModel = sampleProperties(self.featureExtractorArgs, self.propertyGrammar, self.propertyTasks, self.propertyRequest, similarTasks=self.similarTasks)
+            properties, likelihoodModel = enumerateProperties(self.featureExtractorArgs, self.propertyGrammar, self.propertyTasksToSolve, self.propertyRequest, allTasks=self.propertyAllTasks)
         
         return properties
 

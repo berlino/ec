@@ -1,34 +1,37 @@
-import random
+
 from collections import defaultdict
 import copy
+import datetime
+import dill
 import json
 import math
 import numpy as np
 import os
 import pandas as pd
+import random
 import torch.nn as nn
 import torch
-import datetime
-import dill
 
 from dreamcoder.dreamcoder import explorationCompression
 from dreamcoder.enumeration import multicoreEnumeration
-from dreamcoder.likelihoodModel import UniqueTaskSignatureScore, TaskDiscriminationScore
+from dreamcoder.likelihoodModel import UniqueTaskSignatureScore, TaskDiscriminationScore, TaskSurprisalScore
 from dreamcoder.utilities import eprint, flatten, testTrainSplit, numberOfCPUs, getThisMemoryUsage, getMemoryUsageFraction, howManyGigabytesOfMemory
 from dreamcoder.program import *
 from dreamcoder.recognition import DummyFeatureExtractor, RecognitionModel
 from dreamcoder.grammar import Grammar
 from dreamcoder.task import Task
 from dreamcoder.type import Context, arrow, tbool, tlist, tint, t0, UnificationFailure
+from dreamcoder.domains.list.compareProperties import compare
 from dreamcoder.domains.list.propSim import *
 from dreamcoder.domains.list.listPrimitives import basePrimitives, primitives, McCarthyPrimitives, bootstrapTarget_extra, no_length, josh_primitives
 from dreamcoder.domains.list.makeListTasks import make_list_bootstrap_tasks, sortBootstrap, EASYLISTTASKS, joshTasks
 from dreamcoder.domains.list.property import Property
 from dreamcoder.domains.list.propertySignatureExtractor import PropertySignatureExtractor
-from dreamcoder.domains.list.resultsProcessing import resume_from_path, viewResults, plotFrontiers
+from dreamcoder.domains.list.resultsProcessing import resume_from_path, viewResults
 from dreamcoder.domains.list.handwrittenProperties import handWrittenProperties, getHandwrittenPropertiesFromTemplates, tinput, toutput
+from dreamcoder.domains.list.utilsPlotting import *
 from dreamcoder.domains.list.utilsProperties import *
-from dreamcoder.domains.list.utilsPropertySampling import updateSavedPropertiesWithNewCacheTable
+from dreamcoder.domains.list.utilsPropertySampling import *
 
 
 DATA_DIR = "data/prop_sig/"
@@ -55,116 +58,9 @@ def retrieveJSONTasks(filename, features=False):
         item["name"],
         arrow(TP[item["type"]["input"]], TP[item["type"]["output"]]),
         [((ex["i"],), ex["o"]) for ex in item["examples"]],
-        features=(None if not features else list_features(
-            [((ex["i"],), ex["o"]) for ex in item["examples"]])),
+        features=None,
         cache=False,
     ) for item in loaded]
-
-
-def list_features(examples):
-    if any(isinstance(i, int) for (i,), _ in examples):
-        # obtain features for number inputs as list of numbers
-        examples = [(([i],), o) for (i,), o in examples]
-    elif any(not isinstance(i, list) for (i,), _ in examples):
-        # can't handle non-lists
-        return []
-    elif any(isinstance(x, list) for (xs,), _ in examples for x in xs):
-        # nested lists are hard to extract features for, so we'll
-        # obtain features as if flattened
-        examples = [(([x for xs in ys for x in xs],), o)
-                    for (ys,), o in examples]
-
-    # assume all tasks have the same number of examples
-    # and all inputs are lists
-    features = []
-    ot = type(examples[0][1])
-
-    def mean(l): return 0 if not l else sum(l) / len(l)
-    imean = [mean(i) for (i,), o in examples]
-    ivar = [sum((v - imean[idx])**2
-                for v in examples[idx][0][0])
-            for idx in range(len(examples))]
-
-    # DISABLED length of each input and output
-    # total difference between length of input and output
-    # DISABLED normalized count of numbers in input but not in output
-    # total normalized count of numbers in input but not in output
-    # total difference between means of input and output
-    # total difference between variances of input and output
-    # output type (-1=bool, 0=int, 1=list)
-    # DISABLED outputs if integers, else -1s
-    # DISABLED outputs if bools (-1/1), else 0s
-    if ot == list:  # lists of ints or bools
-        omean = [mean(o) for (i,), o in examples]
-        ovar = [sum((v - omean[idx])**2
-                    for v in examples[idx][1])
-                for idx in range(len(examples))]
-
-        def cntr(
-            l, o): return 0 if not l else len(
-            set(l).difference(
-                set(o))) / len(l)
-        cnt_not_in_output = [cntr(i, o) for (i,), o in examples]
-
-        #features += [len(i) for (i,), o in examples]
-        #features += [len(o) for (i,), o in examples]
-        features.append(sum(len(i) - len(o) for (i,), o in examples))
-        #features += cnt_not_int_output
-        features.append(sum(cnt_not_in_output))
-        features.append(sum(om - im for im, om in zip(imean, omean)))
-        features.append(sum(ov - iv for iv, ov in zip(ivar, ovar)))
-        features.append(1)
-        # features += [-1 for _ in examples]
-        # features += [0 for _ in examples]
-    elif ot == bool:
-        outs = [o for (i,), o in examples]
-
-        #features += [len(i) for (i,), o in examples]
-        #features += [-1 for _ in examples]
-        features.append(sum(len(i) for (i,), o in examples))
-        #features += [0 for _ in examples]
-        features.append(0)
-        features.append(sum(imean))
-        features.append(sum(ivar))
-        features.append(-1)
-        # features += [-1 for _ in examples]
-        # features += [1 if o else -1 for o in outs]
-    else:  # int
-        def cntr(
-            l, o): return 0 if not l else len(
-            set(l).difference(
-                set(o))) / len(l)
-        cnt_not_in_output = [cntr(i, [o]) for (i,), o in examples]
-        outs = [o for (i,), o in examples]
-
-        #features += [len(i) for (i,), o in examples]
-        #features += [1 for (i,), o in examples]
-        features.append(sum(len(i) for (i,), o in examples))
-        #features += cnt_not_int_output
-        features.append(sum(cnt_not_in_output))
-        features.append(sum(o - im for im, o in zip(imean, outs)))
-        features.append(sum(ivar))
-        features.append(0)
-        # features += outs
-        # features += [0 for _ in examples]
-
-    return features
-
-
-def isListFunction(tp):
-    try:
-        Context().unify(tp, arrow(tlist(tint), t0))
-        return True
-    except UnificationFailure:
-        return False
-
-
-def isIntFunction(tp):
-    try:
-        Context().unify(tp, arrow(tint, t0))
-        return True
-    except UnificationFailure:
-        return False
 
 try:
     from dreamcoder.recognition import RecurrentFeatureExtractor
@@ -340,12 +236,15 @@ def list_options(parser):
     parser.add_argument("--extractor", default="learned", choices=[
         "prop_sig",
         "learned",
-        "combined"
+        "combined",
+        "dummy"
         ])
     parser.add_argument("--hidden", type=int, default=64)
 
 
-    # Arguments relating to properties
+    # Arguments relating to propSim
+    parser.add_argument("--propFilename", type=str, default=None)
+    parser.add_argument("--computePriorFromTasks", action="store_true", default=False)
     parser.add_argument("--nSim", type=int, default=50)
     parser.add_argument("--propPseudocounts", type=int, default=1)
     parser.add_argument("--onlyUseTrueProperties", action="store_true", default=False)
@@ -364,13 +263,20 @@ def list_options(parser):
     parser.add_argument("--propScoringMethod", default="unique_task_signature", choices=[
         "per_task_discrimination",
         "unique_task_signature",
-        "per_similar_task_discrimination"
+        "general_unique_task_signature",
+        "per_similar_task_discrimination",
+        "per_task_surprisal"
         ])
     parser.add_argument("--propDreamTasks", action="store_true", default=False)
     parser.add_argument("--propToUse", default="handwritten", choices=[
         "handwritten",
         "preloaded",
         "sample"
+        ])
+    parser.add_argument("--propSamplingGrammarWeights", default="uniform", choices=[
+        "uniform",
+        "fitted",
+        "random"
         ])
     parser.add_argument("--propNoEmbeddings", action="store_true", default=False)
 
@@ -381,6 +287,9 @@ def main(args):
     trains/tests the model on manipulating sequences of numbers.
     """
     
+    propFilename = args.pop("propFilename")
+    propSamplingGrammarWeights = args.pop("propSamplingGrammarWeights")
+    computePriorFromTasks = args.pop("computePriorFromTasks")
     nSim = args.pop("nSim")
     propPseudocounts = args.pop("propPseudocounts")
     onlyUseTrueProperties = args.pop("onlyUseTrueProperties")
@@ -472,10 +381,52 @@ def main(args):
         }
         if propToUse == "handwritten":
             properties = getHandwrittenPropertiesFromTemplates(tasks)
+            propertyFeatureExtractor = extractor(tasksToSolve=tasks, allTasks=tasks, grammar=baseGrammar, cuda=False, featureExtractorArgs=featureExtractorArgs, properties=properties)
+            print("Loaded {} properties from: {}".format(len(properties), "handwritten"))
+        
         elif propToUse == "preloaded":
-            propertiesFilename = "sampled_properties_fitted_60s_sampling_timeout.pkl"
-            properties = dill.load(open(DATA_DIR + SAMPLED_PROPERTIES_DIR + propertiesFilename, "rb"))
-        propertyFeatureExtractor = extractor(tasks, grammar=baseGrammar, cuda=False, featureExtractorArgs=featureExtractorArgs, properties=properties)
+            assert propFilename is not None
+            properties = dill.load(open(DATA_DIR + SAMPLED_PROPERTIES_DIR + propFilename, "rb"))
+            propertyFeatureExtractor = extractor(tasksToSolve=tasks, allTasks=tasks, grammar=baseGrammar, cuda=False, featureExtractorArgs=featureExtractorArgs, properties=properties)
+            print("Loaded {} properties from: {}".format(len(properties), propFilename))
+        
+        elif propToUse == "sample":
+            # only used if property sampling grammar weights are "fitted"
+            fileName = "enumerationResults/neuralRecognizer_2021-05-18 15:27:58.504808_t=600.pkl"
+            frontiers, times = dill.load(open(fileName, "rb"))
+            allProperties = {}
+            tasksToSolve = tasks[0:1]
+            returnTypes = [tbool]
+
+            for returnType in returnTypes:
+                propertyRequest = arrow(tlist(tint), tlist(tint), returnType)
+
+                grammar = getPropertySamplingGrammar(baseGrammar, propSamplingGrammarWeights, frontiers, pseudoCounts=1, seed=args["seed"])
+                try:
+                    propertyFeatureExtractor = extractor(tasksToSolve=tasksToSolve, allTasks=tasks, grammar=grammar, cuda=False, featureExtractorArgs=featureExtractorArgs, propertyRequest=propertyRequest)
+                # assertion triggered if 0 properties enumerated
+                except AssertionError:
+                    print("0 properties found")
+
+                for task in tasksToSolve:
+                    allProperties[task] = allProperties.get(task, []) + propertyFeatureExtractor.properties[task]
+
+            for task in tasksToSolve:
+
+                print(task.describe())
+
+                print("Found {} properties for task {}".format(len(allProperties[task]), task))
+                for p in sorted(allProperties[task], key=lambda p: p.score, reverse=True):
+                    print("program: {} \nreturnType: {} \nprior: {:.2f} \nscore: {:.2f}".format(p, p.request.returns(), p.logPrior, p.score))
+                    print("-------------------------------------------------------------")
+
+            if save:
+                filename = "sampled_properties_weights={}_sampling_timeout={}s_return_types={}_seed={}.pkl".format(
+                    propSamplingGrammarWeights, int(featureExtractorArgs["propSamplingTimeout"]), returnTypes, args["seed"])
+                savePath = DATA_DIR + SAMPLED_PROPERTIES_DIR + filename
+                dill.dump(allProperties, open(savePath, "wb"))
+                print("Saving sampled properties at: {}".format(savePath))
+
 
     timestamp = datetime.datetime.now().isoformat()
     outputDirectory = "experimentOutputs/jrule/%s"%timestamp
@@ -504,7 +455,7 @@ def main(args):
 
     if debug:
         sampledFrontiers = loadEnumeratedTasks(dslName=libraryName)
-        randomFrontierIndices = random.sample(range(len(sampledFrontiers)),k=1000)
+        randomFrontierIndices = random.sample(range(len(sampledFrontiers)),k=300)
         sampledFrontiers = [f for i,f in enumerate(sampledFrontiers) if i in randomFrontierIndices]
 
         randomTaskIndices = random.sample(range(len(tasks)),k=10)
@@ -560,24 +511,24 @@ def main(args):
     ##################################
     # Enumeration
     ##################################
-    try:
-        filename = "propToUse={}_nSim={}_weightedSim={}_taskSpecificInputs={}_seed={}.pkl".format(propToUse, nSim, weightedSim, taskSpecificInputs, args["seed"])
-        path = DATA_DIR + GRAMMARS_DIR + filename
-        propSimGrammars = dill.load(open(path, "rb"))
-    except FileNotFoundError:
-        print("Couldn't find pickled fitted grammars, regenerating")
-        propSimGrammars, tasksSolved, _ = getPropSimGrammars(baseGrammar, tasks, sampledFrontiers, propertyFeatureExtractor, featureExtractorArgs, onlyUseTrueProperties, [nSim], propPseudocounts, weightedSim, 
-        compressSimilar=False, weightByPrior=False, recomputeTasksWithTaskSpecificInputs=False, verbose=verbose)
+    # try:
+    #     filename = "propToUse={}_nSim={}_weightedSim={}_taskSpecificInputs={}_seed={}.pkl".format(propToUse, nSim, weightedSim, taskSpecificInputs, args["seed"])
+    #     path = DATA_DIR + GRAMMARS_DIR + filename
+    #     propSimGrammars = dill.load(open(path, "rb"))
+    # except FileNotFoundError:
+    #     print("Couldn't find pickled fitted grammars, regenerating")
+    #     propSimGrammars, tasksSolved, _ = getPropSimGrammars(baseGrammar, tasks, sampledFrontiers, propertyFeatureExtractor, featureExtractorArgs, onlyUseTrueProperties, [nSim], propPseudocounts, weightedSim, 
+    #     compressSimilar=False, weightByPrior=False, recomputeTasksWithTaskSpecificInputs=False, verbose=verbose)
 
-    enumerationTimeout, solver, maximumFrontier, CPUs = args.pop("enumerationTimeout"), args.pop("solver"), args.pop("maximumFrontier"), args.pop("CPUs")
-    modelName = "propSim"
-    grammars = propSimGrammars[nSim]
+    # enumerationTimeout, solver, maximumFrontier, CPUs = args.pop("enumerationTimeout"), args.pop("solver"), args.pop("maximumFrontier"), args.pop("CPUs")
+    # modelName = "propSim"
+    # grammars = propSimGrammars[nSim]
 
-    bottomUpFrontiers, allRecognitionTimes = enumerateFromGrammars(grammars, tasks, modelName, enumerationTimeout, solver, CPUs, maximumFrontier, leaveHoldout=True, save=save)
-    nonEmptyFrontiers = [f for f in bottomUpFrontiers if not f.empty]
-    numTasksProgramDiscovered = len(nonEmptyFrontiers)
-    numTasksSolved = len([f.task for f in nonEmptyFrontiers if f.task.check(f.topK(1).entries[0].program, timeout=1.0, leaveHoldout=False)])
-    print("Enumerating from {} grammars for {} seconds: {} / {} actually true for holdout example".format(modelName, enumerationTimeout, numTasksProgramDiscovered, numTasksSolved, numTasksProgramDiscovered))
+    # bottomUpFrontiers, allRecognitionTimes = enumerateFromGrammars(grammars, tasks, modelName, enumerationTimeout, solver, CPUs, maximumFrontier, leaveHoldout=True, save=save)
+    # nonEmptyFrontiers = [f for f in bottomUpFrontiers if not f.empty]
+    # numTasksProgramDiscovered = len(nonEmptyFrontiers)
+    # numTasksSolved = len([f.task for f in nonEmptyFrontiers if f.task.check(f.topK(1).entries[0].program, timeout=1.0, leaveHoldout=False)])
+    # print("Enumerating from {} grammars for {} seconds: {} / {} actually true for holdout example".format(modelName, enumerationTimeout, numTasksProgramDiscovered, numTasksSolved, numTasksProgramDiscovered))
 #
     #####################
     # Helmhholtz Sampling
@@ -596,24 +547,17 @@ def main(args):
     #####################
 
     # filenames = [
-    # # "enumerationResults/neuralRecognizer_2021-05-11 15:23:26.568699_t=600.pkl", "enumerationResults/neuralRecognizer_2021-05-11 18:04:39.262428_t=600.pkl", 
-    # # "enumerationResults/neuralRecognizer_2021-05-17 15:54:55.857341_t=600.pkl",
     # "enumerationResults/neuralRecognizer_2021-05-23 04:43:46.411556_t=600.pkl",
-    # # "enumerationResults/neuralRecognizer_2021-05-23 04:43:46.411556_t=600.pkl",
-    # # "enumerationResults/propSim_2021-05-10 15:28:36.921856_t=600.pkl", "enumerationResults/propSim_2021-05-11 12:49:11.749481_t=600.pkl", 
-    # # "enumerationResults/propSim_2021-05-12 22:15:52.858092_t=600.pkl", "enumerationResults/propSim_2021-05-12 22:42:53.788790_t=600.pkl", 
     # "enumerationResults/propSim_2021-05-23 04:57:26.284483_t=600.pkl",
-    # "enumerationResults/propSim_2021-06-10 00:01:40.381552_t=600.pkl",
+    # "enumerationResults/propSim_propToUse=sampled_properties_fitted_60s_sampling_timeout.pkl_nSim=50_weightedSim=False_taskSpecificInputs=False_onlyAllTrue=False_seed=1.pkl_2021-06-18 15:34:26.870940_t=600.pkl",
+    # "enumerationResults/propSim_propToUse=handwritten_equivalent_sampled_properties_fitted_60s_sampling_timeout.pkl_nSim=50_weightedSim=False_taskSpecificInputs=False_onlyAllTrue=False_seed=1.pkl_2021-06-18 15:09:48.214477_t=600.pkl",
     # "enumerationResults/helmholtz_fitted_2021-06-11 13:17:47.928151_t=600.pkl",
     # "enumerationResults/uniformGrammar_2021-05-11 13:49:32.922951_t=600.pkl"]
     # modelNames = [
-    # # "neuralRecognizer (samples)", "neuralRecognizer (samples)", 
     # "neuralRecognizer",
-    # # "neuralRecognizer (enumerated)",
-    # # "propSim (samples)", "propSim (samples)", 
-    # # "propSim2 (samples)", "propSim2 (samples)", 
     # "propSim2 (handwritten properties)",
-    # "propSim2 (sampled properties)",
+    # "propSim2 (fitted sampled properties)",
+    # "propSim2 (fitted sampled only handwritten equivalent properties)",
     # "helmholtzFitted",
     # "unifGrammarPrior"]
     # plotFrontiers(filenames, modelNames)
@@ -622,17 +566,20 @@ def main(args):
     # Enumeration Proxy
     ######################
     
-    # fileName = "enumerationResults/propSim_2021-05-23 04:57:26.284483_t=600.pkl"
-    # frontiers, times = dill.load(open(fileName, "rb"))
-    # unsolvedTasks = [f.task for f in frontiers if len(f.entries) == 0]
+    fileName = "enumerationResults/propSim_2021-05-23 04:57:26.284483_t=600.pkl"
+    frontiers, times = dill.load(open(fileName, "rb"))
+    unsolvedTasks = [f.task for f in frontiers if len(f.entries) == 0]
+    nSimList = [50]
 
-    # task2FittedGrammars = comparePropSimFittedToRnnEncoded(tasks, frontiers, baseGrammar, sampledFrontiers, propertyFeatureExtractor, featureExtractorArgs, [nSim], propPseudocounts, 
-    #     weightedSim=weightedSim, compressSimilar=False, weightByPrior=False, taskSpecificInputs=taskSpecificInputs, verbose=verbose)
+    task2FittedGrammars = comparePropSimFittedToRnnEncoded(tasks, frontiers, baseGrammar, sampledFrontiers, propertyFeatureExtractor, featureExtractorArgs, nSimList, propPseudocounts, 
+        weightedSim=weightedSim, compressSimilar=False, weightByPrior=False, taskSpecificInputs=taskSpecificInputs, onlyUseTrueProperties=onlyUseTrueProperties, computePriorFromTasks=computePriorFromTasks, verbose=verbose)
 
-    # if save:
-    #     filename = DATA_DIR + GRAMMARS_DIR + "nSim={}_weightedSim={}_taskSpecificInputs={}_seed={}.pkl".format(nSimList[0], weightedSim, taskSpecificInputs, args["seed"])
-    #     print("Saved task2Grammars at: {}".format(filename))
-    #     dill.dump(task2FittedGrammars, open(filename, "wb"))
+    if save:
+        for nSim in nSimList:
+            propertyInfo = propToUse if propToUse == "handwritten" else propFilename
+            filename = DATA_DIR + GRAMMARS_DIR + "propToUse={}_nSim={}_weightedSim={}_taskSpecificInputs={}_onlyAllTrue={}_seed={}.pkl".format(propToUse, nSim, weightedSim, taskSpecificInputs, onlyUseTrueProperties, args["seed"])
+            print("Saved task2Grammars at: {}".format(filename))
+            dill.dump(task2FittedGrammars[nSim], open(filename, "wb"))
 
     ######################
     # Smarter PropSim
@@ -711,18 +658,14 @@ def main(args):
     #                      enumerateFromSketch=sketch)
 
     ########################################################################################################
-    # Sample properties
-     ########################################################################################################
-
-    # grammarName = "base"
-    # seed = 1
-    # save = True
-    # propertyRequest = arrow(tinput, toutput, tbool)
-    
-    # grammar = getPropertySamplingGrammar(baseGrammar, grammarName, frontiers, pseudoCounts=1, seed=seed)
-    # properties = sampleProperties(grammar, train, propertyRequest, featureExtractor, featureExtractorArgs, save)
-
+    # Filter properties
     ########################################################################################################
-    
+
+    # if save:
+    #     filename = "handwritten_equivalent_" + propertiesFilename
+    #     savePath = DATA_DIR + SAMPLED_PROPERTIES_DIR + filename
+    #     dill.dump(equivalentSampledProperties, open(savePath, "wb"))
+    #     print("Saving sampled properties at: {}".format(savePath))
+        
     # print(frontiers)
     # explorationCompression(baseGrammar, train, testingTasks=test, featureExtractorArgs=featu
