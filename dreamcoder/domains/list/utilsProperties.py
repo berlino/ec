@@ -14,7 +14,6 @@ from dreamcoder.task import Task
 from dreamcoder.type import Context, arrow, tlist, tint
 from dreamcoder.utilities import *
 from dreamcoder.domains.list.property import Property
-from dreamcoder.domains.list.propSim import getPropSimGrammars
 
 
 def createFrontiersWithInputsFromTask(frontiers, task):
@@ -223,82 +222,4 @@ def enumerateFromGrammars(grammars, tasks, modelName, enumerationTimeout, solver
             dill.dump((bottomUpFrontiers, allRecognitionTimes), handle)
         print("Saved enumeration results at: {}".format(savePath))
     return bottomUpFrontiers, allRecognitionTimes
-
-
-def comparePropSimFittedToRnnEncoded(train, frontiers, grammar, sampledFrontiers, propertyFeatureExtractor, featureExtractorArgs, nSimList, pseudoCounts, weightedSim, compressSimilar, weightByPrior, taskSpecificInputs, onlyUseTrueProperties, computePriorFromTasks, verbose=False):
-    """
-    Given a frontier of tasks prints out the logposterior of tasks in train using:
-        - the RNN-encoded neural recogntion model
-        - the unigram grammar fitted on nSim most similar tasks
-    """
-
-    uniformGrammarPriors, logVariableGrammarPriors, fittedLogPosteriors, baselineLogPosteriors = 0.0, 0.0, 0.0, 0.0
-    fittedLogPosteriorsDict, fittedWeightedLogPosteriorsDict, fittedLogPosteriorsConsolidationDict = {}, {}, {}
-    taskToFrontier = {f.task:f for f in frontiers if len(f.entries) > 0}
-
-    task2FittedGrammars, tasksSolved, task2SimFrontiers = getPropSimGrammars(grammar, train, sampledFrontiers, propertyFeatureExtractor, featureExtractorArgs, 
-        onlyUseTrueProperties=onlyUseTrueProperties, nSimList=nSimList, pseudoCounts=pseudoCounts, weightedSim=weightedSim, compressSimilar=False, weightByPrior=weightByPrior, 
-        recomputeTasksWithTaskSpecificInputs=taskSpecificInputs, computePriorFromTasks=computePriorFromTasks, verbose=verbose)
-
-    if compressSimilar:
-        raise NotImplementedError
-
-    numTasks = 0
-    for task in train:
-
-        if task in taskToFrontier:
-            bestFrontier = taskToFrontier[task].topK(1)
-            program = bestFrontier.entries[0].program
-            logPosterior = bestFrontier.entries[0].logPosterior
-            numTasks += 1
-        else:
-            continue
-
-
-        vprint("\n-------------------------------------------------------------------------------", verbose)
-        vprint(task.describe(), verbose)
-        vprint("---------------------------------------------------------------------------------", verbose)
-        uniformGrammarPrior = grammar.logLikelihood(task.request, program)
-        vprint("Uniform Grammar Prior: {}".format(uniformGrammarPrior), verbose)
-        logVariableGrammar = Grammar(2.0, [(0.0, p.infer(), p) for p in grammar.primitives], continuationType=None)
-        logVariableGrammarPrior = logVariableGrammar.logLikelihood(task.request, program)
-        vprint("Log Variable Program Prior: {}".format(logVariableGrammarPrior), verbose)
-        vprint("---------------------------------------------------------------------------------", verbose)
-
-
-        for nSim in nSimList:
-            fittedLogPosterior = task2FittedGrammars[nSim][task].logLikelihood(task.request, program)
-            vprint("PropSim Grammar LP ({} frontiers): {}".format(nSim, fittedLogPosterior), verbose)
-            fittedLogPosteriorsDict[nSim] = fittedLogPosteriorsDict.get(nSim, []) + [fittedLogPosterior]
-
-        if compressSimilar:
-            raise NotImplementedError
-            # for nSim in nSimList:
-            #     fittedLogPosterior = consolidationGrammars[task].logLikelihood(task.request, program)
-            #     print("PropSim Consolidation Grammar LP ({} frontiers): {}".format(nSim, fittedLogPosterior))
-            #     fittedLogPosteriorsConsolidationDict[nSim] = fittedLogPosteriorsConsolidationDict.get(nSim, []) + [fittedLogPosterior]
-
-        baselineLogPosterior = bestFrontier.entries[0].logPosterior
-        vprint("Baseline LogPosterior: {}\n".format(baselineLogPosterior), verbose)
-
-        uniformGrammarPriors += uniformGrammarPrior
-        logVariableGrammarPriors += logVariableGrammarPrior
-        baselineLogPosteriors += logPosterior
-
-    if numTasks == 0:
-        print("No solved frontiers from which to report metrics")
-        return
-    else:
-        print("Metrics for {} tasks with solutions".format(numTasks))
-
-    print("Mean Uniform Grammar Prior: {}".format(uniformGrammarPriors / numTasks))
-    print("Mean Log Variable Grammar Prior: {}".format(logVariableGrammarPriors / numTasks))
-    print("Mean Baseline Log Posterior: {}".format(baselineLogPosteriors / numTasks))
-    for nSim, logPosteriors in fittedLogPosteriorsDict.items():
-        print("Mean Fitted Log Posterior ({} frontiers): {}".format(nSim, sum(logPosteriors) / numTasks))
-    if compressSimilar:
-        for nSim, logPosteriors in fittedLogPosteriorsConsolidationDict.items():
-            print("Mean SimTask Consolidation Log Posterior ({} frontiers): {}".format(nSim, sum(logPosteriors) / numTasks))
-
-    return task2FittedGrammars
 

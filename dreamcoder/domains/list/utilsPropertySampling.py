@@ -116,35 +116,6 @@ def propertyEnumerationMain(grammar, tasks, propertyRequest, featureExtractor, f
     return allProperties
 
 
-def filterProperties(properties, tasks, maxFractionSame, taskPropertyValueToInt, save=False, filename=None):
-
-    properties = sorted(properties, key=lambda p: p.logPrior, reverse=True)
-
-    propTasksMatrix = getPropertySimTasksMatrix(tasks, properties, taskPropertyValueToInt)
-    print(propTasksMatrix.shape)
-
-    def fractionSame(a, b):
-        return np.sum((a == b).astype(int)) / a.shape[0]
-
-    filteredTaskSigs = []
-    filteredProperties = []
-    for i in range(propTasksMatrix.shape[1]):
-        taskSigToConsider = propTasksMatrix[:, i]
-        if all([fractionSame(taskSigToConsider, taskSig) < maxFractionSame for taskSig in filteredTaskSigs]):
-            filteredTaskSigs.append(taskSigToConsider)
-            filteredProperties.append(properties[i])
-            print("Passed: {}".format(properties[i]))
-        else:
-            print("Too similar: {}".format(properties[i]))
-
-    print("Kept {} from {} properties".format(len(filteredProperties), len(properties)))
-    if save:
-        path = DATA_DIR + SAMPLED_PROPERTIES_DIR + fileName
-        dill.dump(filteredProperties, open(path, "wb"))
-        print("Saved filtered properties at: {}".format(path))
-    return filteredProperties
-
-
 # fileName = "sampled_properties_weights=fitted_sampling_timeout={}s_return_types=[bool]_seed=1.pkl".format(60)
 # path = DATA_DIR + SAMPLED_PROPERTIES_DIR + fileName
 # properties = dill.load(open(path, "rb"))
@@ -152,4 +123,3 @@ def filterProperties(properties, tasks, maxFractionSame, taskPropertyValueToInt,
 # maxFractionSame = 0.9
 # fileName = "sampled_properties_weights=fitted_sampling_timeout=60s_return_types=[bool]_seed=1_filtered=True_maxFractionSame={}.pkl".format(maxFractionSame)
 # taskPropertyValueToInt = {"allTrue":1, "mixed":2, "allFalse":0}
-# filterProperties(properties, tasks, maxFractionSame, taskPropertyValueToInt, save=False, filename=fileName)
