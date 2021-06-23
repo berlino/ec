@@ -459,21 +459,21 @@ def main(args):
     # Load sampled tasks
     ##################################
 
-    # print("Loading sampled tasks")
-    # k = 1
-    # # sampledFrontiers = loadSampledTasks(k=k, batchSize=100, n=100, dslName=libraryName, isSample=False)
-    # # sampledFrontiers = loadEnumeratedTasks(k=1, mdlIncrement=0.5, n=5000, dslName=libraryName, upperBound=20)
+    print("Loading sampled tasks")
+    k = 1
+    # sampledFrontiers = loadSampledTasks(k=k, batchSize=100, n=100, dslName=libraryName, isSample=False)
+    # sampledFrontiers = loadEnumeratedTasks(k=1, mdlIncrement=0.5, n=5000, dslName=libraryName, upperBound=20)
 
-    # if debug:
-    #     sampledFrontiers = loadEnumeratedTasks(dslName=libraryName)
-    #     randomFrontierIndices = random.sample(range(len(sampledFrontiers)),k=1000)
-    #     sampledFrontiers = [f for i,f in enumerate(sampledFrontiers) if i in randomFrontierIndices]
+    if debug:
+        sampledFrontiers = loadEnumeratedTasks(dslName=libraryName)
+        randomFrontierIndices = random.sample(range(len(sampledFrontiers)),k=1000)
+        sampledFrontiers = [f for i,f in enumerate(sampledFrontiers) if i in randomFrontierIndices]
 
-    #     randomTaskIndices = random.sample(range(len(tasks)),k=10)
-    #     tasks = [task for i,task in enumerate(tasks) if i in randomTaskIndices]
-    # else:
-    #     sampledFrontiers = loadEnumeratedTasks(dslName=libraryName)
-    # print("Finished loading {} sampled tasks".format(len(sampledFrontiers)))
+        randomTaskIndices = random.sample(range(len(tasks)),k=10)
+        tasks = [task for i,task in enumerate(tasks) if i in randomTaskIndices]
+    else:
+        sampledFrontiers = loadEnumeratedTasks(dslName=libraryName)
+    print("Finished loading {} sampled tasks".format(len(sampledFrontiers)))
 
     ##################################
     # Training Recognition Model
@@ -676,33 +676,6 @@ def main(args):
     # Enumerate Tasks
     ########################################################################################################
 
-    request = list({t.request for t in tasks})[0]
-    inputs = list({tuplify(xs)
-                       for t in tasks if t.request == request
-                       for xs, y in t.examples})
-
-              
-    response = helmholtzEnumeration(baseGrammar, request, inputs, float(args["enumerationTimeout"]), _=None, special="unique", evaluationTimeout=0.004, maximumSize=99999999)
-    print("Response length: {}".format(len(response)))
-    frontiers = []
-    print("First 200 characters of response: {}".format(response[:200]))
-    response = json.loads(response.decode("utf-8"))
-       
-    def parseAndMakeTaskFromProgram(entry, request, propertyFeatureExtractor):
-        program = Program.parse(entry["programs"][0])
-        task = makeTaskFromProgram(program, request, propertyFeatureExtractor, differentOutputs=True, filterIdentityTask=True)
-        if task is None:
-            return None
-        frontier = Frontier([FrontierEntry(program=Program.parse(p), logPrior=entry["ll"], logLikelihood=0.0) for p in entry["programs"]], task=task)
-        return frontier
-
-    frontiers = parallelMap(args["CPUs"], lambda entry: parseAndMakeTaskFromProgram(entry, request, propertyFeatureExtractor), response)
-    frontiers = [f for f in frontiers if f is not None] 
-    print("{} Frontiers after filtering".format(len(frontiers)))
+    # enumerateHelmholtz(tasks, args["enumerationTimeout"], args["CPUs"], propertyFeatureExtractor, save=True, libraryName=libraryName, dataset=dataset)
     
-    if save:
-        filename = "{}_enumerated/{}_with_{}-inputs.pkl".format(libraryName, len(frontiers), dataset)
-        path = DATA_DIR + filename
-        print("Saving frontiers at: {}".format(path))
-        dill.dump(frontiers, open(path, "wb"))
 # exploratienCompression(baseGrammar, train, testingTasks=test, featureExtractorArgs=featu

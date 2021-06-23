@@ -10,11 +10,13 @@ from dreamcoder.enumeration import multicoreEnumeration
 from dreamcoder.frontier import Frontier, FrontierEntry
 from dreamcoder.grammar import Grammar
 from dreamcoder.likelihoodModel import UniqueTaskSignatureScore, TaskDiscriminationScore, TaskSurprisalScore, GeneralUniqueTaskSignatureScore
+from dreamcoder.program import Program
 from dreamcoder.task import Task
 from dreamcoder.type import Context, arrow, tlist, tint
 from dreamcoder.utilities import *
 from dreamcoder.domains.list.property import Property
 
+DATA_DIR = "data/prop_sig/"
 
 def createFrontiersWithInputsFromTask(frontiers, task):
     
@@ -71,6 +73,42 @@ def makeTaskFromProgram(program, request, featureExtractor, differentOutputs=Tru
             if all([i[0] == o for i,o in task.examples]):
                 return None
     return task
+
+
+def enumerateHelmholtzOcaml(tasks, enumerationTimeout, CPUs, featureExtractor, save=False, libraryName=None, dataset=None):
+
+    requests = list({t.request for t in tasks})
+    request = requests[0]
+    assert len(requests) == 1
+    inputs = list({tuplify(xs)
+                       for t in tasks if t.request == request
+                       for xs, y in t.examples})
+
+    response = helmholtzEnumeration(baseGrammar, request, inputs, enumerationTimeout, _=None, special="unique", evaluationTimeout=0.004, maximumSize=99999999)
+    print("Response length: {}".format(len(response)))
+    frontiers = []
+    print("First 200 characters of response: {}".format(response[:200]))
+    response = json.loads(response.decode("utf-8"))
+       
+    def parseAndMakeTaskFromProgram(entry, request, featureExtractor):
+        program = Program.parse(entry["programs"][0])
+        task = makeTaskFromProgram(program, request, featureExtractor, differentOutputs=True, filterIdentityTask=True)
+        if task is None:
+            return None
+        frontier = Frontier([FrontierEntry(program=Program.parse(p), logPrior=entry["ll"], logLikelihood=0.0) for p in entry["programs"]], task=task)
+        return frontier
+
+    frontiers = parallelMap(CPUs, lambda entry: parseAndMakeTaskFromProgram(entry, request, featureExtractor), response)
+    frontiers = [f for f in frontiers if f is not None] 
+    print("{} Frontiers after filtering".format(len(frontiers)))
+    
+    if save:
+        filename = "{}_enumerated/{}_with_{}-inputs.pkl".format(libraryName, len(frontiers), dataset)
+        path = DATA_DIR + filename
+        print("Saving frontiers at: {}".format(path))
+        dill.dump(frontiers, open(path, "wb"))
+
+    return frontiers
 
 def enumerateAndSave(grammar, request, featureExtractor, dslName, numTasks, k, batchSize, CPUs=1):
 
