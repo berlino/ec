@@ -47,17 +47,15 @@ let run_job channel =
     | None -> default_hash
     | Some(name) -> match Hashtbl.find special_helmholtz name with
       | Some(special) -> special
-      | None -> (Printf.eprintf "Could not find special Helmholtz enumerator: %s\n" name; assert (false))
-  in
+      | None -> (Printf.eprintf "Could not find special Helmholtz enumerator: %s\n" name; assert (false)) in
+  helmholtz_enumeration ~nc:nc (k ~timeout:evaluationTimeout request (j |> member "extras")) g request ~timeout:timeout ~maximumSize:maximumSize
 
-  helmholtz_enumeration ~nc:nc (k ~timeout:evaluationTimeout request (j |> member "extras")) g request ~timeout ~maximumSize
-
-let output_job ?maxExamples:(maxExamples=15000) result =
+let output_job ?maxExamples:(maxExamples=100000000) result =
   let open Yojson.Basic.Util in
   (* let result = Hashtbl.to_alist result in *)
   let results =
     let l = List.length result in
-    if l < maxExamples then result else
+    if l < maxExamples then (Printf.eprintf "maxExamples: %d, l: %d" maxExamples l; result) else
       let p = (maxExamples |> Float.of_int)/.(l |> Float.of_int) in
       result |> List.filter ~f:(fun _ -> Random.float 1. < p)
   in
@@ -71,3 +69,4 @@ let output_job ?maxExamples:(maxExamples=15000) result =
 
 let _ = 
   run_job Pervasives.stdin |> remove_bad_dreams |> output_job |> to_channel Pervasives.stdout
+  (* run_job Pervasives.stdin |> to_channel Pervasives.stdout*)

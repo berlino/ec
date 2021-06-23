@@ -370,6 +370,7 @@ def main(args):
 
     if extractor_name == "learned":
         featureExtractorArgs = {"hidden":hidden}
+        raise Exception("Not implemented")
     elif extractor_name == "prop_sig" or extractor_name == "combined":
         featureExtractorArgs = {
             "propCPUs": propCPUs,
@@ -681,9 +682,27 @@ def main(args):
                        for xs, y in t.examples})
 
               
-    frontiers = helmholtzEnumeration(baseGrammar, request, inputs, args["enumerationTimeout"], _=None, special="unique", evaluationTimeout=0.1)
-    print(frontiers)
+    response = helmholtzEnumeration(baseGrammar, request, inputs, float(args["enumerationTimeout"]), _=None, special="unique", evaluationTimeout=0.004, maximumSize=99999999)
+    print("Response length: {}".format(len(response)))
+    frontiers = []
+    print("First 200 characters of response: {}".format(response[:200]))
+    response = json.loads(response.decode("utf-8"))
+       
+    def parseAndMakeTaskFromProgram(entry, request, propertyFeatureExtractor):
+        program = Program.parse(entry["programs"][0])
+        task = makeTaskFromProgram(program, request, propertyFeatureExtractor, differentOutputs=True, filterIdentityTask=True)
+        if task is None:
+            return None
+        frontier = Frontier([FrontierEntry(program=Program.parse(p), logPrior=entry["ll"], logLikelihood=0.0) for p in entry["programs"]], task=task)
+        return frontier
 
-        
-    # print(frontiers)
-    # explorationCompression(baseGrammar, train, testingTasks=test, featureExtractorArgs=featu
+    frontiers = parallelMap(args["CPUs"], lambda entry: parseAndMakeTaskFromProgram(entry, request, propertyFeatureExtractor), response)
+    frontiers = [f for f in frontiers if f is not None] 
+    print("{} Frontiers after filtering".format(len(frontiers)))
+    
+    if save:
+        filename = "{}_enumerated/{}_with_{}-inputs.pkl".format(libraryName, len(frontiers), dataset)
+        path = DATA_DIR + filename
+        print("Saving frontiers at: {}".format(path))
+        dill.dump(frontiers, open(path, "wb"))
+# exploratienCompression(baseGrammar, train, testingTasks=test, featureExtractorArgs=featu

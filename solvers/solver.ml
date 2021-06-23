@@ -1,6 +1,6 @@
 open Core
 
-open Draw
+(* open Draw *)
 open Physics
 open Pregex
 open Tower

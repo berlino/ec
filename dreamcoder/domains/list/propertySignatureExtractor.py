@@ -282,7 +282,7 @@ class PropertySignatureExtractor(nn.Module):
                         return task
                 except Exception as e:
                     # print(e)
-                    # print("failed to apply program: {} \n to input: {}".format(p, xs))
+                    #print("failed to apply program: {} \n to input: {}".format(p, xs))
                     continue
 
         else:

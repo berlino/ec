@@ -15,11 +15,12 @@ from dreamcoder.utilities import tuplify, timing, eprint, get_root_dir, mean
 
 
 def helmholtzEnumeration(g, request, inputs, timeout, _=None,
-                         special=None, evaluationTimeout=None):
+                         special=None, evaluationTimeout=None, maximumSize=10000):
     """Returns json (as text)"""
     message = {"request": request.json(),
                "timeout": timeout,
                "DSL": g.json(),
+               "maximumSize": maximumSize,
                "extras": inputs}
     if evaluationTimeout: message["evaluationTimeout"] = evaluationTimeout
     if special: message["special"] = special
