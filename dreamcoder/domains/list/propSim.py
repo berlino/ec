@@ -325,6 +325,8 @@ def getPropSimGrammars(
         else:
             for nSim in nSimList:
                 weights = weights if weightedSim else None
+                print(frontiers[:nSim][0].task.describe())
+                print(baseGrammar)
                 taskGrammar = baseGrammar.insideOutside(frontiers[:nSim], pseudoCounts, iterations=1, frontierWeights=weights, weightByPrior=weightByPrior)
                 grammars[nSim][task] = taskGrammar
         if solved:

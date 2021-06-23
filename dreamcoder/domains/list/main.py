@@ -234,7 +234,7 @@ def list_options(parser):
             "josh_3.1",
             "josh_final",
             "Lucas-old"])
-    parser.add_argument("--extractor", default="learned", choices=[
+    parser.add_argument("--extractor", default="prop_sig", choices=[
         "prop_sig",
         "learned",
         "combined",
@@ -244,7 +244,9 @@ def list_options(parser):
 
 
     # Arguments relating to propSim
+    parser.add_argument("--numHelmFrontiers", type=int, default=10000)
     parser.add_argument("--maxFractionSame", type=float, default=1.0)
+    parser.add_argument("--helmholtzFrontiersFilename", type=str, default=None)
     parser.add_argument("--propFilename", type=str, default=None)
     parser.add_argument("--filterSimilarProperties", action="store_true", default=False)
     parser.add_argument("--computePriorFromTasks", action="store_true", default=False)
@@ -290,7 +292,9 @@ def main(args):
     trains/tests the model on manipulating sequences of numbers.
     """
     
+    numHelmFrontiers = args.pop("numHelmFrontiers")
     maxFractionSame = args.pop("maxFractionSame")
+    helmholtzFrontiersFilename = args.pop("helmholtzFrontiersFilename")
     propFilename = args.pop("propFilename")
     propSamplingGrammarWeights = args.pop("propSamplingGrammarWeights")
     filterSimilarProperties = args.pop("filterSimilarProperties")
@@ -453,27 +457,27 @@ def main(args):
         tasks = [tasks[0]]
 
     random.seed(args["seed"])
-
+    valuesToInt = {"allFalse":0, "allTrue":1, "mixed":2}
 
     ##################################
     # Load sampled tasks
     ##################################
 
-    print("Loading sampled tasks")
-    k = 1
-    # sampledFrontiers = loadSampledTasks(k=k, batchSize=100, n=100, dslName=libraryName, isSample=False)
-    # sampledFrontiers = loadEnumeratedTasks(k=1, mdlIncrement=0.5, n=5000, dslName=libraryName, upperBound=20)
-
+    print("Loading helmholtz tasks")
     if debug:
-        sampledFrontiers = loadEnumeratedTasks(dslName=libraryName)
+        sampledFrontiers = loadEnumeratedTasks(dslName=libraryName, filename=helmholtzFrontiersFilename)
         randomFrontierIndices = random.sample(range(len(sampledFrontiers)),k=1000)
         sampledFrontiers = [f for i,f in enumerate(sampledFrontiers) if i in randomFrontierIndices]
 
         randomTaskIndices = random.sample(range(len(tasks)),k=10)
         tasks = [task for i,task in enumerate(tasks) if i in randomTaskIndices]
     else:
-        sampledFrontiers = loadEnumeratedTasks(dslName=libraryName)
-    print("Finished loading {} sampled tasks".format(len(sampledFrontiers)))
+        sampledFrontiers = loadEnumeratedTasks(dslName=libraryName, filename=helmholtzFrontiersFilename)
+
+    sampledFrontiers = sorted(sampledFrontiers, key=lambda f: f.topK(1).entries[0].logPosterior, reverse=True)
+    sampledFrontiers = sampledFrontiers[:min(len(sampledFrontiers), numHelmFrontiers)]
+
+    print("Finished loading {} helmholtz tasks".format(len(sampledFrontiers)))
 
     ##################################
     # Training Recognition Model
@@ -522,24 +526,43 @@ def main(args):
     ##################################
     # Enumeration
     ##################################
-    # try:
-    #     filename = "propToUse={}_nSim={}_weightedSim={}_taskSpecificInputs={}_seed={}.pkl".format(propToUse, nSim, weightedSim, taskSpecificInputs, args["seed"])
-    #     path = DATA_DIR + GRAMMARS_DIR + filename
-    #     propSimGrammars = dill.load(open(path, "rb"))
-    # except FileNotFoundError:
-    #     print("Couldn't find pickled fitted grammars, regenerating")
-    #     propSimGrammars, tasksSolved, _ = getPropSimGrammars(baseGrammar, tasks, sampledFrontiers, propertyFeatureExtractor, featureExtractorArgs, onlyUseTrueProperties, [nSim], propPseudocounts, weightedSim, 
-    #     compressSimilar=False, weightByPrior=False, recomputeTasksWithTaskSpecificInputs=False, verbose=verbose)
 
-    # enumerationTimeout, solver, maximumFrontier, CPUs = args.pop("enumerationTimeout"), args.pop("solver"), args.pop("maximumFrontier"), args.pop("CPUs")
-    # modelName = "propSim"
-    # grammars = propSimGrammars[nSim]
+    print("----------------- Grammar ----------------------\n{}".format(baseGrammar))
 
-    # bottomUpFrontiers, allRecognitionTimes = enumerateFromGrammars(grammars, tasks, modelName, enumerationTimeout, solver, CPUs, maximumFrontier, leaveHoldout=True, save=save)
-    # nonEmptyFrontiers = [f for f in bottomUpFrontiers if not f.empty]
-    # numTasksProgramDiscovered = len(nonEmptyFrontiers)
-    # numTasksSolved = len([f.task for f in nonEmptyFrontiers if f.task.check(f.topK(1).entries[0].program, timeout=1.0, leaveHoldout=False)])
-    # print("Enumerating from {} grammars for {} seconds: {} / {} actually true for holdout example".format(modelName, enumerationTimeout, numTasksProgramDiscovered, numTasksSolved, numTasksProgramDiscovered))
+    try:
+        filename = "helmFrontiers={}_propToUse={}_nSim={}_weightedSim={}_taskSpecificInputs={}_seed={}.pkl".format(helmholtzFrontiersFilename, propToUse, nSim, weightedSim, taskSpecificInputs, args["seed"])
+        path = DATA_DIR + GRAMMARS_DIR + filename
+        propSimGrammars = dill.load(open(path, "rb"))
+    except FileNotFoundError:
+        print("Couldn't find pickled fitted grammars, regenerating")
+        propSimGrammars, tasksSolved, _ = getPropSimGrammars(
+            baseGrammar, 
+            tasks, 
+            sampledFrontiers, 
+            propertyFeatureExtractor, 
+            featureExtractorArgs, 
+            onlyUseTrueProperties, 
+            [nSim], 
+            propPseudocounts, 
+            weightedSim, 
+            compressSimilar=False, 
+            weightByPrior=False, 
+            recomputeTasksWithTaskSpecificInputs=taskSpecificInputs,
+            computePriorFromTasks=computePriorFromTasks, 
+            filterSimilarProperties=filterSimilarProperties, 
+            maxFractionSame=maxFractionSame, 
+            valuesToInt=valuesToInt,
+            verbose=verbose)
+
+    enumerationTimeout, solver, maximumFrontier, CPUs = args.pop("enumerationTimeout"), args.pop("solver"), args.pop("maximumFrontier"), args.pop("CPUs")
+    modelName = "propSim"
+    grammars = propSimGrammars[nSim]
+
+    bottomUpFrontiers, allRecognitionTimes = enumerateFromGrammars(grammars, tasks, modelName, enumerationTimeout, solver, CPUs, maximumFrontier, leaveHoldout=True, save=save)
+    nonEmptyFrontiers = [f for f in bottomUpFrontiers if not f.empty]
+    numTasksProgramDiscovered = len(nonEmptyFrontiers)
+    numTasksSolved = len([f.task for f in nonEmptyFrontiers if f.task.check(f.topK(1).entries[0].program, timeout=1.0, leaveHoldout=False)])
+    print("Enumerating from {} grammars for {} seconds: {} / {} actually true for holdout example".format(modelName, enumerationTimeout, numTasksProgramDiscovered, numTasksSolved, numTasksProgramDiscovered))
 #
     #####################
     # Helmhholtz Sampling
@@ -581,7 +604,6 @@ def main(args):
     # frontiers, times = dill.load(open(fileName, "rb"))
     # unsolvedTasks = [f.task for f in frontiers if len(f.entries) == 0]
     # nSimList = [50]
-    # valuesToInt = {"allFalse":0, "allTrue":1, "mixed":2}
 
     # task2FittedGrammars = comparePropSimFittedToRnnEncoded(tasks, frontiers, baseGrammar, sampledFrontiers, propertyFeatureExtractor, featureExtractorArgs, nSimList, propPseudocounts, 
     #     weightedSim=weightedSim, compressSimilar=False, weightByPrior=False, taskSpecificInputs=taskSpecificInputs, onlyUseTrueProperties=onlyUseTrueProperties, computePriorFromTasks=computePriorFromTasks, 
@@ -677,5 +699,5 @@ def main(args):
     ########################################################################################################
 
     # enumerateHelmholtz(tasks, args["enumerationTimeout"], args["CPUs"], propertyFeatureExtractor, save=True, libraryName=libraryName, dataset=dataset)
-    
+
 # exploratienCompression(baseGrammar, train, testingTasks=test, featureExtractorArgs=featu

@@ -157,8 +157,8 @@ def sampleAndSave(recognitionModel, requests, dslName, numSamples, samplesPerSte
             del toWrite[:batchSize]
             print("Memory usage: {}".format(getMemoryUsageFraction()))
 
-def loadEnumeratedTasks(dslName, k=1, numExamples=11):
-    with open("data/prop_sig/{}_enumerated_{}/enumerated_0_10000.pkl".format(dslName, k), "rb") as f:
+def loadEnumeratedTasks(dslName, filename, k=1, numExamples=11):
+    with open("data/prop_sig/{}_enumerated_{}/{}".format(dslName, k, filename), "rb") as f:
         frontiers = dill.load(f)
 
         filteredFrontiers = []
@@ -167,7 +167,6 @@ def loadEnumeratedTasks(dslName, k=1, numExamples=11):
             # assert every frontier is of the desired type
             assert f.task.request == arrow(tlist(tint), tlist(tint))
             # exclude examples where the output is too large
-
             wrongType = any([(not isinstance(o, list)) or (not isinstance(i[0], list)) for i,o in f.task.examples])
             if wrongType:
                 numWrongType += 1

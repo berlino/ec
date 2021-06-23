@@ -485,7 +485,9 @@ def josh_primitives(w):
             Primitive("cdr", arrow(tlist(t0), tlist(t0)), _cdr),
             Primitive("empty?", arrow(tlist(t0), tbool), _isEmpty),
             Primitive("if", arrow(tbool, t0, t0, t0), _if),
-            Primitive("eq?", arrow(tint, tint, tbool), _eq),
+            # Primitive("eq?", arrow(tint, tint, tbool), _eq),
+            # changed type of eq? to match eq? primitive on ocaml side
+            Primitive("eq?", arrow(t0, t0, tbool), _eq),
             Primitive("-n9", arrow(tint,tint,tint), _minusNatural9),
             Primitive("+n9", arrow(tint,tint,tint), _plusNatural9),
             Primitive("gt?", arrow(tint,tint,tbool), _gt),
