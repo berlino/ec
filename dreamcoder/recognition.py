@@ -16,6 +16,7 @@ from sklearn.linear_model import LogisticRegression
 # luke
 import json
 
+NUM_HOLDOUT_FRONTIERS = 1000
 
 def variable(x, volatile=False, cuda=False):
     if isinstance(x, list):
@@ -1105,7 +1106,7 @@ class RecognitionModel(nn.Module):
                 assert holdout
 
             if holdout:
-                holdoutFrontiers = copy.deepcopy([getHelmholtz() for i in range(1000)])
+                holdoutFrontiers = copy.deepcopy([getHelmholtz() for i in range(NUM_HOLDOUT_FRONTIERS)])
 
             for i in range(1, epochs + 1):
 
