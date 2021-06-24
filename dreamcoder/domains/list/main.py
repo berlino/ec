@@ -532,9 +532,16 @@ def main(args):
 #             dill.dump(grammars, handle)
 # 
      # load grammars
-    path = "data/prop_sig/grammars/josh_3_primitives/josh_3_enumerated_1:12199_with_josh_3-inputs/neural_ep=False_RS=20000_RT=3600_hidden=64_r=0.0_contextual=False.pkl"  
-    with open(path, "rb") as handle:
-         grammars = dill.load(handle)
+    paths = [
+    "data/prop_sig/grammars/josh_3_primitives/josh_3_enumerated_1:12199_with_josh_3-inputs/neural_ep=False_RS=20000_RT=3600_hidden=64_r=0.0_contextual=False.pkl",
+    "data/prop_sig/grammars/josh_3_primitives/josh_3_enumerated_1:12199_with_josh_3-inputs/neural_ep=True_RS=None_RT=3600_hidden=64_r=0.0_contextual=False.pkl",
+    "data/prop_sig/grammars/josh_3_primitives/josh_3_enumerated_1:12199_with_josh_3-inputs/neural_ep=False_RS=10000_RT=3600_hidden=64_r=0.0_contextual=False.pkl"
+    ]
+    grammars = []
+
+    for path in paths:
+        with open(path, "rb") as handle:
+             grammars.append(dill.load(handle))
 
     ##################################
     # Enumeration
@@ -565,19 +572,16 @@ def main(args):
     #         valuesToInt=valuesToInt,
     #         verbose=verbose)
 
+    enumerationTimeout, solver, maximumFrontier, CPUs = args.pop("enumerationTimeout"), args.pop("solver"), args.pop("maximumFrontier"), args.pop("CPUs")
+    modelName = "neural"
 
-    # enumerationTimeout, solver, maximumFrontier, CPUs = args.pop("enumerationTimeout"), args.pop("solver"), args.pop("maximumFrontier"), args.pop("CPUs")
-    # modelName = "helmholtzFitted"
-    # # grammars = propSimGrammars[nSim]
-    # grammars = baseGrammar.insideOutside(sampledFrontiers, 1, iterations=1, frontierWeights=None, weightByPrior=False)
-
-    # for g in [grammars, baseGrammar]:
-    #     print("grammar\n{}".format(g))
-    #     bottomUpFrontiers, allRecognitionTimes = enumerateFromGrammars(g, tasks, modelName, enumerationTimeout, solver, CPUs, maximumFrontier, leaveHoldout=True, save=save)
-    #     nonEmptyFrontiers = [f for f in bottomUpFrontiers if not f.empty]
-    #     numTasksProgramDiscovered = len(nonEmptyFrontiers)
-    #     numTasksSolved = len([f.task for f in nonEmptyFrontiers if f.task.check(f.topK(1).entries[0].program, timeout=1.0, leaveHoldout=False)])
-    #     print("Enumerating from {} grammars for {} seconds: {} / {} actually true for holdout example".format(modelName, enumerationTimeout, numTasksProgramDiscovered, numTasksSolved, numTasksProgramDiscovered))
+    for g in grammars:
+        print("grammar\n{}".format(g))
+        bottomUpFrontiers, allRecognitionTimes = enumerateFromGrammars(g, tasks, modelName, enumerationTimeout, solver, CPUs, maximumFrontier, leaveHoldout=True, save=save)
+        nonEmptyFrontiers = [f for f in bottomUpFrontiers if not f.empty]
+        numTasksProgramDiscovered = len(nonEmptyFrontiers)
+        numTasksSolved = len([f.task for f in nonEmptyFrontiers if f.task.check(f.topK(1).entries[0].program, timeout=1.0, leaveHoldout=False)])
+        print("Enumerating from {} grammars for {} seconds: {} / {} actually true for holdout example".format(modelName, enumerationTimeout, numTasksProgramDiscovered, numTasksSolved, numTasksProgramDiscovered))
 #
     #####################
     # Helmhholtz Sampling
