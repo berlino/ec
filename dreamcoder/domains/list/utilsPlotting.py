@@ -5,13 +5,14 @@ import matplotlib.pyplot as plt
 from dreamcoder.domains.list.compareProperties import compare
 
 DATA_DIR = "data/prop_sig/"
+ENUMERATION_RESULTS_DIR = "enumerationResults/"
 SAMPLED_PROPERTIES_DIR = "sampled_properties/"
 
 def plotFrontiers(fileNames, modelNames, save=True):
     plt.rcParams["axes.prop_cycle"] = plt.cycler("color", plt.cm.jet(np.linspace(0,1, len(fileNames))))
 
     for modelIdx,fileName in enumerate(fileNames):
-        frontiers, times = dill.load(open(fileName, "rb"))
+        frontiers, times = dill.load(open(ENUMERATION_RESULTS_DIR + fileName, "rb"))
 
         satisfiesHoldout = lambda f: f.task.check(f.topK(1).entries[0].program, timeout=1.0, leaveHoldout=False)
         logPosteriors = sorted([-f.bestPosterior.logPosterior for f in frontiers if (len(f.entries) > 0 and satisfiesHoldout(f))])

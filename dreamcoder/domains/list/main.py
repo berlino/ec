@@ -244,6 +244,7 @@ def list_options(parser):
 
 
     # Arguments relating to propSim
+    parser.add_argument("--hmfSeed", type=int, default=1)
     parser.add_argument("--numHelmFrontiers", type=int, default=10000)
     parser.add_argument("--maxFractionSame", type=float, default=1.0)
     parser.add_argument("--helmholtzFrontiersFilename", type=str, default=None)
@@ -292,6 +293,7 @@ def main(args):
     trains/tests the model on manipulating sequences of numbers.
     """
     
+    hmfSeed = args.pop("hmfSeed")
     numHelmFrontiers = args.pop("numHelmFrontiers")
     maxFractionSame = args.pop("maxFractionSame")
     helmholtzFrontiersFilename = args.pop("helmholtzFrontiersFilename")
@@ -374,7 +376,7 @@ def main(args):
 
     if extractor_name == "learned":
         featureExtractorArgs = {"hidden":hidden}
-        raise Exception("Not implemented")
+
     elif extractor_name == "prop_sig" or extractor_name == "combined":
         featureExtractorArgs = {
             "propCPUs": propCPUs,
@@ -391,7 +393,7 @@ def main(args):
         }
         if propToUse == "handwritten":
             properties = getHandwrittenPropertiesFromTemplates(tasks)
-            propertyFeatureExtractor = extractor(tasksToSolve=tasks, allTasks=tasks, grammar=baseGrammar, cuda=False, featureExtractorArgs=featureExtractorArgs, properties=properties)
+            featureExtractor = extractor(tasksToSolve=tasks, allTasks=tasks, grammar=baseGrammar, cuda=False, featureExtractorArgs=featureExtractorArgs, properties=properties)
             print("Loaded {} properties from: {}".format(len(properties), "handwritten"))
         
         elif propToUse == "preloaded":
@@ -402,7 +404,7 @@ def main(args):
                 properties = list(properties.values())[0]
                 # filter properties that are only on inputs
                 properties = [p for p in properties if "$0" in p.name]
-            propertyFeatureExtractor = extractor(tasksToSolve=tasks, allTasks=tasks, grammar=baseGrammar, cuda=False, featureExtractorArgs=featureExtractorArgs, properties=properties)
+            featureExtractor = extractor(tasksToSolve=tasks, allTasks=tasks, grammar=baseGrammar, cuda=False, featureExtractorArgs=featureExtractorArgs, properties=properties)
             print("Loaded {} properties from: {}".format(len(properties), propFilename))
         
         elif propToUse == "sample":
@@ -418,13 +420,13 @@ def main(args):
 
                 grammar = getPropertySamplingGrammar(baseGrammar, propSamplingGrammarWeights, frontiers, pseudoCounts=1, seed=args["seed"])
                 try:
-                    propertyFeatureExtractor = extractor(tasksToSolve=tasksToSolve, allTasks=tasks, grammar=grammar, cuda=False, featureExtractorArgs=featureExtractorArgs, propertyRequest=propertyRequest)
+                    featureExtractor = extractor(tasksToSolve=tasksToSolve, allTasks=tasks, grammar=grammar, cuda=False, featureExtractorArgs=featureExtractorArgs, propertyRequest=propertyRequest)
                 # assertion triggered if 0 properties enumerated
                 except AssertionError:
                     print("0 properties found")
 
                 for task in tasksToSolve:
-                    allProperties[task] = allProperties.get(task, []) + propertyFeatureExtractor.properties[task]
+                    allProperties[task] = allProperties.get(task, []) + featureExtractor.properties[task]
 
             for task in tasksToSolve:
 
@@ -463,65 +465,76 @@ def main(args):
     # Load sampled tasks
     ##################################
 
-    print("Loading helmholtz tasks")
-    if debug:
-        sampledFrontiers = loadEnumeratedTasks(dslName=libraryName, filename=helmholtzFrontiersFilename)
-        randomFrontierIndices = random.sample(range(len(sampledFrontiers)),k=1000)
-        sampledFrontiers = [f for i,f in enumerate(sampledFrontiers) if i in randomFrontierIndices]
+    if helmholtzFrontiersFilename is not None:
+        print("Loading helmholtz tasks")
+        if debug:
+            sampledFrontiers = loadEnumeratedTasks(dslName=libraryName, filename=helmholtzFrontiersFilename, hmfSeed=hmfSeed)
+            randomFrontierIndices = random.sample(range(len(sampledFrontiers)),k=1000)
+            sampledFrontiers = [f for i,f in enumerate(sampledFrontiers) if i in randomFrontierIndices]
 
-        randomTaskIndices = random.sample(range(len(tasks)),k=10)
-        tasks = [task for i,task in enumerate(tasks) if i in randomTaskIndices]
-    else:
-        sampledFrontiers = loadEnumeratedTasks(dslName=libraryName, filename=helmholtzFrontiersFilename)
+            randomTaskIndices = random.sample(range(len(tasks)),k=10)
+            tasks = [task for i,task in enumerate(tasks) if i in randomTaskIndices]
+        else:
+            sampledFrontiers = loadEnumeratedTasks(dslName=libraryName, filename=helmholtzFrontiersFilename, hmfSeed=hmfSeed)
 
-    sampledFrontiers = sorted(sampledFrontiers, key=lambda f: f.topK(1).entries[0].logPosterior, reverse=True)
-    sampledFrontiers = sampledFrontiers[:min(len(sampledFrontiers), numHelmFrontiers)]
-
-    print("Finished loading {} helmholtz tasks".format(len(sampledFrontiers)))
+        if numHelmFrontiers is not None and numHelmFrontiers < len(sampledFrontiers):
+            sampledFrontiers = sorted(sampledFrontiers, key=lambda f: f.topK(1).entries[0].logPosterior, reverse=True)
+            sampledFrontiers = sampledFrontiers[:min(len(sampledFrontiers), numHelmFrontiers)]
+        print("Finished loading {} helmholtz tasks".format(len(sampledFrontiers)))
 
     ##################################
     # Training Recognition Model
     ##################################
 
-    # recognitionModel = RecognitionModel(
-    # featureExtractor=extractor(train, grammar=baseGrammar, testingTasks=[], cuda=torch.cuda.is_available(), featureExtractorArgs=featureExtractorArgs),
-    # grammar=baseGrammar,
-    # cuda=torch.cuda.is_available(),
-    # contextual=False,
-    # previousRecognitionModel=False,
-    # )
+    recognitionModel = RecognitionModel(
+    featureExtractor=extractor(tasks, grammar=baseGrammar, testingTasks=[], cuda=torch.cuda.is_available(), featureExtractorArgs=featureExtractorArgs),
+    grammar=baseGrammar,
+    cuda=torch.cuda.is_available(),
+    contextual=False,
+    previousRecognitionModel=False,
+    )
 
-    # # count how many tasks can be tokenized
-    # excludeIdx = []
-    # for i,f in enumerate(sampledFrontiers):
-    #     if recognitionModel.featureExtractor.featuresOfTask(f.task) is None:
-    #         excludeIdx.append(i)
-    # sampledFrontiers = [f for i,f in enumerate(sampledFrontiers) if i not in excludeIdx]
-    # print("Can't get featuresOfTask for {} tasks. Now have {} frontiers".format(len(excludeIdx), len(sampledFrontiers)))
+    # count how many tasks can be tokenized
+    excludeIdx = []
+    for i,f in enumerate(sampledFrontiers):
+        if recognitionModel.featureExtractor.featuresOfTask(f.task) is None:
+            excludeIdx.append(i)
+    sampledFrontiers = [f for i,f in enumerate(sampledFrontiers) if i not in excludeIdx]
+    print("Can't get featuresOfTask for {} tasks. Now have {} frontiers".format(len(excludeIdx), len(sampledFrontiers)))
 
-    # ep, CPUs = args.pop("earlyStopping"), args.pop("CPUs")
-    # recognitionSteps = args.pop("recognitionSteps")
-    # recognitionTimeout = args.pop("recognitionTimeout")
-    # trainedRecognizer = recognitionModel.trainRecognizer(
-    # frontiers=sampledFrontiers, 
-    # helmholtzFrontiers=[],
-    # helmholtzRatio=args.pop("helmholtzRatio"),
-    # CPUs=CPUs,
-    # lrModel=False, 
-    # earlyStopping=ep, 
-    # holdout=ep,
-    # steps=recognitionSteps,
-    # timeout=recognitionTimeout,
-    # defaultRequest=arrow(tlist(tint), tlist(tint)))
+    ep, CPUs, helmholtzRatio = args.pop("earlyStopping"), args.pop("CPUs"), args.pop("helmholtzRatio")
+    recognitionSteps = args.pop("recognitionSteps")
+    recognitionTimeout = args.pop("recognitionTimeout")
+    trainedRecognizer = recognitionModel.trainRecognizer(
+    frontiers=sampledFrontiers, 
+    helmholtzFrontiers=[],
+    helmholtzRatio=helmholtzRatio,
+    CPUs=CPUs,
+    lrModel=False, 
+    earlyStopping=ep, 
+    holdout=ep,
+    steps=recognitionSteps,
+    timeout=recognitionTimeout,
+    defaultRequest=arrow(tlist(tint), tlist(tint)))
 
-    # path = "recognitionModels/{}_enumerated_{}/learned_{}_enumeratedFrontiers_ep={}_RS={}_RT={}.pkl".format(libraryName, k, len(sampledFrontiers), ep, recognitionSteps, recognitionTimeout)
-    # with open(path,'wb') as handle:
-    #     print("Saved recognizer at: {}".format(path))
-    #     dill.dump(trainedRecognizer, handle)
+    grammars = {}
+    for task in tasks:
+        grammar = trainedRecognizer.grammarOfTask(task).untorch()
+        grammars[task] = grammar
 
-    # loadPath = "enumerationResults/learned_2021-05-10 13:34:42.593000_t=1.pkl"
-    # with open(loadPath, "rb") as handle:
-    #     frontiers, recognitionTimes = dill.load(handle)
+    if save:
+        filename = "neural_ep={}_RS={}_RT={}_hidden={}_r={}_contextual={}.pkl".format(ep, recognitionSteps, recognitionTimeout, hidden, helmholtzRatio, args["contextual"])
+        directory = "grammars/{}_primitives/{}_enumerated_{}".format(libraryName, dataset, hmfSeed)
+        directory += ":{}/".format(helmholtzFrontiersFilename.split(".")[0]) if helmholtzFrontiersFilename is not None else "/"
+        path = DATA_DIR + directory + filename
+        with open(path, 'wb') as handle:
+            print("Saved recognizer grammars at: {}".format(path))
+            dill.dump(grammars, handle)
+
+    # # load grammars
+    # path = "data/prop_sig/grammars/josh_3_primitives/josh_3_enumerated_1:12199_with_josh_3-inputs/neural_ep=False_RS=50_RT=3600_hidden=64_r=0.0_contextual=False.pkl"
+    # with open(path, "rb") as handle:
+    #     grammars = dill.load(handle)
 
     ##################################
     # Enumeration
@@ -537,7 +550,7 @@ def main(args):
     #         baseGrammar, 
     #         tasks, 
     #         sampledFrontiers, 
-    #         propertyFeatureExtractor, 
+    #         featureExtractor, 
     #         featureExtractorArgs, 
     #         onlyUseTrueProperties, 
     #         [nSim], 
@@ -553,18 +566,18 @@ def main(args):
     #         verbose=verbose)
 
 
-    enumerationTimeout, solver, maximumFrontier, CPUs = args.pop("enumerationTimeout"), args.pop("solver"), args.pop("maximumFrontier"), args.pop("CPUs")
-    modelName = "helmholtzFitted"
-    # grammars = propSimGrammars[nSim]
-    grammars = baseGrammar.insideOutside(sampledFrontiers, 1, iterations=1, frontierWeights=None, weightByPrior=False)
+    # enumerationTimeout, solver, maximumFrontier, CPUs = args.pop("enumerationTimeout"), args.pop("solver"), args.pop("maximumFrontier"), args.pop("CPUs")
+    # modelName = "helmholtzFitted"
+    # # grammars = propSimGrammars[nSim]
+    # grammars = baseGrammar.insideOutside(sampledFrontiers, 1, iterations=1, frontierWeights=None, weightByPrior=False)
 
-    for g in [grammars, baseGrammar]:
-        print("grammar\n{}".format(g))
-        bottomUpFrontiers, allRecognitionTimes = enumerateFromGrammars(g, tasks, modelName, enumerationTimeout, solver, CPUs, maximumFrontier, leaveHoldout=True, save=save)
-        nonEmptyFrontiers = [f for f in bottomUpFrontiers if not f.empty]
-        numTasksProgramDiscovered = len(nonEmptyFrontiers)
-        numTasksSolved = len([f.task for f in nonEmptyFrontiers if f.task.check(f.topK(1).entries[0].program, timeout=1.0, leaveHoldout=False)])
-        print("Enumerating from {} grammars for {} seconds: {} / {} actually true for holdout example".format(modelName, enumerationTimeout, numTasksProgramDiscovered, numTasksSolved, numTasksProgramDiscovered))
+    # for g in [grammars, baseGrammar]:
+    #     print("grammar\n{}".format(g))
+    #     bottomUpFrontiers, allRecognitionTimes = enumerateFromGrammars(g, tasks, modelName, enumerationTimeout, solver, CPUs, maximumFrontier, leaveHoldout=True, save=save)
+    #     nonEmptyFrontiers = [f for f in bottomUpFrontiers if not f.empty]
+    #     numTasksProgramDiscovered = len(nonEmptyFrontiers)
+    #     numTasksSolved = len([f.task for f in nonEmptyFrontiers if f.task.check(f.topK(1).entries[0].program, timeout=1.0, leaveHoldout=False)])
+    #     print("Enumerating from {} grammars for {} seconds: {} / {} actually true for holdout example".format(modelName, enumerationTimeout, numTasksProgramDiscovered, numTasksSolved, numTasksProgramDiscovered))
 #
     #####################
     # Helmhholtz Sampling
@@ -583,19 +596,15 @@ def main(args):
     #####################
 
     # filenames = [
-    # "enumerationResults/neuralRecognizer_2021-05-23 04:43:46.411556_t=600.pkl",
-    # "enumerationResults/propSim_2021-05-23 04:57:26.284483_t=600.pkl",
-    # "enumerationResults/propSim_propToUse=sampled_properties_fitted_60s_sampling_timeout.pkl_nSim=50_weightedSim=False_taskSpecificInputs=False_onlyAllTrue=False_seed=1.pkl_2021-06-18 15:34:26.870940_t=600.pkl",
-    # "enumerationResults/propSim_propToUse=handwritten_equivalent_sampled_properties_fitted_60s_sampling_timeout.pkl_nSim=50_weightedSim=False_taskSpecificInputs=False_onlyAllTrue=False_seed=1.pkl_2021-06-18 15:09:48.214477_t=600.pkl",
-    # "enumerationResults/helmholtz_fitted_2021-06-11 13:17:47.928151_t=600.pkl",
-    # "enumerationResults/uniformGrammar_2021-05-11 13:49:32.922951_t=600.pkl"]
+    #     "propSim_2021-06-23 17:02:48.628976_t=600.pkl",
+    #     "helmholtzFitted_2021-06-23 18:50:44.788945_t=600.pkl",
+    #     "uniform_2021-06-23 19:00:53.979061_t=600.pkl"
+    # ]
     # modelNames = [
-    # "neuralRecognizer",
-    # "propSim2 (handwritten properties)",
-    # "propSim2 (fitted sampled properties)",
-    # "propSim2 (fitted sampled only handwritten equivalent properties)",
-    # "helmholtzFitted",
-    # "unifGrammarPrior"]
+    #     "propSim2 (handwritten properties)",
+    #     "helmholtzFitted",
+    #     "unifGrammarPrior"
+    # ]
     # plotFrontiers(filenames, modelNames)
     
     ######################
@@ -607,7 +616,7 @@ def main(args):
     # unsolvedTasks = [f.task for f in frontiers if len(f.entries) == 0]
     # nSimList = [50]
 
-    # task2FittedGrammars = comparePropSimFittedToRnnEncoded(tasks, frontiers, baseGrammar, sampledFrontiers, propertyFeatureExtractor, featureExtractorArgs, nSimList, propPseudocounts, 
+    # task2FittedGrammars = comparePropSimFittedToRnnEncoded(tasks, frontiers, baseGrammar, sampledFrontiers, featureExtractor, featureExtractorArgs, nSimList, propPseudocounts, 
     #     weightedSim=weightedSim, compressSimilar=False, weightByPrior=False, taskSpecificInputs=taskSpecificInputs, onlyUseTrueProperties=onlyUseTrueProperties, computePriorFromTasks=computePriorFromTasks, 
     #     filterSimilarProperties=filterSimilarProperties, maxFractionSame=maxFractionSame, valuesToInt=valuesToInt, verbose=verbose)
 
@@ -635,10 +644,10 @@ def main(args):
     # if propToUse == "handwritten":
     #     properties = getHandwrittenPropertiesFromTemplates(train)
 
-    # propertyFeatureExtractor = extractor([f.task for f in sampledFrontiers], grammar=baseGrammar, cuda=False, featureExtractorArgs=featureExtractorArgs, properties=properties)
+    # featureExtractor = extractor([f.task for f in sampledFrontiers], grammar=baseGrammar, cuda=False, featureExtractorArgs=featureExtractorArgs, properties=properties)
     # onlySampleFor100percentSimTasks = True
     # for i,task in enumerate(train):
-    #     similarTaskFrontiers, frontierWeights, solved = getTaskSimilarFrontier(sampledFrontiers, propertyFeatureExtractor, task, baseGrammar, featureExtractorArgs, nSim=5, onlyUseTrueProperties=True, verbose=True)
+    #     similarTaskFrontiers, frontierWeights, solved = getTaskSimilarFrontier(sampledFrontiers, featureExtractor, task, baseGrammar, featureExtractorArgs, nSim=5, onlyUseTrueProperties=True, verbose=True)
     #     break
 
         # if onlySampleFor100percentSimTasks:
@@ -700,6 +709,6 @@ def main(args):
     # Enumerate Tasks
     ########################################################################################################
 
-    # enumerateHelmholtz(tasks, args["enumerationTimeout"], args["CPUs"], propertyFeatureExtractor, save=True, libraryName=libraryName, dataset=dataset)
+    # enumerateHelmholtz(tasks, args["enumerationTimeout"], args["CPUs"], featureExtractor, save=True, libraryName=libraryName, dataset=dataset)
 
 # exploratienCompression(baseGrammar, train, testingTasks=test, featureExtractorArgs=featu

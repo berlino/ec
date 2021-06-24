@@ -157,8 +157,8 @@ def sampleAndSave(recognitionModel, requests, dslName, numSamples, samplesPerSte
             del toWrite[:batchSize]
             print("Memory usage: {}".format(getMemoryUsageFraction()))
 
-def loadEnumeratedTasks(dslName, filename, k=1, numExamples=11):
-    with open("data/prop_sig/{}_enumerated_{}/{}".format(dslName, k, filename), "rb") as f:
+def loadEnumeratedTasks(dslName, filename, hmfSeed=1, numExamples=11):
+    with open("data/prop_sig/{}_enumerated_{}/{}".format(dslName, hmfSeed, filename), "rb") as f:
         frontiers = dill.load(f)
 
         filteredFrontiers = []
