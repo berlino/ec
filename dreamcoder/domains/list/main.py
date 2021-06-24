@@ -485,56 +485,56 @@ def main(args):
     ##################################
     # Training Recognition Model
     ##################################
-
-    recognitionModel = RecognitionModel(
-    featureExtractor=extractor(tasks, grammar=baseGrammar, testingTasks=[], cuda=torch.cuda.is_available(), featureExtractorArgs=featureExtractorArgs),
-    grammar=baseGrammar,
-    cuda=torch.cuda.is_available(),
-    contextual=False,
-    previousRecognitionModel=False,
-    )
-
-    # count how many tasks can be tokenized
-    excludeIdx = []
-    for i,f in enumerate(sampledFrontiers):
-        if recognitionModel.featureExtractor.featuresOfTask(f.task) is None:
-            excludeIdx.append(i)
-    sampledFrontiers = [f for i,f in enumerate(sampledFrontiers) if i not in excludeIdx]
-    print("Can't get featuresOfTask for {} tasks. Now have {} frontiers".format(len(excludeIdx), len(sampledFrontiers)))
-
-    ep, CPUs, helmholtzRatio = args.pop("earlyStopping"), args.pop("CPUs"), args.pop("helmholtzRatio")
-    recognitionSteps = args.pop("recognitionSteps")
-    recognitionTimeout = args.pop("recognitionTimeout")
-    trainedRecognizer = recognitionModel.trainRecognizer(
-    frontiers=sampledFrontiers, 
-    helmholtzFrontiers=[],
-    helmholtzRatio=helmholtzRatio,
-    CPUs=CPUs,
-    lrModel=False, 
-    earlyStopping=ep, 
-    holdout=ep,
-    steps=recognitionSteps,
-    timeout=recognitionTimeout,
-    defaultRequest=arrow(tlist(tint), tlist(tint)))
-
-    grammars = {}
-    for task in tasks:
-        grammar = trainedRecognizer.grammarOfTask(task).untorch()
-        grammars[task] = grammar
-
-    if save:
-        filename = "neural_ep={}_RS={}_RT={}_hidden={}_r={}_contextual={}.pkl".format(ep, recognitionSteps, recognitionTimeout, hidden, helmholtzRatio, args["contextual"])
-        directory = "grammars/{}_primitives/{}_enumerated_{}".format(libraryName, dataset, hmfSeed)
-        directory += ":{}/".format(helmholtzFrontiersFilename.split(".")[0]) if helmholtzFrontiersFilename is not None else "/"
-        path = DATA_DIR + directory + filename
-        with open(path, 'wb') as handle:
-            print("Saved recognizer grammars at: {}".format(path))
-            dill.dump(grammars, handle)
-
-    # # load grammars
-    # path = "data/prop_sig/grammars/josh_3_primitives/josh_3_enumerated_1:12199_with_josh_3-inputs/neural_ep=False_RS=50_RT=3600_hidden=64_r=0.0_contextual=False.pkl"
-    # with open(path, "rb") as handle:
-    #     grammars = dill.load(handle)
+#  
+#     recognitionModel = RecognitionModel(
+#     featureExtractor=extractor(tasks, grammar=baseGrammar, testingTasks=[], cuda=torch.cuda.is_available(), featureExtractorArgs=featureExtractorArgs),
+#     grammar=baseGrammar,
+#     cuda=torch.cuda.is_available(),
+#     contextual=False,
+#     previousRecognitionModel=False,
+#     )
+# 
+#     # count how many tasks can be tokenized
+#     excludeIdx = []
+#     for i,f in enumerate(sampledFrontiers):
+#         if recognitionModel.featureExtractor.featuresOfTask(f.task) is None:
+#             excludeIdx.append(i)
+#     sampledFrontiers = [f for i,f in enumerate(sampledFrontiers) if i not in excludeIdx]
+#     print("Can't get featuresOfTask for {} tasks. Now have {} frontiers".format(len(excludeIdx), len(sampledFrontiers)))
+# 
+#     ep, CPUs, helmholtzRatio = args.pop("earlyStopping"), args.pop("CPUs"), args.pop("helmholtzRatio")
+#     recognitionSteps = args.pop("recognitionSteps")
+#     recognitionTimeout = args.pop("recognitionTimeout")
+#     trainedRecognizer = recognitionModel.trainRecognizer(
+#     frontiers=sampledFrontiers, 
+#     helmholtzFrontiers=[],
+#     helmholtzRatio=helmholtzRatio,
+#     CPUs=CPUs,
+#     lrModel=False, 
+#     earlyStopping=ep, 
+#     holdout=ep,
+#     steps=recognitionSteps,
+#     timeout=recognitionTimeout,
+#     defaultRequest=arrow(tlist(tint), tlist(tint)))
+# 
+#     grammars = {}
+#     for task in tasks:
+#         grammar = trainedRecognizer.grammarOfTask(task).untorch()
+#         grammars[task] = grammar
+# 
+#     if save:
+#         filename = "neural_ep={}_RS={}_RT={}_hidden={}_r={}_contextual={}.pkl".format(ep, recognitionSteps, recognitionTimeout, hidden, helmholtzRatio, args["contextual"])
+#         directory = "grammars/{}_primitives/{}_enumerated_{}".format(libraryName, dataset, hmfSeed)
+#         directory += ":{}/".format(helmholtzFrontiersFilename.split(".")[0]) if helmholtzFrontiersFilename is not None else "/"
+#         path = DATA_DIR + directory + filename
+#         with open(path, 'wb') as handle:
+#             print("Saved recognizer grammars at: {}".format(path))
+#             dill.dump(grammars, handle)
+# 
+     # load grammars
+    path = "data/prop_sig/grammars/josh_3_primitives/josh_3_enumerated_1:12199_with_josh_3-inputs/neural_ep=False_RS=20000_RT=3600_hidden=64_r=0.0_contextual=False.pkl"  
+    with open(path, "rb") as handle:
+         grammars = dill.load(handle)
 
     ##################################
     # Enumeration

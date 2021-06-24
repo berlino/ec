@@ -1125,8 +1125,6 @@ class RecognitionModel(nn.Module):
                 finishedSteps = False
                 for j,frontier in enumerate(permutedFrontiers):
 
-                    print("Epoch: {}, Frontier: {}".format(i, j))
-
                     # Randomly decide whether to sample from the generative model
                     dreaming = random.random() < helmholtzRatio
                     if dreaming: frontier = getHelmholtz()
@@ -1191,19 +1189,18 @@ class RecognitionModel(nn.Module):
                                 eprint("(ID=%d): " % self.id, " Trained recognition model in",time.time() - start,"seconds")
                                 return bestModel
                             epCount += 1
-
-                eprint("\n(ID=%d): " % self.id, "Epoch", i, "Loss", mean(losses))
-                if realLosses and dreamLosses:
-                    eprint("(ID=%d): " % self.id, "\t\t(real loss): ", mean(realLosses), "\t(dream loss):", mean(dreamLosses))
-                eprint("(ID=%d): " % self.id, "\tvs MDL (w/o neural net)", mean(descriptionLengths))
-                if realMDL and dreamMDL:
-                    eprint("\t\t(real MDL): ", mean(realMDL), "\t(dream MDL):", mean(dreamMDL))
-                eprint("(ID=%d): " % self.id, "\t%d cumulative gradient steps. %f steps/sec"%(totalGradientSteps,
+                        eprint("\n(ID=%d): " % self.id, "Epoch", i, "Loss", mean(losses))
+                        if realLosses and dreamLosses:
+                            eprint("(ID=%d): " % self.id, "\t\t(real loss): ", mean(realLosses), "\t(dream loss):", mean(dreamLosses))
+                        eprint("(ID=%d): " % self.id, "\tvs MDL (w/o neural net)", mean(descriptionLengths))
+                        if realMDL and dreamMDL:
+                            eprint("\t\t(real MDL): ", mean(realMDL), "\t(dream MDL):", mean(dreamMDL))
+                        eprint("(ID=%d): " % self.id, "\t%d cumulative gradient steps. %f steps/sec"%(totalGradientSteps,
                                                                        totalGradientSteps/(time.time() - start)))
-                eprint("(ID=%d): " % self.id, "\t%d-way auxiliary classification loss"%len(self.grammar.primitives),sum(classificationLosses)/len(classificationLosses))
-                losses, descriptionLengths, realLosses, dreamLosses, realMDL, dreamMDL = [], [], [], [], [], []
-                classificationLosses = []
-                gc.collect()
+                        eprint("(ID=%d): " % self.id, "\t%d-way auxiliary classification loss"%len(self.grammar.primitives),sum(classificationLosses)/len(classificationLosses))
+                        losses, descriptionLengths, realLosses, dreamLosses, realMDL, dreamMDL = [], [], [], [], [], []
+                        classificationLosses = []
+                        gc.collect()
             
             self.trained=True
             return self
