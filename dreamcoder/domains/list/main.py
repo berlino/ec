@@ -212,7 +212,7 @@ def list_options(parser):
         "josh_final",
         "josh_rich",
         "property_prims",
-        "list_prims"])
+        "dc_list_domain"])
     parser.add_argument("--propSamplingPrimitives", default="same", choices=[
         "same",
         "josh_1",
@@ -339,11 +339,7 @@ def main(args):
         "josh_final": lambda: joshTasks("final"),
     }[dataset]()
 
-    primLibraries = {"base": basePrimitives,
-             "McCarthy": McCarthyPrimitives,
-             "common": bootstrapTarget_extra,
-             "noLength": no_length,
-             "rich": primitives,
+    primLibraries = {
              "josh_1": josh_primitives("1"),
              "josh_2": josh_primitives("2"),
              "josh_3": josh_primitives("3")[0],
@@ -351,7 +347,7 @@ def main(args):
              "josh_final": josh_primitives("final"),
              "josh_rich": josh_primitives("rich_0_9"),
              "property_prims": handWrittenProperties(),
-             "list_prims": bootstrapTarget_extra()
+             "dc_list_domain": bootstrapTarget_extra()
     }
 
     prims = primLibraries[libraryName]
@@ -599,21 +595,23 @@ def main(args):
     # Plotting
     #####################
 
-    filenames = [
-        "propSim_2021-06-23 17:02:48.628976_t=600.pkl",
-        "neural_2021-06-24 16:26:27.691332_t=600.pkl",
-        "neural_2021-06-24 16:48:33.988518_t=600.pkl",
-        "helmholtzFitted_2021-06-23 18:50:44.788945_t=600.pkl",
-        "uniform_2021-06-23 19:00:53.979061_t=600.pkl"
-    ]
-    modelNames = [
-        "propSim2 (handwritten properties)",
-        "neural (RS 20,000)",
-        "neural (EP)",
-        "helmholtzFitted",
-        "unifGrammarPrior"
-    ]
-    plotFrontiers(filenames, modelNames)
+    # filenames = [
+    #     "propSim_2021-06-23 17:02:48.628976_t=600.pkl",
+    #     "neural_2021-06-24 17:10:43.081907_t=600.pkl",
+    #     "neural_2021-06-24 16:26:27.691332_t=600.pkl",
+    #     "neural_2021-06-24 16:48:33.988518_t=600.pkl",
+    #     "helmholtzFitted_2021-06-23 18:50:44.788945_t=600.pkl",
+    #     "uniform_2021-06-23 19:00:53.979061_t=600.pkl"
+    # ]
+    # modelNames = [
+    #     "propSim2 (handwritten properties)",
+    #     "neural (RS 10,000)",
+    #     "neural (RS 20,000)",
+    #     "neural (EP)",
+    #     "helmholtzFitted",
+    #     "unifGrammarPrior"
+    # ]
+    # plotFrontiers(filenames, modelNames)
     
     ######################
     # Enumeration Proxy
@@ -717,6 +715,7 @@ def main(args):
     # Enumerate Tasks
     ########################################################################################################
 
-    # enumerateHelmholtz(tasks, args["enumerationTimeout"], args["CPUs"], featureExtractor, save=True, libraryName=libraryName, dataset=dataset)
+    frontiers = enumerateHelmholtzOcaml(tasks, baseGrammar, args["enumerationTimeout"], args["CPUs"], featureExtractor, save=save, libraryName=libraryName, dataset=dataset)
+    print(frontiers)
 
 # exploratienCompression(baseGrammar, train, testingTasks=test, featureExtractorArgs=featu
