@@ -576,7 +576,7 @@ def main(args):
     modelName = "neural"
 
     for g in grammars:
-        print("grammar\n{}".format(g))
+        print("grammar for first task: {}".format(g[tasks[0]]))
         bottomUpFrontiers, allRecognitionTimes = enumerateFromGrammars(g, tasks, modelName, enumerationTimeout, solver, CPUs, maximumFrontier, leaveHoldout=True, save=save)
         nonEmptyFrontiers = [f for f in bottomUpFrontiers if not f.empty]
         numTasksProgramDiscovered = len(nonEmptyFrontiers)
