@@ -159,7 +159,7 @@ def sampleAndSave(recognitionModel, requests, dslName, numSamples, samplesPerSte
             print("Memory usage: {}".format(getMemoryUsageFraction()))
 
 def loadEnumeratedTasks(dslName, filename, hmfSeed=1, numExamples=11):
-    with open("data/prop_sig/{}_enumerated_{}/{}".format(dslName, hmfSeed, filename), "rb") as f:
+    with open("data/prop_sig/helmholtz_frontiers/{}_enumerated_{}/{}".format(dslName, hmfSeed, filename), "rb") as f:
         frontiers = dill.load(f)
 
         filteredFrontiers = []

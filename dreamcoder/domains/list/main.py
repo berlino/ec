@@ -30,6 +30,7 @@ from dreamcoder.domains.list.property import Property
 from dreamcoder.domains.list.propertySignatureExtractor import PropertySignatureExtractor
 from dreamcoder.domains.list.resultsProcessing import resume_from_path, viewResults
 from dreamcoder.domains.list.handwrittenProperties import handWrittenProperties, getHandwrittenPropertiesFromTemplates, tinput, toutput
+from dreamcoder.domains.list.utilsBaselines import *
 from dreamcoder.domains.list.utilsPlotting import *
 from dreamcoder.domains.list.utilsProperties import *
 from dreamcoder.domains.list.utilsPropertySampling import *
@@ -479,73 +480,17 @@ def main(args):
         print("Finished loading {} helmholtz tasks".format(len(sampledFrontiers)))
 
     ##################################
-    # Training Recognition Model
-    ##################################
-#  
-#     recognitionModel = RecognitionModel(
-#     featureExtractor=extractor(tasks, grammar=baseGrammar, testingTasks=[], cuda=torch.cuda.is_available(), featureExtractorArgs=featureExtractorArgs),
-#     grammar=baseGrammar,
-#     cuda=torch.cuda.is_available(),
-#     contextual=False,
-#     previousRecognitionModel=False,
-#     )
-# 
-#     # count how many tasks can be tokenized
-#     excludeIdx = []
-#     for i,f in enumerate(sampledFrontiers):
-#         if recognitionModel.featureExtractor.featuresOfTask(f.task) is None:
-#             excludeIdx.append(i)
-#     sampledFrontiers = [f for i,f in enumerate(sampledFrontiers) if i not in excludeIdx]
-#     print("Can't get featuresOfTask for {} tasks. Now have {} frontiers".format(len(excludeIdx), len(sampledFrontiers)))
-# 
-#     ep, CPUs, helmholtzRatio = args.pop("earlyStopping"), args.pop("CPUs"), args.pop("helmholtzRatio")
-#     recognitionSteps = args.pop("recognitionSteps")
-#     recognitionTimeout = args.pop("recognitionTimeout")
-#     trainedRecognizer = recognitionModel.trainRecognizer(
-#     frontiers=sampledFrontiers, 
-#     helmholtzFrontiers=[],
-#     helmholtzRatio=helmholtzRatio,
-#     CPUs=CPUs,
-#     lrModel=False, 
-#     earlyStopping=ep, 
-#     holdout=ep,
-#     steps=recognitionSteps,
-#     timeout=recognitionTimeout,
-#     defaultRequest=arrow(tlist(tint), tlist(tint)))
-# 
-#     grammars = {}
-#     for task in tasks:
-#         grammar = trainedRecognizer.grammarOfTask(task).untorch()
-#         grammars[task] = grammar
-# 
-#     if save:
-#         filename = "neural_ep={}_RS={}_RT={}_hidden={}_r={}_contextual={}.pkl".format(ep, recognitionSteps, recognitionTimeout, hidden, helmholtzRatio, args["contextual"])
-#         directory = "grammars/{}_primitives/{}_enumerated_{}".format(libraryName, dataset, hmfSeed)
-#         directory += ":{}/".format(helmholtzFrontiersFilename.split(".")[0]) if helmholtzFrontiersFilename is not None else "/"
-#         path = DATA_DIR + directory + filename
-#         with open(path, 'wb') as handle:
-#             print("Saved recognizer grammars at: {}".format(path))
-#             dill.dump(grammars, handle)
-# 
-     # load grammars
-    # paths = [
-    # "data/prop_sig/grammars/josh_3_primitives/josh_3_enumerated_1:12199_with_josh_3-inputs/neural_ep=False_RS=20000_RT=3600_hidden=64_r=0.0_contextual=False.pkl",
-    # "data/prop_sig/grammars/josh_3_primitives/josh_3_enumerated_1:12199_with_josh_3-inputs/neural_ep=True_RS=None_RT=3600_hidden=64_r=0.0_contextual=False.pkl",
-    # "data/prop_sig/grammars/josh_3_primitives/josh_3_enumerated_1:12199_with_josh_3-inputs/neural_ep=False_RS=10000_RT=3600_hidden=64_r=0.0_contextual=False.pkl"
-    # ]
-    # grammars = []
-
-    # for path in paths:
-    #     with open(path, "rb") as handle:
-    #          grammars.append(dill.load(handle))
-
-    ##################################
-    # Enumeration
+    # Get Grammars
     ##################################
 
+    # helmholtzGrammar = baseGrammar.insideOutside(sampledFrontiers, 1, iterations=1, frontierWeights=None, weightByPrior=False)
+    # uniformGrammar = baseGrammar
+
+    directory = DATA_DIR + "grammars/{}_primitives/enumerated_{}:{}:{}/".format(libraryName, hmfSeed, helmholtzFrontiersFilename.split(".")[0], numHelmFrontiers)
+    neuralGrammars = getGrammarsFromNeuralRecognizer(extractor, tasks, baseGrammar, featureExtractorArgs, sampledFrontiers, save, directory, args)
     # try:
-    #     filename = "helmFrontiers={}_propToUse={}_nSim={}_weightedSim={}_taskSpecificInputs={}_seed={}.pkl".format(helmholtzFrontiersFilename, propToUse, nSim, weightedSim, taskSpecificInputs, args["seed"])
-    #     path = DATA_DIR + GRAMMARS_DIR + filename
+    #     propSimFilename = "propSim_propToUse={}_nSim={}_weightedSim={}_taskSpecificInputs={}_seed={}.pkl".format(helmholtzFrontiersFilename, propToUse, nSim, weightedSim, taskSpecificInputs, args["seed"])
+    #     path = directory + propSimFilename
     #     propSimGrammars = dill.load(open(path, "rb"))
     # except FileNotFoundError:
     #     print("Couldn't find pickled fitted grammars, regenerating")
@@ -567,29 +512,29 @@ def main(args):
     #         maxFractionSame=maxFractionSame, 
     #         valuesToInt=valuesToInt,
     #         verbose=verbose)
+    #     propSimGrammars = propSimGrammars[nSim]
+
+    # if save:
+    #     dill.dump(helmholtzGrammar, open(directory + "helmholtzFitted.pkl", "wb"))
+    #     dill.dump(uniformGrammar, open(directory + "uniformWeights.pkl", "wb"))
+    #     dill.dump(propSimGrammars, open(directory + propSimFilename, "wb"))
+
+    # modelNames = ["helmholtzFitted", "uniform", "propSim"]
+    # allGrammars = [helmholtzGrammar, uniformGrammar, propSimGrammars]
+
+    ##################################
+    # Enumeration
+    ##################################
 
     # enumerationTimeout, solver, maximumFrontier, CPUs = args.pop("enumerationTimeout"), args.pop("solver"), args.pop("maximumFrontier"), args.pop("CPUs")
-    # modelName = "neural"
 
-    # for g in grammars:
-    #     print("grammar for first task: {}".format(g[tasks[0]]))
+    # for g, modelName in zip(allGrammars, modelNames):
+    #     print("grammar for first task: {}".format(g if isinstance(g, Grammar) else list(g.values())[0]))
     #     bottomUpFrontiers, allRecognitionTimes = enumerateFromGrammars(g, tasks, modelName, enumerationTimeout, solver, CPUs, maximumFrontier, leaveHoldout=True, save=save)
     #     nonEmptyFrontiers = [f for f in bottomUpFrontiers if not f.empty]
     #     numTasksProgramDiscovered = len(nonEmptyFrontiers)
     #     numTasksSolved = len([f.task for f in nonEmptyFrontiers if f.task.check(f.topK(1).entries[0].program, timeout=1.0, leaveHoldout=False)])
     #     print("Enumerating from {} grammars for {} seconds: {} / {} actually true for holdout example".format(modelName, enumerationTimeout, numTasksProgramDiscovered, numTasksSolved, numTasksProgramDiscovered))
-#
-    #####################
-    # Helmhholtz Sampling
-    #####################
-
-    # k = 2
-    # sampleAndSave(recognitionModel, [arrow(tlist(tint), tlist(tint))], dslName=libraryName, numSamples=10000, samplesPerStep=1000, CPUs=40, batchSize=100, k=k)
-    # f = loadSampledTasks(k=2, batchSize=2, n=4, dslName=libraryName)
-    # print(f)
-    
-    # featureExtractor=extractor(train, grammar=baseGrammar, testingTasks=[], cuda=torch.cuda.is_available(), featureExtractorArgs=featureExtractorArgs)
-    # enumerateAndSave(baseGrammar, train[0].request, featureExtractor, dslName=libraryName, numTasks=10000, k=1, batchSize=100, CPUs=args.pop("CPUs"))
 
     #####################
     # Plotting
@@ -715,7 +660,7 @@ def main(args):
     # Enumerate Tasks
     ########################################################################################################
 
-    frontiers = enumerateHelmholtzOcaml(tasks, baseGrammar, args["enumerationTimeout"], args["CPUs"], featureExtractor, save=save, libraryName=libraryName, dataset=dataset)
-    print(frontiers)
+    # frontiers = enumerateHelmholtzOcaml(tasks, baseGrammar, args["enumerationTimeout"], args["CPUs"], featureExtractor, save=save, libraryName=libraryName, dataset=dataset)
+    # print(frontiers)
 
 # exploratienCompression(baseGrammar, train, testingTasks=test, featureExtractorArgs=featu
