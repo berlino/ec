@@ -18,7 +18,7 @@ def helmholtzEnumeration(g, request, inputs, timeout, _=None,
                          special=None, evaluationTimeout=None, maximumSize=10000):
     """Returns json (as text)"""
     message = {"request": request.json(),
-               "timeout": timeout,
+               "timeout": float(timeout),
                "DSL": g.json(),
                "maximumSize": maximumSize,
                "extras": inputs}
