@@ -378,30 +378,25 @@ let primitive6 = primitive "6" tint 6;;
 let primitive7 = primitive "7" tint 7;;
 let primitive8 = primitive "8" tint 8;;
 let primitive9 = primitive "9" tint 9;;
-let primitive_input_to_list = primitive "tinput_to_tlist" (tinput @> tlist tint) (fun x -> x);;
-let primitive_output_to_list = primitive "toutput_to_tlist" (toutput @> tlist tint) (fun x -> x);;
-(* let primitive_output_to_list = primitive "toutput_to_tlist(tint)" (toutput @> tlist tint) (fun x -> x);; *)
-
 (10--100) |> List.iter ~f:(fun n ->
     ignore(primitive (Printf.sprintf "%d" n) tint n));;
 let primitive20 = primitive "ifty" tint 20;;
-(* let primitive_addition = primitive "+" (tint @> tint @> tint) (fun x y -> x + y);; *)
+let primitive_addition = primitive "+" (tint @> tint @> tint) (fun x y -> x + y);;
 let primitive_increment = primitive "incr" (tint @> tint) (fun x -> 1+x);;
 let primitive_decrement = primitive "decr" (tint @> tint) (fun x -> x - 1);;
-(* let primitive_subtraction = primitive "-" (tint @> tint @> tint) (-);; *)
+let primitive_subtraction = primitive "-" (tint @> tint @> tint) (-);;
 let primitive_negation = primitive "negate" (tint @> tint) (fun x -> 0-x);;
-(* let primitive_multiplication = primitive "*" (tint @> tint @> tint) ( * );; *)
-(* let primitive_division = primitive "/" (tint @> tint @> tint) ( / );; *)
-(* let primitive_modulus = primitive "mod" (tint @> tint @> tint) (fun x y -> x mod y);; *)
+let primitive_multiplication = primitive "*" (tint @> tint @> tint) ( * );;
+let primitive_modulus = primitive "mod" (tint @> tint @> tint) (fun x y -> x mod y);;
 
 let primitive_apply = primitive "apply" (t1 @> (t1 @> t0) @> t0) (fun x f -> f x);;
 
-(* let primitive_true = primitive "true" tboolean true;; *)
-(* let primitive_false = primitive "false" tboolean false;; *)
+let primitive_true = primitive "true" tboolean true;;
+let primitive_false = primitive "false" tboolean false;;
 
-(* let primitive_if = primitive "if" (tboolean @> t0 @> t0 @> t0)
+let primitive_if = primitive "if" (tboolean @> t0 @> t0 @> t0)
     ~manualLaziness:true
-    (fun p x y -> if Lazy.force p then Lazy.force x else Lazy.force y);; *)
+    (fun p x y -> if Lazy.force p then Lazy.force x else Lazy.force y);;
 
 let primitive_is_square = primitive "is-square" (tint @> tboolean)
     (fun x ->
@@ -412,7 +407,7 @@ let primitive_is_prime = primitive "is-prime" (tint @> tboolean)
     (fun x -> List.mem ~equal:(=) [2; 3; 5; 7; 11; 13; 17; 19; 23; 29; 31; 37; 41; 43; 47; 53; 59; 61; 67; 71; 73; 79; 83; 89; 97; 101; 103; 107; 109; 113; 127; 131; 137; 139; 149; 151; 157; 163; 167; 173; 179; 181; 191; 193; 197; 199] x);;
 
 
-(* let primitive_cons = primitive "cons" (t0 @> tlist t0 @> tlist t0) (fun x xs -> x :: xs);; *)
+let primitive_cons = primitive "cons" (t0 @> tlist t0 @> tlist t0) (fun x xs -> x :: xs);;
 let primitive_car = primitive "car" (tlist t0 @> t0) (fun xs -> List.hd_exn xs);;
 let primitive_cdr = primitive "cdr" (tlist t0 @> tlist t0) (fun xs -> List.tl_exn xs);;
 let primitive_is_empty = primitive "empty?" (tlist t0 @> tboolean)
@@ -461,30 +456,31 @@ let rec number_of_free_parameters = function
   | Apply(f,x) -> number_of_free_parameters f + number_of_free_parameters x
   | Index(_) -> 0
 
+let rec range_general i j step = if i > j then [] else i :: (range_general (i+step) j step);;
 
-(* let primitive_empty = primitive "empty" (tlist t0) [];; *)
+let primitive_empty = primitive "empty" (tlist t0) [];;
 (* let primitive_range = primitive "range" (tint @> tlist tint) (fun x -> 0 -- (x-1));; *)
-(* let primitive_sort = primitive "sort" (tlist tint @> tlist tint) (List.sort ~compare:(fun x y -> x - y));; *)
-(* let primitive_reverse = primitive "reverse" (tlist tint @> tlist tint) (List.rev);;  *)
-(* let primitive_append = primitive "append"  (tlist t0 @> tlist t0 @> tlist t0) (@);; *)
-(* let primitive_singleton = primitive "singleton"  (tint @> tlist tint) (fun x -> [x]);; *)
-(* let primitive_slice = primitive "slice" (tint @> tint @> tlist tint @> tlist tint) slice;; *)
-(* let primitive_length = primitive "length" (tlist t0 @> tint) (List.length);; *)
-(* let primitive_map = primitive "map" ((t0 @> t1) @> (tlist t0) @> (tlist t1)) (fun f l -> List.map ~f:f l);;  *)
+let primitive_range_general = primitive "range" (tint @> tint @> tint @> tlist tint) (range_general);;
+let primitive_sort = primitive "sort" (tlist tint @> tlist tint) (List.sort ~compare:(fun x y -> x - y));;
+let primitive_reverse = primitive "reverse" (tlist tint @> tlist tint) (List.rev);;
+let primitive_append = primitive "append"  (tlist t0 @> tlist t0 @> tlist t0) (@);;
+let primitive_singleton = primitive "singleton"  (tint @> tlist tint) (fun x -> [x]);;
+let primitive_slice = primitive "slice" (tint @> tint @> tlist tint @> tlist tint) slice;;
+let primitive_length = primitive "length" (tlist t0 @> tint) (List.length);;
+let primitive_map = primitive "map" ((t0 @> t1) @> (tlist t0) @> (tlist t1)) (fun f l -> List.map ~f:f l);;
 let primitive_fold_right = primitive "fold_right" ((tint @> tint @> tint) @> tint @> (tlist tint) @> tint) (fun f x0 l -> List.fold_right ~f:f ~init:x0 l);;
-(* let primitive_mapi = primitive "mapi" ((tint @> t0 @> t1) @> (tlist t0) @> (tlist t1)) (fun f l ->
-    List.mapi l ~f:f);; *)
-(* let primitive_a2 = primitive "++" ((tlist t0) @> (tlist t0) @> (tlist t0)) (@);; *)
+let primitive_mapi = primitive "mapi" ((tint @> t0 @> t1) @> (tlist t0) @> (tlist t1)) (fun f l ->
+    List.mapi l ~f:f);;
+let primitive_a2 = primitive "++" ((tlist t0) @> (tlist t0) @> (tlist t0)) (@);;
 let primitive_reducei = primitive "reducei" ((tint @> t1 @> t0 @> t1) @> t1 @> (tlist t0) @> t1) (fun f x0 l -> List.foldi ~f:f ~init:x0 l);;
-(* let primitive_filter = primitive "filter" ((tint @> tboolean) @> (tlist tint) @> (tlist tint)) (fun f l -> List.filter ~f:f l);; *)
-(* let primitive_equal = primitive "eq?" (tint @> tint @> tboolean) (fun (a : int) (b : int) -> a = b);; *)
+let primitive_filter = primitive "filter" ((tint @> tboolean) @> (tlist tint) @> (tlist tint)) (fun f l -> List.filter ~f:f l);;
+let primitive_equal = primitive "eq?" (tint @> tint @> tboolean) (fun (a : int) (b : int) -> a = b);;
 let primitive_equal0 = primitive "eq0" (tint @> tboolean) (fun (a : int) -> a = 0);;
-(* let primitive_not = primitive "not" (tboolean @> tboolean) (not);; *)
-(* let primitive_and = primitive "and" (tboolean @> tboolean @> tboolean) (fun x y -> x && y);; *)
+let primitive_not = primitive "not" (tboolean @> tboolean) (not);;
+let primitive_and = primitive "and" (tboolean @> tboolean @> tboolean) (fun x y -> x && y);;
 let primitive_nand = primitive "nand" (tboolean @> tboolean @> tboolean) (fun x y -> not (x && y));;
-(* let primitive_or = primitive "or" (tboolean @> tboolean @> tboolean) (fun x y -> x || y);; *)
-(* let primitive_greater_than = primitive "gt?" (tint @> tint @> tboolean) (fun (x: int) (y: int) -> x > y);; *)
-(* let primitive_greater_than = primitive "lt?" (tint @> tint @> tboolean) (fun (x: int) (y: int) -> x < y);; *)
+let primitive_or = primitive "or" (tboolean @> tboolean @> tboolean) (fun x y -> x || y);;
+let primitive_greater_than = primitive "gt?" (tint @> tint @> tboolean) (fun (x: int) (y: int) -> x > y);;
 
 ignore(primitive "take-word" (tcharacter @> tstring @> tstring) (fun c s ->
     List.take_while s ~f:(fun c' -> not (c = c'))));;
@@ -699,11 +695,11 @@ let rec unfold x p h n =
   if p x then [] else h x :: unfold (n x) p h n
 
 let primitive_unfold = primitive "unfold" (t0 @> (t0 @> tboolean) @> (t0 @> t1) @> (t0 @> t0) @> tlist t1) unfold;;
-(* let primitive_index = primitive "index" (tint @> tlist t0 @> t0) (fun j l -> List.nth_exn l j);; *)
-(* let primitive_zip = primitive "zip" (tlist t0 @> tlist t1 @> (t0 @> t1 @> t2) @> tlist t2)
-    (fun x y f -> List.map2_exn x y ~f:f);; *)
-(* let primitive_fold = primitive "fold" (tlist t0 @> t1 @> (t0 @> t1 @> t1) @> t1)
-    (fun l x0 f -> List.fold_right ~f:f ~init:x0 l);; *)
+let primitive_index = primitive "index" (tint @> tlist t0 @> t0) (fun j l -> List.nth_exn l j);;
+let primitive_zip = primitive "zip" (tlist t0 @> tlist t1 @> (t0 @> t1 @> t2) @> tlist t2)
+    (fun x y f -> List.map2_exn x y ~f:f);;
+let primitive_fold = primitive "fold" (tlist t0 @> t1 @> (t0 @> t1 @> t1) @> t1)
+    (fun l x0 f -> List.fold_right ~f:f ~init:x0 l);;
 
 
 let default_recursion_limit = ref 50;;
@@ -1020,75 +1016,6 @@ let t_direction_p = make_ground "t_direction_p";;
 let t_int_p = make_ground "t_int_p";;
 let t_model_p = make_ground "t_model_p";;
 
-(* Josh Rule Property Signature Primitive Definitions *)
-
-primitive "toutput -> tlist(tint)" (toutput @> (tlist tint)) (fun x -> x);;
-primitive "tinput -> tlist(tint)" (tinput @> (tlist tint)) (fun x -> x);;
-
-(* Josh Rule Rich DSL Primitive Definitions *)
-
-ignore(primitive "true" (tboolean) (None)) ;;
-ignore(primitive "false" (tboolean) (None)) ;;
-let primitive_empty = primitive "empty" (tlist t0) (None) ;;
-ignore(primitive "+" (tint @> tint @> tint) (None)) ;;
-ignore(primitive "-" (tint @> tint @> tint) (None)) ;;
-ignore(primitive "*" (tint @> tint @> tint) (None)) ;;
-ignore(primitive "/" (tint @> tint @> tint) (None)) ;;
-ignore(primitive "mod" (tint @> tint @> tint) (None)) ;;
-ignore(primitive "gt?" (tint @> tint @> tboolean) (None)) ;;
-ignore(primitive "lt?" (tint @> tint @> tboolean) (None)) ;;
-ignore(primitive "is-odd" (tint @> tboolean) (None)) ;;
-ignore(primitive "is-even" (tint @> tboolean) (None)) ;;
-ignore(primitive "and" (tboolean @> tboolean @> tboolean) (None)) ;;
-ignore(primitive "or" (tboolean @> tboolean @> tboolean) (None)) ;;
-ignore(primitive "not" (tboolean @> tboolean) (None)) ;;
-ignore(primitive "if" (tboolean @> t0 @> t0 @> t0) (None)) ;;
-ignore(primitive "eq?" (t0 @> t0 @> tboolean) (None)) ;;
-ignore(primitive "singleton" (t0 @> tlist t0) (None)) ;;
-ignore(primitive "repeat" (t0 @> tint @> tlist t0) (None)) ;;
-ignore(primitive "range" (tint @> tint @> tint @> tlist tint) (None)) ;;
-ignore(primitive "append" (tlist t0 @> t0 @> tlist t0) (None)) ;;
-let primitive_cons = primitive "cons" (t0 @> tlist t0 @> tlist t0) (None) ;;
-ignore(primitive "insert" (t0 @> tint @> tlist t0 @> tlist t0) (None)) ;;
-ignore(primitive "++" (t0 @> tlist t0 @> tlist t0) (None)) ;;
-ignore(primitive "splice" (tlist t0 @> tint @> tlist t0 @> tlist t0) (None)) ;;
-ignore(primitive "first" (tlist t0 @> t0) (None)) ;;
-ignore(primitive "second" (tlist t0 @> t0) (None)) ;;
-ignore(primitive "third" (tlist t0 @> t0) (None)) ;;
-ignore(primitive "last" (tlist t0 @> t0) (None)) ;;
-ignore(primitive "index" (tint @> tlist t0 @> t0) (None)) ;;
-ignore(primitive "replaceEl" (tint @> t0 @> tlist t0 @> tlist t0) (None)) ;;
-ignore(primitive "swap" (tint @> tint @> tlist t0 @> tlist t0) (None)) ;;
-ignore(primitive "cut_idx" (tint @> tlist t0 @> tlist t0) (None)) ;;
-ignore(primitive "cut_val" (t0 @> tlist t0 @> tlist t0) (None)) ;;
-ignore(primitive "cut_vals" (t0 @> tlist t0 @> tlist t0) (None)) ;;
-ignore(primitive "drop" (tint @> tlist t0 @> tlist t0) (None)) ;;
-ignore(primitive "droplast" (tint @> tlist t0 @> tlist t0) (None)) ;;
-ignore(primitive "cut_slice" (tint @> tint @> tlist t0 @> tlist t0) (None)) ;;
-ignore(primitive "take" (tint @> tlist t0 @> tlist t0) (None)) ;;
-ignore(primitive "takelast" (tint @> tlist t0 @> tlist t0) (None)) ;;
-ignore(primitive "slice" (tint @> tint @> tlist t0 @> tlist t0) (None)) ;;
-ignore(primitive "fold" (tlist t0 @> t1 @> (t0 @> t1 @> t1) @> t1) (None)) ;;
-ignore(primitive "foldi" (tlist t0 @> t1 @> (tint @> t0 @> t1 @> t1) @> t1) (None)) ;;
-ignore(primitive "filter" ((t0 @> tboolean) @> tlist t0 @> tlist t0) (None)) ;;
-ignore(primitive "filteri" ((tint @> t0 @> tboolean) @> tlist t0 @> tlist t0) (None)) ;;
-ignore(primitive "count" ((t0 @> tboolean) @> tlist t0 @> tint) (None)) ;;
-ignore(primitive "find" ((t0 @> tboolean) @> tlist t0 @> tlist tint) (None)) ;;
-ignore(primitive "map" ((t0 @> t1) @> tlist t0 @> tlist t1) (None)) ;;
-ignore(primitive "mapi" ((tint @> t0 @> t1) @> tlist t0 @> tlist t1) (None)) ;;
-ignore(primitive "group" ((t0 @> t1) @> tlist t0 @> tlist (tlist t0)) (None)) ;;
-ignore(primitive "is_in" (tlist t0 @> t0 @> tboolean) (None)) ;;
-ignore(primitive "length" (tlist t0 @> tint) (None)) ;;
-ignore(primitive "max" (tlist tint @> tint) (None)) ;;
-ignore(primitive "min" (tlist tint @> tint) (None)) ;;
-ignore(primitive "product" (tlist tint @> tint) (None)) ;;
-ignore(primitive "sum" (tlist tint @> tint) (None)) ;;
-ignore(primitive "unique" (tlist t0 @> tlist t0) (None)) ;;
-ignore(primitive "sort" (tlist tint @> tlist tint) (None)) ;;
-ignore(primitive "reverse" (tlist t0 @> tlist t0) (None)) ;;
-ignore(primitive "flatten" ((tlist (tlist t0)) @> tlist t0) (None)) ;;
-ignore(primitive "zip" (tlist t0 @> tlist t1 @> (t0 @> t1 @> t2) @> tlist t2) (None)) ;;
-
 (* Puddleworld Primitive Definitions *)
 
 ignore(primitive "true_p" (t_boolean_p) (fun x -> x));;
@@ -1150,3 +1077,67 @@ ignore(primitive "-n9" (tint @> tint @> tint)
 ignore(primitive "+n9" (tint @> tint @> tint)
          (fun x y ->
             if x < 0 || y < 0 || x > 9 || y > 9 then raise (Failure "nan") else x + y));;
+
+(*
+ignore(primitive "true" (tboolean) (None)) ;;
+ignore(primitive "false" (tboolean) (None)) ;;
+let primitive_empty = primitive "empty" (tlist t0) (None) ;;
+ignore(primitive "+" (tint @> tint @> tint) (None)) ;;
+ignore(primitive "-" (tint @> tint @> tint) (None)) ;;
+ignore(primitive "*" (tint @> tint @> tint) (None)) ;;
+ignore(primitive "/" (tint @> tint @> tint) (None)) ;;
+ignore(primitive "mod" (tint @> tint @> tint) (None)) ;;
+ignore(primitive "gt?" (tint @> tint @> tboolean) (None)) ;;
+ignore(primitive "lt?" (tint @> tint @> tboolean) (None)) ;;
+ignore(primitive "is-odd" (tint @> tboolean) (None)) ;;
+ignore(primitive "is-even" (tint @> tboolean) (None)) ;;
+ignore(primitive "and" (tboolean @> tboolean @> tboolean) (None)) ;;
+ignore(primitive "or" (tboolean @> tboolean @> tboolean) (None)) ;;
+ignore(primitive "not" (tboolean @> tboolean) (None)) ;;
+ignore(primitive "if" (tboolean @> t0 @> t0 @> t0) (None)) ;;
+ignore(primitive "eq?" (t0 @> t0 @> tboolean) (None)) ;;
+ignore(primitive "singleton" (t0 @> tlist t0) (None)) ;;
+ignore(primitive "repeat" (t0 @> tint @> tlist t0) (None)) ;;
+ignore(primitive "range" (tint @> tint @> tint @> tlist tint) (None)) ;;
+ignore(primitive "append" (tlist t0 @> t0 @> tlist t0) (None)) ;;
+let primitive_cons = primitive "cons" (t0 @> tlist t0 @> tlist t0) (None) ;;
+ignore(primitive "insert" (t0 @> tint @> tlist t0 @> tlist t0) (None)) ;;
+ignore(primitive "++" (t0 @> tlist t0 @> tlist t0) (None)) ;;
+ignore(primitive "splice" (tlist t0 @> tint @> tlist t0 @> tlist t0) (None)) ;;
+ignore(primitive "first" (tlist t0 @> t0) (None)) ;;
+ignore(primitive "second" (tlist t0 @> t0) (None)) ;;
+ignore(primitive "third" (tlist t0 @> t0) (None)) ;;
+ignore(primitive "last" (tlist t0 @> t0) (None)) ;;
+ignore(primitive "index" (tint @> tlist t0 @> t0) (None)) ;;
+ignore(primitive "replaceEl" (tint @> t0 @> tlist t0 @> tlist t0) (None)) ;;
+ignore(primitive "swap" (tint @> tint @> tlist t0 @> tlist t0) (None)) ;;
+ignore(primitive "cut_idx" (tint @> tlist t0 @> tlist t0) (None)) ;;
+ignore(primitive "cut_val" (t0 @> tlist t0 @> tlist t0) (None)) ;;
+ignore(primitive "cut_vals" (t0 @> tlist t0 @> tlist t0) (None)) ;;
+ignore(primitive "drop" (tint @> tlist t0 @> tlist t0) (None)) ;;
+ignore(primitive "droplast" (tint @> tlist t0 @> tlist t0) (None)) ;;
+ignore(primitive "cut_slice" (tint @> tint @> tlist t0 @> tlist t0) (None)) ;;
+ignore(primitive "take" (tint @> tlist t0 @> tlist t0) (None)) ;;
+ignore(primitive "takelast" (tint @> tlist t0 @> tlist t0) (None)) ;;
+ignore(primitive "slice" (tint @> tint @> tlist t0 @> tlist t0) (None)) ;;
+ignore(primitive "fold" (tlist t0 @> t1 @> (t0 @> t1 @> t1) @> t1) (None)) ;;
+ignore(primitive "foldi" (tlist t0 @> t1 @> (tint @> t0 @> t1 @> t1) @> t1) (None)) ;;
+ignore(primitive "filter" ((t0 @> tboolean) @> tlist t0 @> tlist t0) (None)) ;;
+ignore(primitive "filteri" ((tint @> t0 @> tboolean) @> tlist t0 @> tlist t0) (None)) ;;
+ignore(primitive "count" ((t0 @> tboolean) @> tlist t0 @> tint) (None)) ;;
+ignore(primitive "find" ((t0 @> tboolean) @> tlist t0 @> tlist tint) (None)) ;;
+ignore(primitive "map" ((t0 @> t1) @> tlist t0 @> tlist t1) (None)) ;;
+ignore(primitive "mapi" ((tint @> t0 @> t1) @> tlist t0 @> tlist t1) (None)) ;;
+ignore(primitive "group" ((t0 @> t1) @> tlist t0 @> tlist (tlist t0)) (None)) ;;
+ignore(primitive "is_in" (tlist t0 @> t0 @> tboolean) (None)) ;;
+ignore(primitive "length" (tlist t0 @> tint) (None)) ;;
+ignore(primitive "max" (tlist tint @> tint) (None)) ;;
+ignore(primitive "min" (tlist tint @> tint) (None)) ;;
+ignore(primitive "product" (tlist tint @> tint) (None)) ;;
+ignore(primitive "sum" (tlist tint @> tint) (None)) ;;
+ignore(primitive "unique" (tlist t0 @> tlist t0) (None)) ;;
+ignore(primitive "sort" (tlist tint @> tlist tint) (None)) ;;
+ignore(primitive "reverse" (tlist t0 @> tlist t0) (None)) ;;
+ignore(primitive "flatten" ((tlist (tlist t0)) @> tlist t0) (None)) ;;
+ignore(primitive "zip" (tlist t0 @> tlist t1 @> (t0 @> t1 @> t2) @> tlist t2) (None)) ;;
+*)
