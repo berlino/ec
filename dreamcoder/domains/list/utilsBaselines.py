@@ -22,16 +22,17 @@ def getGrammarsFromNeuralRecognizer(extractor, tasks, baseGrammar, featureExtrac
     sampledFrontiers = [f for i,f in enumerate(sampledFrontiers) if i not in excludeIdx]
     print("Can't get featuresOfTask for {} tasks. Now have {} frontiers".format(len(excludeIdx), len(sampledFrontiers)))
 
-    ep, CPUs, helmholtzRatio, rs, rt = args.pop("earlyStopping"), args.pop("CPUs"), args.pop("helmholtzRatio"), args.pop("recognitionSteps"), args.pop("recognitionTimeout")
+    ep, CPUs, helmholtzRatio, rs, rt = args.pop("earlyStopping"), args["CPUs"], args.pop("helmholtzRatio"), args.pop("recognitionSteps"), args.pop("recognitionTimeout")
     
     # check if we alread have trained this model
     filename = "neural_ep={}_RS={}_RT={}_hidden={}_r={}_contextual={}.pkl".format(ep, rs, rt, featureExtractorArgs["hidden"], helmholtzRatio, args["contextual"])
     path = saveDirectory + filename
     try:
-        grammars = open(path, 'rb')
+        grammars = dill.load(open(path, 'rb'))
         print("Loaded recognizer grammars from: {}".format(path))
         return grammars
     except FileNotFoundError:
+        print("Couldn't find: {}".format(path))
         print("Trained recognizer not found, training now ...")
 
 

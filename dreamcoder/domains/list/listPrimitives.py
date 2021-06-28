@@ -420,7 +420,7 @@ def bootstrapTarget_extra():
         Primitive("*", arrow(tint, tint, tint), _multiplication),
         Primitive("mod", arrow(tint, tint, tint), _mod),
         Primitive("gt?", arrow(tint, tint, tbool), _gt),
-        Primitive("eq?", arrow(tint, tint, tbool), _eq),
+        Primitive("eq?", arrow(t0, t0, tbool), _eq),
         Primitive("is-prime", arrow(tint, tbool), _isPrime),
         Primitive("is-square", arrow(tint, tbool), _isSquare),
     ]
@@ -431,7 +431,7 @@ def no_length():
         Primitive("*", arrow(tint, tint, tint), _multiplication),
         Primitive("mod", arrow(tint, tint, tint), _mod),
         Primitive("gt?", arrow(tint, tint, tbool), _gt),
-        Primitive("eq?", arrow(tint, tint, tbool), _eq),
+        Primitive("eq?", arrow(t0, t0, tbool), _eq),
         Primitive("is-prime", arrow(tint, tbool), _isPrime),
         Primitive("is-square", arrow(tint, tbool), _isSquare),
     ]

@@ -246,7 +246,7 @@ def list_options(parser):
 
     # Arguments relating to propSim
     parser.add_argument("--hmfSeed", type=int, default=1)
-    parser.add_argument("--numHelmFrontiers", type=int, default=10000)
+    parser.add_argument("--numHelmFrontiers", type=int, default=None)
     parser.add_argument("--maxFractionSame", type=float, default=1.0)
     parser.add_argument("--helmholtzFrontiersFilename", type=str, default=None)
     parser.add_argument("--propFilename", type=str, default=None)
@@ -485,56 +485,57 @@ def main(args):
 
     # helmholtzGrammar = baseGrammar.insideOutside(sampledFrontiers, 1, iterations=1, frontierWeights=None, weightByPrior=False)
     # uniformGrammar = baseGrammar
-
-    directory = DATA_DIR + "grammars/{}_primitives/enumerated_{}:{}:{}/".format(libraryName, hmfSeed, helmholtzFrontiersFilename.split(".")[0], numHelmFrontiers)
-    neuralGrammars = getGrammarsFromNeuralRecognizer(extractor, tasks, baseGrammar, featureExtractorArgs, sampledFrontiers, save, directory, args)
-    # try:
-    #     propSimFilename = "propSim_propToUse={}_nSim={}_weightedSim={}_taskSpecificInputs={}_seed={}.pkl".format(helmholtzFrontiersFilename, propToUse, nSim, weightedSim, taskSpecificInputs, args["seed"])
-    #     path = directory + propSimFilename
-    #     propSimGrammars = dill.load(open(path, "rb"))
-    # except FileNotFoundError:
-    #     print("Couldn't find pickled fitted grammars, regenerating")
-    #     propSimGrammars, tasksSolved, _ = getPropSimGrammars(
-    #         baseGrammar, 
-    #         tasks, 
-    #         sampledFrontiers, 
-    #         featureExtractor, 
-    #         featureExtractorArgs, 
-    #         onlyUseTrueProperties, 
-    #         [nSim], 
-    #         propPseudocounts, 
-    #         weightedSim, 
-    #         compressSimilar=False, 
-    #         weightByPrior=False, 
-    #         recomputeTasksWithTaskSpecificInputs=taskSpecificInputs,
-    #         computePriorFromTasks=computePriorFromTasks, 
-    #         filterSimilarProperties=filterSimilarProperties, 
-    #         maxFractionSame=maxFractionSame, 
-    #         valuesToInt=valuesToInt,
-    #         verbose=verbose)
-    #     propSimGrammars = propSimGrammars[nSim]
-
-    # if save:
-    #     dill.dump(helmholtzGrammar, open(directory + "helmholtzFitted.pkl", "wb"))
-    #     dill.dump(uniformGrammar, open(directory + "uniformWeights.pkl", "wb"))
+    directory = DATA_DIR + "grammars/{}_primitives/enumerated_{}:{}".format(libraryName, hmfSeed, helmholtzFrontiersFilename.split(".")[0])
+    directory += ":{}/".format(numHelmFrontiers) if numHelmFrontiers is not None else "/"
+    neuralGrammars = getGrammarsFromNeuralRecognizer(LearnedFeatureExtractor, tasks, baseGrammar, {"hidden": hidden}, sampledFrontiers, save, directory, args)
+    """
+    try:
+         propSimFilename = "propSim_propToUse={}_nSim={}_weightedSim={}_taskSpecificInputs={}_seed={}.pkl".format(propToUse, nSim, weightedSim, taskSpecificInputs, args["seed"])
+         path = directory + propSimFilename
+         propSimGrammars = dill.load(open(path, "rb"))
+    except FileNotFoundError:
+         print("Couldn't find pickled fitted grammars, regenerating")
+         propSimGrammars, tasksSolved, _ = getPropSimGrammars(
+             baseGrammar, 
+             tasks, 
+             sampledFrontiers, 
+            featureExtractor, 
+             featureExtractorArgs, 
+             onlyUseTrueProperties, 
+             [nSim], 
+             propPseudocounts, 
+             weightedSim, 
+             compressSimilar=False, 
+             weightByPrior=False, 
+             recomputeTasksWithTaskSpecificInputs=taskSpecificInputs,
+             computePriorFromTasks=computePriorFromTasks, 
+             filterSimilarProperties=filterSimilarProperties, 
+             maxFractionSame=maxFractionSame, 
+             valuesToInt=valuesToInt,
+             verbose=verbose)
+         propSimGrammars = propSimGrammars[nSim]
+    """
+    # if save and not debug:
+    #     # dill.dump(helmholtzGrammar, open(directory + "helmholtzFitted.pkl", "wb"))
+    #     # dill.dump(uniformGrammar, open(directory + "uniformWeights.pkl", "wb"))
     #     dill.dump(propSimGrammars, open(directory + propSimFilename, "wb"))
 
-    # modelNames = ["helmholtzFitted", "uniform", "propSim"]
-    # allGrammars = [helmholtzGrammar, uniformGrammar, propSimGrammars]
+    modelNames = ["neural"]
+    allGrammars = [neuralGrammars]
 
     ##################################
     # Enumeration
     ##################################
 
-    # enumerationTimeout, solver, maximumFrontier, CPUs = args.pop("enumerationTimeout"), args.pop("solver"), args.pop("maximumFrontier"), args.pop("CPUs")
+    enumerationTimeout, solver, maximumFrontier, CPUs = args.pop("enumerationTimeout"), args.pop("solver"), args.pop("maximumFrontier"), args.pop("CPUs")
 
-    # for g, modelName in zip(allGrammars, modelNames):
-    #     print("grammar for first task: {}".format(g if isinstance(g, Grammar) else list(g.values())[0]))
-    #     bottomUpFrontiers, allRecognitionTimes = enumerateFromGrammars(g, tasks, modelName, enumerationTimeout, solver, CPUs, maximumFrontier, leaveHoldout=True, save=save)
-    #     nonEmptyFrontiers = [f for f in bottomUpFrontiers if not f.empty]
-    #     numTasksProgramDiscovered = len(nonEmptyFrontiers)
-    #     numTasksSolved = len([f.task for f in nonEmptyFrontiers if f.task.check(f.topK(1).entries[0].program, timeout=1.0, leaveHoldout=False)])
-    #     print("Enumerating from {} grammars for {} seconds: {} / {} actually true for holdout example".format(modelName, enumerationTimeout, numTasksProgramDiscovered, numTasksSolved, numTasksProgramDiscovered))
+    for g, modelName in zip(allGrammars, modelNames):
+         print("grammar for first task: {}".format(g if isinstance(g, Grammar) else list(g.values())[0]))
+         bottomUpFrontiers, allRecognitionTimes = enumerateFromGrammars(g, tasks, modelName, enumerationTimeout, solver, CPUs, maximumFrontier, leaveHoldout=True, save=save)
+         nonEmptyFrontiers = [f for f in bottomUpFrontiers if not f.empty]
+         numTasksProgramDiscovered = len(nonEmptyFrontiers)
+         numTasksSolved = len([f.task for f in nonEmptyFrontiers if f.task.check(f.topK(1).entries[0].program, timeout=1.0, leaveHoldout=False)])
+         print("Enumerating from {} grammars for {} seconds: {} / {} actually true for holdout example".format(modelName, enumerationTimeout, numTasksProgramDiscovered, numTasksSolved, numTasksProgramDiscovered))
 
     #####################
     # Plotting

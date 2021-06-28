@@ -17,6 +17,7 @@ open Task
 open FastType
 
 let load_problems channel =
+  Printf.eprintf "starting to read message";
   let open Yojson.Basic.Util in
   let j = Yojson.Basic.from_channel channel in
   let g = j |> member "DSL" in
@@ -24,7 +25,7 @@ let load_problems channel =
     try deserialize_grammar g |> make_dummy_contextual
     with _ -> deserialize_contextual_grammar g
   in
-
+  Printf.eprintf "succesfully deserialized grammar";
   let timeout = try
       j |> member "programTimeout" |> to_float
     with _ ->
@@ -36,7 +37,7 @@ let load_problems channel =
         defaultTimeout
       end
   in
-
+  Printf.eprintf "Succsefully set timeout";
   (* Automatic differentiation parameters *)
   let maxParameters =
     try j |> member "maxParameters" |> to_int
@@ -56,7 +57,7 @@ let load_problems channel =
       x |> to_list |> List.map ~f:unpack |> magical
     with _ -> raise (Failure "could not unpack")
   in
-
+  Printf.eprintf "starting to parse tasks";
   let tf = j |> member "tasks" |> to_list |> List.map ~f:(fun j -> 
       let e = j |> member "examples" |> to_list in
       let task_type = j |> member "request" |> deserialize_type in 
@@ -64,7 +65,7 @@ let load_problems channel =
                                                   ex |> member "output" |> unpack)) in
       let maximum_frontier = j |> member "maximumFrontier" |> to_int in
       let name = j |> member "name" |> to_string in
-
+      Printf.eprintf "\nname: %s\ntimeout %f" name timeout;
       let task =
         (try
            let special = j |> member "specialTask" |> to_string in
@@ -72,8 +73,9 @@ let load_problems channel =
            | Some(handler) -> handler (j |> member "extras")
            | None -> (Printf.eprintf " (ocaml) FATAL: Could not find handler for %s\n" special;
                       exit 1)
-         with _ -> supervised_task) ~timeout:timeout name task_type examples
-      in 
+         with _ -> (Printf.eprintf "got to supervised_task hander"; supervised_task)) ~timeout:timeout name task_type examples
+      in
+      Printf.eprintf "\nCreated supervised_task for single task";
       (task, maximum_frontier))
   in
 
@@ -105,13 +107,14 @@ let load_problems channel =
     try j |> member "budgetIncrement" |> to_float
     with _ -> 1.
   in
-
+  Printf.eprintf "Reached timeout parsing";
   let timeout = j |> member "timeout" |> to_float in
   let nc =
     try
       j |> member "nc" |> to_int 
     with _ -> 1
   in
+  Printf.eprintf "\nGrammar: %s" (string_of_grammar g.no_context);
   (tf,g,
    lowerBound,upperBound,budgetIncrement,
    maxParameters,
@@ -143,6 +146,7 @@ let _ =
     enumerate_for_tasks ~maxFreeParameters:mfp ~lowerBound:lowerBound ~upperBound:upperBound ~budgetIncrement:budgetIncrement
     ~verbose:verbose ~nc:nc ~timeout:timeout g tf
   in
+  Printf.eprintf "Finished enumerating, exporting frontiers, enumerated: %d" number_enumerated;
   export_frontiers number_enumerated tf solutions |> print_string ;;
 
 (* let tune_differentiation () = *)

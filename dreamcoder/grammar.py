@@ -229,7 +229,7 @@ class Grammar(object):
         return context, returnValue
 
     def likelihoodSummary(self, context, environment, request, expression, silent=False):
-
+        
         if request.isArrow():
             if not isinstance(expression, Abstraction):
                 if not silent:

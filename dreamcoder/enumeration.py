@@ -287,13 +287,14 @@ def solveForTask_ocaml(_=None,
                "lowerBound": lowerBound,
                "upperBound": upperBound,
                "budgetIncrement": budgetIncrement,
-               "verbose": False,
+               "verbose": True,
                "shatter": 5 if len(tasks) == 1 and "turtle" in str(tasks[0].request) else 10}
 
     if hasattr(tasks[0], 'maxParameters') and tasks[0].maxParameters is not None:
         message["maxParameters"] = tasks[0].maxParameters
 
     message = json.dumps(message)
+    print("message\n", message)
     # uncomment this if you want to save the messages being sent to the solver
     
 
@@ -312,7 +313,6 @@ def solveForTask_ocaml(_=None,
         print("error:", error)
         with open("message", "w") as f:
             f.write(message)
-        print("message,", message)
         assert False, "MAX RAISE"
 
 

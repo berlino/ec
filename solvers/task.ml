@@ -31,10 +31,12 @@ let gen_passwd length =
 
 
 let supervised_task ?timeout:(timeout = 0.001) name ty examples =
+  Printf.eprintf "\nCalling supervised_task";
   { name = name    ;
     task_type = ty ;
     log_likelihood =
       (fun p ->
+        Printf.eprintf "Program: %s \n" (string_of_program p);
         let p = analyze_lazy_evaluation p in
         let rec loop = function
           | [] -> true

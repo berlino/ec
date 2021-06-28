@@ -33,10 +33,11 @@ def joshTasks(w):
         with open(f"{directory}/{fn}") as handle:
             data = json.load(handle)
 
-            ts.append(Task(data.get("name",fn.split(".")[0][1:]),
+            task = Task(data.get("name",fn.split(".")[0][1:]),
                            arrow(tlist(tint),tlist(tint)),
                            [((e["i"],),e["o"])
-                            for e in data["data"]]))
+                            for e in data["data"]])
+            ts.append(task)
     return list(sorted(ts,key=lambda t: t.name))
         
         
