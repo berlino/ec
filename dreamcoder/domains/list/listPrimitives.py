@@ -397,7 +397,7 @@ def bootstrapTarget():
         # learned primitives
         Primitive("map", arrow(arrow(t0, t1), tlist(t0), tlist(t1)), _map),
         Primitive("unfold", arrow(t0, arrow(t0,tbool), arrow(t0,t1), arrow(t0,t0), tlist(t1)), _unfold),
-        Primitive("range", arrow(tint, tint, tint, tlist(tint)), _rangeGeneral),
+        Primitive("range", arrow(tint, tlist(tint)), _range),
         Primitive("index", arrow(tint, tlist(t0), t0), _index),
         Primitive("fold", arrow(tlist(t0), t1, arrow(t0, t1, t1), t1), _fold),
         Primitive("length", arrow(tlist(t0), tint), len),

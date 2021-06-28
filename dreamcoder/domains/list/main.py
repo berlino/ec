@@ -484,11 +484,10 @@ def main(args):
     ##################################
 
     # helmholtzGrammar = baseGrammar.insideOutside(sampledFrontiers, 1, iterations=1, frontierWeights=None, weightByPrior=False)
-    # uniformGrammar = baseGrammar
+    uniformGrammar = baseGrammar
     directory = DATA_DIR + "grammars/{}_primitives/enumerated_{}:{}".format(libraryName, hmfSeed, helmholtzFrontiersFilename.split(".")[0])
     directory += ":{}/".format(numHelmFrontiers) if numHelmFrontiers is not None else "/"
-    neuralGrammars = getGrammarsFromNeuralRecognizer(LearnedFeatureExtractor, tasks, baseGrammar, {"hidden": hidden}, sampledFrontiers, save, directory, args)
-    """
+    # neuralGrammars = getGrammarsFromNeuralRecognizer(LearnedFeatureExtractor, tasks, baseGrammar, {"hidden": hidden}, sampledFrontiers, save, directory, args)
     try:
          propSimFilename = "propSim_propToUse={}_nSim={}_weightedSim={}_taskSpecificInputs={}_seed={}.pkl".format(propToUse, nSim, weightedSim, taskSpecificInputs, args["seed"])
          path = directory + propSimFilename
@@ -514,14 +513,13 @@ def main(args):
              valuesToInt=valuesToInt,
              verbose=verbose)
          propSimGrammars = propSimGrammars[nSim]
-    """
     # if save and not debug:
     #     # dill.dump(helmholtzGrammar, open(directory + "helmholtzFitted.pkl", "wb"))
     #     # dill.dump(uniformGrammar, open(directory + "uniformWeights.pkl", "wb"))
     #     dill.dump(propSimGrammars, open(directory + propSimFilename, "wb"))
 
-    modelNames = ["neural"]
-    allGrammars = [neuralGrammars]
+    modelNames = ["propSim"]
+    allGrammars = [propSimGrammars]
 
     ##################################
     # Enumeration
@@ -533,9 +531,8 @@ def main(args):
          print("grammar for first task: {}".format(g if isinstance(g, Grammar) else list(g.values())[0]))
          bottomUpFrontiers, allRecognitionTimes = enumerateFromGrammars(g, tasks, modelName, enumerationTimeout, solver, CPUs, maximumFrontier, leaveHoldout=True, save=save)
          nonEmptyFrontiers = [f for f in bottomUpFrontiers if not f.empty]
-         numTasksProgramDiscovered = len(nonEmptyFrontiers)
          numTasksSolved = len([f.task for f in nonEmptyFrontiers if f.task.check(f.topK(1).entries[0].program, timeout=1.0, leaveHoldout=False)])
-         print("Enumerating from {} grammars for {} seconds: {} / {} actually true for holdout example".format(modelName, enumerationTimeout, numTasksProgramDiscovered, numTasksSolved, numTasksProgramDiscovered))
+         print("Enumerating from {} grammars for {} seconds: {} / {} actually true for holdout example".format(modelName, enumerationTimeout, numTasksSolved, len(nonEmptyFrontiers)))
 
     #####################
     # Plotting
@@ -664,4 +661,3 @@ def main(args):
     # frontiers = enumerateHelmholtzOcaml(tasks, baseGrammar, args["enumerationTimeout"], args["CPUs"], featureExtractor, save=save, libraryName=libraryName, dataset=dataset)
     # print(frontiers)
 
-# exploratienCompression(baseGrammar, train, testingTasks=test, featureExtractorArgs=featu

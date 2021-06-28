@@ -294,12 +294,11 @@ def solveForTask_ocaml(_=None,
         message["maxParameters"] = tasks[0].maxParameters
 
     message = json.dumps(message)
-    print("message\n", message)
     # uncomment this if you want to save the messages being sent to the solver
     
 
     try:
-        solver_file = os.path.join(get_root_dir(), 'solver')
+        solver_file = os.path.join(get_root_dir(), 'old_josh_solver')
         process = subprocess.Popen(solver_file,
                                    stdin=subprocess.PIPE,
                                    stdout=subprocess.PIPE)

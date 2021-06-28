@@ -12,7 +12,6 @@ from torch.nn.utils.rnn import pack_padded_sequence
 import copy
 import dill
 import numpy as np
-from sklearn.linear_model import LogisticRegression
 # luke
 import json
 
@@ -1018,7 +1017,8 @@ class RecognitionModel(nn.Module):
                      for f in frontiers]
 
         if lrModel:
-            
+            raise Exception("Not Implemented")
+            """ 
             if len(helmholtzFrontiers) == 0:
                 n = 100
                 helmholtzFrontiers = [getHelmholtz() for i in range(n)]
@@ -1079,6 +1079,7 @@ class RecognitionModel(nn.Module):
                 self.lrModels[p] = lr
 
             return self
+            """
 
         else:
 
