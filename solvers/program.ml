@@ -456,7 +456,7 @@ let rec number_of_free_parameters = function
   | Apply(f,x) -> number_of_free_parameters f + number_of_free_parameters x
   | Index(_) -> 0
 
-let rec range_general i j step = if i > j then [] else i :: (range_general (i+step) j step);;
+let rec range_general i j step = if (i > j || step <= 0) then [] else i :: (range_general (i+step) j step);;
 
 let primitive_empty = primitive "empty" (tlist t0) [];;
 (* let primitive_range = primitive "range" (tint @> tlist tint) (fun x -> 0 -- (x-1));; *)

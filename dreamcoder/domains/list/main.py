@@ -487,7 +487,8 @@ def main(args):
     uniformGrammar = baseGrammar
     directory = DATA_DIR + "grammars/{}_primitives/enumerated_{}:{}".format(libraryName, hmfSeed, helmholtzFrontiersFilename.split(".")[0])
     directory += ":{}/".format(numHelmFrontiers) if numHelmFrontiers is not None else "/"
-    # neuralGrammars = getGrammarsFromNeuralRecognizer(LearnedFeatureExtractor, tasks, baseGrammar, {"hidden": hidden}, sampledFrontiers, save, directory, args)
+    neuralGrammars = getGrammarsFromNeuralRecognizer(LearnedFeatureExtractor, tasks, baseGrammar, {"hidden": hidden}, sampledFrontiers, save, directory, args)
+    """
     try:
          propSimFilename = "propSim_propToUse={}_nSim={}_weightedSim={}_taskSpecificInputs={}_seed={}.pkl".format(propToUse, nSim, weightedSim, taskSpecificInputs, args["seed"])
          path = directory + propSimFilename
@@ -513,13 +514,13 @@ def main(args):
              valuesToInt=valuesToInt,
              verbose=verbose)
          propSimGrammars = propSimGrammars[nSim]
+    """
     # if save and not debug:
     #     # dill.dump(helmholtzGrammar, open(directory + "helmholtzFitted.pkl", "wb"))
     #     # dill.dump(uniformGrammar, open(directory + "uniformWeights.pkl", "wb"))
-    #     dill.dump(propSimGrammars, open(directory + propSimFilename, "wb"))
-
-    modelNames = ["propSim"]
-    allGrammars = [propSimGrammars]
+    #    dill.dump(propSimGrammars, open(directory + propSimFilename, "wb"))
+    modelNames = ["neural"]
+    allGrammars = [neuralGrammars]
 
     ##################################
     # Enumeration

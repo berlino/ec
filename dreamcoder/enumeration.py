@@ -298,7 +298,7 @@ def solveForTask_ocaml(_=None,
     
 
     try:
-        solver_file = os.path.join(get_root_dir(), 'old_josh_solver')
+        solver_file = os.path.join(get_root_dir(), 'solver')
         process = subprocess.Popen(solver_file,
                                    stdin=subprocess.PIPE,
                                    stdout=subprocess.PIPE)
