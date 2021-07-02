@@ -78,7 +78,7 @@ class Task(object):
                 eprint("Exception during evaluation:", e)
                 return False
 
-            examples = self.examples[:-1] if leaveHoldout else self.examples
+            examples = self.examples[:-3] if leaveHoldout else self.examples
             for x, y in examples:
                 if self.cache and (x, e) in EVALUATIONTABLE:
                     p = EVALUATIONTABLE[(x, e)]

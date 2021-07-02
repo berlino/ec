@@ -9,15 +9,18 @@ ENUMERATION_RESULTS_DIR = "enumerationResults/"
 SAMPLED_PROPERTIES_DIR = "sampled_properties/"
 
 def plotFrontiers(fileNames, modelNames, save=True):
-    plt.rcParams["axes.prop_cycle"] = plt.cycler("color", plt.cm.jet(np.linspace(0,1, len(fileNames))))
 
-    for modelIdx,fileName in enumerate(fileNames):
+    plt.rcParams["axes.prop_cycle"] = plt.cycler("color", plt.cm.jet(np.linspace(0,1, len(modelNames))))
+
+    for fileName, modelName in zip(fileNames, modelNames):
         frontiers, times = dill.load(open(ENUMERATION_RESULTS_DIR + fileName, "rb"))
 
         satisfiesHoldout = lambda f: f.task.check(f.topK(1).entries[0].program, timeout=1.0, leaveHoldout=False)
-        logPosteriors = sorted([-f.bestPosterior.logPosterior for f in frontiers if (len(f.entries) > 0 and satisfiesHoldout(f))])
-        print(fileName, len(logPosteriors))
-        plt.plot(logPosteriors, [i / len(frontiers) for i in range(len(logPosteriors))], label=modelNames[modelIdx], alpha=0.6)
+
+        nonEmptyFrontiers = [f for f in frontiers if len(f.entries) > 0]
+        logPosteriors = sorted([-f.bestPosterior.logPosterior for f in nonEmptyFrontiers if satisfiesHoldout(f)])
+        print("{}: {} / {}".format(fileName, len(logPosteriors), len(nonEmptyFrontiers)))
+        plt.plot(logPosteriors, [i / len(frontiers) for i in range(len(logPosteriors))], label=modelName, alpha=0.6)
 
     plt.ylim(bottom=0, top=1)
     plt.legend()

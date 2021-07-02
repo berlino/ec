@@ -484,10 +484,10 @@ def main(args):
     ##################################
 
     # helmholtzGrammar = baseGrammar.insideOutside(sampledFrontiers, 1, iterations=1, frontierWeights=None, weightByPrior=False)
-    uniformGrammar = baseGrammar
-    directory = DATA_DIR + "grammars/{}_primitives/enumerated_{}:{}".format(libraryName, hmfSeed, helmholtzFrontiersFilename.split(".")[0])
-    directory += ":{}/".format(numHelmFrontiers) if numHelmFrontiers is not None else "/"
-    neuralGrammars = getGrammarsFromNeuralRecognizer(LearnedFeatureExtractor, tasks, baseGrammar, {"hidden": hidden}, sampledFrontiers, save, directory, args)
+    # uniformGrammar = baseGrammar
+    # directory = DATA_DIR + "grammars/{}_primitives/enumerated_{}:{}".format(libraryName, hmfSeed, helmholtzFrontiersFilename.split(".")[0])
+    # directory += ":{}/".format(numHelmFrontiers) if numHelmFrontiers is not None else "/"
+    # neuralGrammars = getGrammarsFromNeuralRecognizer(LearnedFeatureExtractor, tasks, baseGrammar, {"hidden": hidden}, sampledFrontiers, save, directory, args)
     """
     try:
          propSimFilename = "propSim_propToUse={}_nSim={}_weightedSim={}_taskSpecificInputs={}_seed={}.pkl".format(propToUse, nSim, weightedSim, taskSpecificInputs, args["seed"])
@@ -519,43 +519,57 @@ def main(args):
     #     # dill.dump(helmholtzGrammar, open(directory + "helmholtzFitted.pkl", "wb"))
     #     # dill.dump(uniformGrammar, open(directory + "uniformWeights.pkl", "wb"))
     #    dill.dump(propSimGrammars, open(directory + propSimFilename, "wb"))
-    modelNames = ["neural"]
-    allGrammars = [neuralGrammars]
+    # modelNames = ["neural"]
+    # allGrammars = [neuralGrammars]
 
     ##################################
     # Enumeration
     ##################################
 
-    enumerationTimeout, solver, maximumFrontier, CPUs = args.pop("enumerationTimeout"), args.pop("solver"), args.pop("maximumFrontier"), args.pop("CPUs")
+    # enumerationTimeout, solver, maximumFrontier, CPUs = args.pop("enumerationTimeout"), args.pop("solver"), args.pop("maximumFrontier"), args.pop("CPUs")
 
-    for g, modelName in zip(allGrammars, modelNames):
-         print("grammar for first task: {}".format(g if isinstance(g, Grammar) else list(g.values())[0]))
-         bottomUpFrontiers, allRecognitionTimes = enumerateFromGrammars(g, tasks, modelName, enumerationTimeout, solver, CPUs, maximumFrontier, leaveHoldout=True, save=save)
-         nonEmptyFrontiers = [f for f in bottomUpFrontiers if not f.empty]
-         numTasksSolved = len([f.task for f in nonEmptyFrontiers if f.task.check(f.topK(1).entries[0].program, timeout=1.0, leaveHoldout=False)])
-         print("Enumerating from {} grammars for {} seconds: {} / {} actually true for holdout example".format(modelName, enumerationTimeout, numTasksSolved, len(nonEmptyFrontiers)))
+    # for g, modelName in zip(allGrammars, modelNames):
+    #      print("grammar for first task: {}".format(g if isinstance(g, Grammar) else list(g.values())[0]))
+    #      bottomUpFrontiers, allRecognitionTimes = enumerateFromGrammars(g, tasks, modelName, enumerationTimeout, solver, CPUs, maximumFrontier, leaveHoldout=True, save=save)
+    #      nonEmptyFrontiers = [f for f in bottomUpFrontiers if not f.empty]
+    #      numTasksSolved = len([f.task for f in nonEmptyFrontiers if f.task.check(f.topK(1).entries[0].program, timeout=1.0, leaveHoldout=False)])
+    #      print("Enumerating from {} grammars for {} seconds: {} / {} actually true for holdout example".format(modelName, enumerationTimeout, numTasksSolved, len(nonEmptyFrontiers)))
 
     #####################
     # Plotting
     #####################
 
     # filenames = [
-    #     "propSim_2021-06-23 17:02:48.628976_t=600.pkl",
-    #     "neural_2021-06-24 17:10:43.081907_t=600.pkl",
-    #     "neural_2021-06-24 16:26:27.691332_t=600.pkl",
-    #     "neural_2021-06-24 16:48:33.988518_t=600.pkl",
-    #     "helmholtzFitted_2021-06-23 18:50:44.788945_t=600.pkl",
-    #     "uniform_2021-06-23 19:00:53.979061_t=600.pkl"
+    #     "propSim_2021-06-28 22:01:10.416733_t=13200.pkl",
+    #     "propSim_2021-06-28 19:33:34.730379_t=1800.pkl",
+    #     "neural_2021-06-28 23:20:57.808000_t=13200.pkl",
+    #     "neural_2021-06-28 21:14:46.702305_t=1800.pkl",
+    #     "helmholtzFitted_2021-06-25 15:36:35.402559_t=600.pkl",
+    #     "uniform_2021-06-25 15:47:14.810385_t=600.pkl"
     # ]
+
     # modelNames = [
     #     "propSim2 (handwritten properties)",
+    #     "propSim2 (handwritten properties)",
     #     "neural (RS 10,000)",
-    #     "neural (RS 20,000)",
-    #     "neural (EP)",
+    #     "neural (RS 10,000)",
     #     "helmholtzFitted",
     #     "unifGrammarPrior"
     # ]
-    # plotFrontiers(filenames, modelNames)
+
+    modelNames = [
+        "10,000",
+        "ep1",
+        "ep2"
+    ]
+
+    fileNames = [
+        "neuralRecognizer_2021-05-17 15:54:55.857341_t=600.pkl",
+        "neuralRecognizer_2021-05-17 16:37:17.936137_t=600.pkl",
+        "neuralRecognizer_2021-05-18 15:27:58.504808_t=600.pkl"
+    ]
+
+    plotFrontiers(fileNames, modelNames)
     
     ######################
     # Enumeration Proxy
