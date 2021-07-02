@@ -43,8 +43,8 @@ def getTaskSimilarFrontier(
         bigram / train recognition model
     """
 
-    print("\n------------------------------------------------ Task {} ----------------------------------------------------".format(task))
-    print(task.describe())
+    vprint("\n------------------------------------------------ Task {} ----------------------------------------------------".format(task), verbose)
+    vprint(task.describe(), verbose)
     simDf, matchingFrontiers = createSimilarTasksDf(task, taskIdx, allFrontiers, propertyFeatureExtractor, propertySimTasksMatrix, propertyToPriorDistribution, valuesToInt, 
         onlyUseTrueProperties=onlyUseTrueProperties, filterSimilarProperties=filterSimilarProperties, maxFractionSame=maxFractionSame, 
         recomputeTasksWithTaskSpecificInputs=recomputeTasksWithTaskSpecificInputs, computePriorFromTasks=computePriorFromTasks, verbose=verbose)
@@ -258,7 +258,7 @@ def _getSimTaskMatrixAndPropertyPriors(frontiers, properties, valuesToInt, compu
 
     print("Creating Similar Task Matrix")
     propertySimTasksMatrix = getPropertySimTasksMatrix([f.task for f in frontiers], properties, valuesToInt)
-    print("Finished Creating Similar Task Matrix")
+    print("Finished Creating Similar Task Matrix with size: {}".format(propertySimTasksMatrix.shape))
     if computePriorFromTasks:
         propertyValsMatrix = getPropertySimTasksMatrix(tasks, properties, valuesToInt)
         propertyToPriorDistribution = getPriorDistributionsOfProperties(properties, propertyValsMatrix, valuesToInt)
@@ -268,13 +268,13 @@ def _getSimTaskMatrixAndPropertyPriors(frontiers, properties, valuesToInt, compu
     return propertySimTasksMatrix, propertyToPriorDistribution
 
 def getPropSimGrammars(
-    baseGrammar, 
+    baseGrammars, 
     tasks, 
     sampledFrontiers, 
     propertyFeatureExtractor, 
     featureExtractorArgs, 
     onlyUseTrueProperties, 
-    nSimList, 
+    nSim, 
     pseudoCounts, 
     weightedSim, 
     compressSimilar, 
@@ -285,54 +285,51 @@ def getPropSimGrammars(
     maxFractionSame, 
     valuesToInt,
     verbose):
+
     """
     Returns:
-        grammars (dict): every key is a task (Task) and its value is its corresponding grammar (Grammar) fitted on the most similar tasks
-        taskSolved (set): set of tasks solved running PropSim (i.e. for which one of the 10,000 enumerated programs satisfied all I/O examples)
-        task2Frontiers (dict): every key is a task (Task) and its value is the corresponding frontiers (list(Frontier)), one frontier for each similar task
+        task2FittedGrammar (dict): every key is a task (Task) and its value is its corresponding grammar (Grammar) fitted on the most similar tasks
+        tasksSolved (set): set of tasks solved running PropSim (i.e. for which one of the 10,000 enumerated programs satisfied all I/O examples)
+        task2SimilarFrontiers (dict): every key is a task (Task) and its value is the corresponding frontiers (list(Frontier)), one frontier for each similar task
     """
 
-    tasksSolved = set()
-    grammars = {}
-    for nSim in nSimList:
-        grammars[nSim] = {}
-    task2Frontiers = {}
+    task2SimilarFrontiers, task2FittedGrammar, tasksSolved = {}, {}, set()
+
+    if not isinstance(baseGrammars, dict):
+        baseGrammars = {t: baseGrammars for t in tasks}
+    task2Grammar = baseGrammars
+
+    if not isinstance(sampledFrontiers, dict):
+        sampledFrontiers = {t: sampledFrontiers for t in tasks}
+    task2Frontiers = sampledFrontiers
 
     propertySimTasksMatrix, propertyToPriorDistribution = None, None
     if not recomputeTasksWithTaskSpecificInputs:
-        propertySimTasksMatrix, propertyToPriorDistribution = _getSimTaskMatrixAndPropertyPriors(sampledFrontiers, propertyFeatureExtractor.properties, valuesToInt, computePriorFromTasks)
+        propertySimTasksMatrix, propertyToPriorDistribution = _getSimTaskMatrixAndPropertyPriors(task2Frontiers[tasks[0]], propertyFeatureExtractor.properties, valuesToInt, computePriorFromTasks)
 
     for taskIdx,task in enumerate(tasks):
         # use the sampled programs to create new specs with the same inputs as the task we want to solve
-        print("Find {} most similar tasks for task: {}".format(nSimList[0], task.name))
-        frontiers, weights, solved = getTaskSimilarFrontier(sampledFrontiers, propertyFeatureExtractor, propertySimTasksMatrix, valuesToInt, task, taskIdx, baseGrammar, featureExtractorArgs, 
-            filterSimilarProperties=filterSimilarProperties, maxFractionSame=maxFractionSame, nSim=max(nSimList), propertyToPriorDistribution=propertyToPriorDistribution, 
+        vprint("Find {} most similar tasks for task: {}".format(nSim, task.name), verbose)
+        similarFrontiers, weights, solved = getTaskSimilarFrontier(task2Frontiers[task], propertyFeatureExtractor, propertySimTasksMatrix, valuesToInt, task, taskIdx, task2Grammar[task], featureExtractorArgs, 
+            filterSimilarProperties=filterSimilarProperties, maxFractionSame=maxFractionSame, nSim=nSim, propertyToPriorDistribution=propertyToPriorDistribution, 
             onlyUseTrueProperties=onlyUseTrueProperties, recomputeTasksWithTaskSpecificInputs=recomputeTasksWithTaskSpecificInputs, computePriorFromTasks=computePriorFromTasks, verbose=verbose)
-        task2Frontiers[task] = frontiers
+        task2SimilarFrontiers[task] = similarFrontiers
 
         if compressSimilar:
-            if len([f for f in frontiers if not f.empty]) == 0:
+            if len([f for f in similarFrontiers if not f.empty]) == 0:
                 eprint("No compression frontiers; not inducing a grammar this iteration.")
             else:
                 raise NotImplementedError
-                # taskGrammar, compressionFrontiers = induceGrammar(baseGrammar, frontiers,
-                #                                               topK=1,
-                #                                               pseudoCounts=pseudoCounts, a=0,
-                #                                               aic=1.0, structurePenalty=1.5,
-                #                                               topk_use_only_likelihood=False,
-                #                                               backend="ocaml", CPUs=1, iteration=0)
-                # print("Finished inducing grammar")
         else:
-            for nSim in nSimList:
-                weights = weights if weightedSim else None
-                print(frontiers[:nSim][0].task.describe())
-                print(baseGrammar)
-                taskGrammar = baseGrammar.insideOutside(frontiers[:nSim], pseudoCounts, iterations=1, frontierWeights=weights, weightByPrior=weightByPrior)
-                grammars[nSim][task] = taskGrammar
+            weights = weights if weightedSim else None
+            vprint(similarFrontiers[:nSim][0].task.describe(), verbose)
+            taskGrammar = task2Grammar[task].insideOutside(similarFrontiers[:nSim], pseudoCounts, iterations=1, frontierWeights=weights, weightByPrior=weightByPrior)
+            vprint("\nGrammar after fitting for task {}:\n{}".format(task, taskGrammar), verbose)
+            task2FittedGrammar[task] = taskGrammar
         if solved:
             tasksSolved.add(task)
 
-    return grammars, tasksSolved, task2Frontiers
+    return task2FittedGrammar, tasksSolved, task2SimilarFrontiers
 
 
 def comparePropSimFittedToRnnEncoded(
@@ -342,7 +339,7 @@ def comparePropSimFittedToRnnEncoded(
     sampledFrontiers, 
     propertyFeatureExtractor, 
     featureExtractorArgs, 
-    nSimList, 
+    nSim, 
     pseudoCounts, 
     weightedSim, 
     compressSimilar, 
@@ -361,11 +358,10 @@ def comparePropSimFittedToRnnEncoded(
     """
 
     uniformGrammarPriors, logVariableGrammarPriors, fittedLogPosteriors, baselineLogPosteriors = 0.0, 0.0, 0.0, 0.0
-    fittedLogPosteriorsDict, fittedWeightedLogPosteriorsDict, fittedLogPosteriorsConsolidationDict = {}, {}, {}
     taskToFrontier = {f.task:f for f in frontiers if len(f.entries) > 0}
 
     task2FittedGrammars, tasksSolved, task2SimFrontiers = getPropSimGrammars(grammar, train, sampledFrontiers, propertyFeatureExtractor, featureExtractorArgs, 
-        onlyUseTrueProperties=onlyUseTrueProperties, nSimList=nSimList, pseudoCounts=pseudoCounts, weightedSim=weightedSim, compressSimilar=False, weightByPrior=weightByPrior, 
+        onlyUseTrueProperties=onlyUseTrueProperties, nSim=nSim, pseudoCounts=pseudoCounts, weightedSim=weightedSim, compressSimilar=False, weightByPrior=weightByPrior, 
         recomputeTasksWithTaskSpecificInputs=taskSpecificInputs, computePriorFromTasks=computePriorFromTasks, 
         filterSimilarProperties=filterSimilarProperties, maxFractionSame=maxFractionSame, valuesToInt=valuesToInt, verbose=verbose)
 
@@ -395,10 +391,8 @@ def comparePropSimFittedToRnnEncoded(
         vprint("---------------------------------------------------------------------------------", verbose)
 
 
-        for nSim in nSimList:
-            fittedLogPosterior = task2FittedGrammars[nSim][task].logLikelihood(task.request, program)
-            vprint("PropSim Grammar LP ({} frontiers): {}".format(nSim, fittedLogPosterior), verbose)
-            fittedLogPosteriorsDict[nSim] = fittedLogPosteriorsDict.get(nSim, []) + [fittedLogPosterior]
+        fittedLogPosterior = task2FittedGrammars[task].logLikelihood(task.request, program)
+        vprint("PropSim Grammar LP ({} frontiers): {}".format(nSim, fittedLogPosterior), verbose)
 
         if compressSimilar:
             raise NotImplementedError
@@ -423,10 +417,6 @@ def comparePropSimFittedToRnnEncoded(
     print("Mean Uniform Grammar Prior: {}".format(uniformGrammarPriors / numTasks))
     print("Mean Log Variable Grammar Prior: {}".format(logVariableGrammarPriors / numTasks))
     print("Mean Baseline Log Posterior: {}".format(baselineLogPosteriors / numTasks))
-    for nSim, logPosteriors in fittedLogPosteriorsDict.items():
-        print("Mean Fitted Log Posterior ({} frontiers): {}".format(nSim, sum(logPosteriors) / numTasks))
-    if compressSimilar:
-        for nSim, logPosteriors in fittedLogPosteriorsConsolidationDict.items():
-            print("Mean SimTask Consolidation Log Posterior ({} frontiers): {}".format(nSim, sum(logPosteriors) / numTasks))
+    print("Mean Fitted Log Posterior ({} frontiers): {}".format(nSim, sum(logPosteriors) / numTasks))
 
     return task2FittedGrammars

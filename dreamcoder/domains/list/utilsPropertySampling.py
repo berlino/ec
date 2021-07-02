@@ -116,6 +116,10 @@ def propertyEnumerationMain(grammar, tasks, propertyRequest, featureExtractor, f
     return allProperties
 
 
+######################
+# Sample Properties
+######################
+
 # fileName = "sampled_properties_weights=fitted_sampling_timeout={}s_return_types=[bool]_seed=1.pkl".format(60)
 # path = DATA_DIR + SAMPLED_PROPERTIES_DIR + fileName
 # properties = dill.load(open(path, "rb"))
@@ -123,3 +127,55 @@ def propertyEnumerationMain(grammar, tasks, propertyRequest, featureExtractor, f
 # maxFractionSame = 0.9
 # fileName = "sampled_properties_weights=fitted_sampling_timeout=60s_return_types=[bool]_seed=1_filtered=True_maxFractionSame={}.pkl".format(maxFractionSame)
 # taskPropertyValueToInt = {"allTrue":1, "mixed":2, "allFalse":0}
+
+
+######################
+# Smarter PropSim
+######################
+
+# fileName = "enumerationResults/neuralRecognizer_2021-05-18 15:27:58.504808_t=600.pkl"
+# frontiers, times = dill.load(open(fileName, "rb"))
+# unsolvedTasks = [f.task for f in frontiers if len(f.entries) == 0]
+
+# specificTasks = ["023_1"]
+# if len(specificTasks) > 0:
+#     unsolvedTasks = [t for t in unsolvedTasks if t.name in specificTasks]
+
+# if propToUse == "handwritten":
+#     properties = getHandwrittenPropertiesFromTemplates(train)
+
+# featureExtractor = extractor([f.task for f in sampledFrontiers], grammar=baseGrammar, cuda=False, featureExtractorArgs=featureExtractorArgs, properties=properties)
+# onlySampleFor100percentSimTasks = True
+# for i,task in enumerate(train):
+#     similarTaskFrontiers, frontierWeights, solved = getTaskSimilarFrontier(sampledFrontiers, featureExtractor, task, baseGrammar, featureExtractorArgs, nSim=5, onlyUseTrueProperties=True, verbose=True)
+#     break
+
+    # if onlySampleFor100percentSimTasks:
+    #     print(len(similarTaskFrontiers))
+    #     print(frontierWeights)
+    #     hundredPercentSimilarTaskFrontiers = [f for j,f in enumerate(similarTaskFrontiers) if frontierWeights[j] == 1.0]
+    #     if len(hundredPercentSimilarTaskFrontiers) == 0:
+    #         continue
+    #     else:
+    #         print("Sampling properties to improve {} tasks with 100 percent true property overlap".format(len(hundredPercentSimilarTaskFrontiers)))
+    #         newPropertyFrontiers = sampleProperties(featureExtractorArgs, baseGrammar, tasks=[task], 
+    #             similarTasks=[f.task for f in hundredPercentSimilarTaskFrontiers], propertyRequest=arrow(tinput, toutput, tbool))
+    #         print(newPropertyFrontiers)
+    # else:
+    #     newPropertyFrontiers = sampleProperties(featureExtractorArgs, propSamplingPrimitives, tasks=[task], 
+    #         similarTasks=[f.task for f in similarTaskFrontiers], propertyRequest=arrow(tinput, toutput, tbool))
+    #     print(newPropertyFrontiers)
+
+# prims = {p.name:p for p in baseGrammar.primitives}
+# programString = "(lambda (cut_slice 5 7 (take (second (take (* 3 9) (append $0 4))) (append (foldi (foldi $0 $0 (lambda (lambda (lambda empty)))) (slice 0 5 empty) (lambda (lambda (lambda (mapi (lambda (lambda 0)) $0))))) (if (is-even 2) (index 4 $0) 0)))))"
+# p = Program.parse(programString)
+# print("\nOriginal Program: {}\n".format(p))
+
+# evalReduced, p = p.evalReduce(prims)
+# while evalReduced:
+#     evalReduced, temp = p.evalReduce(prims)
+#     if temp == p:
+#         break
+#     else:
+#         p = temp
+# print("\nProgram after evalReductions: {}".format(p))
