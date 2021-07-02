@@ -471,21 +471,24 @@ def main(args):
                     sampledFrontiers = loadEnumeratedTasks(dslName=libraryName, filename=helmholtzFrontiersFilename, hmfSeed=hmfSeed)
                     randomFrontierIndices = random.sample(range(len(sampledFrontiers)),k=1000)
                     sampledFrontiers = [f for i,f in enumerate(sampledFrontiers) if i in randomFrontierIndices]
-                    randomTaskIndices = random.sample(range(len(tasks)),k=1)
-                    tasks = [task for i,task in enumerate(tasks) if i in randomTaskIndices]
+                    # randomTaskIndices = random.sample(range(len(tasks)),k=10)
+                    randomTaskIndices = [40, 57]
+                    tasksToSolve = [task for i,task in enumerate(tasks) if i in randomTaskIndices]
                 else:
+                    tasksToSolve = tasks[::]
                     sampledFrontiers = loadEnumeratedTasks(dslName=libraryName, filename=helmholtzFrontiersFilename, hmfSeed=hmfSeed)
-                sampledFrontiers = {t: sampledFrontiers for t in tasks}
+                sampledFrontiers = {t: sampledFrontiers for t in tasksToSolve}
             
-            task2FittedGrammar = {t:baseGrammar for t in tasks}
+            task2FittedGrammar = {t:baseGrammar for t in tasksToSolve}
+            print("Attempting to solve tasks: {}".format("\n".join([str(t) for t in tasksToSolve])))
 
         else:
             sampledFrontiers = {}
-            for t in tasks:
+            for t in tasksToSolve:
                 sampledFrontiers[t] = enumerateHelmholtzOcaml(tasks, task2FittedGrammar[t], args["enumerationTimeout"], args["CPUs"], featureExtractor, save=save, libraryName=libraryName, dataset=dataset)
 
         # use subset (numHelmFrontiers) of helmholtz tasks
-        for t in tasks:
+        for t in tasksToSolve:
             if numHelmFrontiers is not None and numHelmFrontiers < len(sampledFrontiers[t]):
                 sampledFrontiers[t] = sorted(sampledFrontiers[t], key=lambda f: f.topK(1).entries[0].logPosterior, reverse=True)
                 sampledFrontiers[t] = sampledFrontiers[t][:min(len(sampledFrontiers[t]), numHelmFrontiers)]
@@ -509,6 +512,7 @@ def main(args):
              # print("Couldn't find pickled fitted grammars, regenerating")
         task2FittedGrammar, tasksSolved, _ = getPropSimGrammars(
             baseGrammar,
+            tasksToSolve,
             tasks, 
             sampledFrontiers, 
             featureExtractor, 
@@ -524,9 +528,18 @@ def main(args):
             filterSimilarProperties=filterSimilarProperties, 
             maxFractionSame=maxFractionSame, 
             valuesToInt=valuesToInt,
+            propSimIteration=propSimIteration,
             verbose=verbose)
 
         print("\nSolved {} tasks at iteration {}".format(len(tasksSolved), propSimIteration))
+        fileName = "enumerationResults/propSim_2021-06-23 17:02:48.628976_t=600.pkl"
+        frontiers, times = dill.load(open(fileName, "rb"))
+        enumerationProxy(task2FittedGrammar, tasksToSolve, frontiers, baseGrammar, nSim, verbose=True)
+
+        tasksToSolve = [t for t in tasksToSolve if t not in tasksSolved]
+        print("{} still unsolved\n".format(len(tasksToSolve)))
+        if len(tasksToSolve) == 0:
+            break
 
     # if save and not debug:
         # dill.dump(helmholtzGrammar, open(directory + "helmholtzFitted.pkl", "wb"))
