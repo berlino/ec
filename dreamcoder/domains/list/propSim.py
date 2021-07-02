@@ -333,25 +333,7 @@ def getPropSimGrammars(
     return task2FittedGrammar, tasksSolved, task2SimilarFrontiers
 
 
-def comparePropSimFittedToRnnEncoded(
-    train, 
-    frontiers, 
-    grammar, 
-    sampledFrontiers, 
-    propertyFeatureExtractor, 
-    featureExtractorArgs, 
-    nSim, 
-    pseudoCounts, 
-    weightedSim, 
-    compressSimilar, 
-    weightByPrior, 
-    taskSpecificInputs, 
-    onlyUseTrueProperties, 
-    computePriorFromTasks, 
-    filterSimilarProperties, 
-    maxFractionSame,
-    valuesToInt, 
-    verbose=False):
+def enumerationProxy(task2FittedGrammar, train, frontiers, grammar, nSim, verbose=False):
     """
     Given a frontier of tasks prints out the logposterior of tasks in train using:
         - the RNN-encoded neural recogntion model
@@ -360,14 +342,6 @@ def comparePropSimFittedToRnnEncoded(
 
     uniformGrammarPriors, logVariableGrammarPriors, fittedLogPosteriors, baselineLogPosteriors = 0.0, 0.0, 0.0, 0.0
     taskToFrontier = {f.task:f for f in frontiers if len(f.entries) > 0}
-
-    task2FittedGrammars, tasksSolved, task2SimFrontiers = getPropSimGrammars(grammar, train, sampledFrontiers, propertyFeatureExtractor, featureExtractorArgs, 
-        onlyUseTrueProperties=onlyUseTrueProperties, nSim=nSim, pseudoCounts=pseudoCounts, weightedSim=weightedSim, compressSimilar=False, weightByPrior=weightByPrior, 
-        recomputeTasksWithTaskSpecificInputs=taskSpecificInputs, computePriorFromTasks=computePriorFromTasks, 
-        filterSimilarProperties=filterSimilarProperties, maxFractionSame=maxFractionSame, valuesToInt=valuesToInt, verbose=verbose)
-
-    if compressSimilar:
-        raise NotImplementedError
 
     numTasks = 0
     for task in train:
@@ -392,15 +366,8 @@ def comparePropSimFittedToRnnEncoded(
         vprint("---------------------------------------------------------------------------------", verbose)
 
 
-        fittedLogPosterior = task2FittedGrammars[task].logLikelihood(task.request, program)
+        fittedLogPosterior = task2FittedGrammar[task].logLikelihood(task.request, program)
         vprint("PropSim Grammar LP ({} frontiers): {}".format(nSim, fittedLogPosterior), verbose)
-
-        if compressSimilar:
-            raise NotImplementedError
-            # for nSim in nSimList:
-            #     fittedLogPosterior = consolidationGrammars[task].logLikelihood(task.request, program)
-            #     print("PropSim Consolidation Grammar LP ({} frontiers): {}".format(nSim, fittedLogPosterior))
-            #     fittedLogPosteriorsConsolidationDict[nSim] = fittedLogPosteriorsConsolidationDict.get(nSim, []) + [fittedLogPosterior]
 
         baselineLogPosterior = bestFrontier.entries[0].logPosterior
         vprint("Baseline LogPosterior: {}\n".format(baselineLogPosterior), verbose)
