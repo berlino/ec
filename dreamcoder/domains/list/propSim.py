@@ -25,7 +25,7 @@ def getTaskSimilarFrontier(
     propertyFeatureExtractor, 
     propertySimTasksMatrix, 
     valuesToInt, 
-    task, 
+    tasks, 
     taskIdx, 
     grammar, 
     featureExtractorArgs, 
@@ -42,10 +42,10 @@ def getTaskSimilarFrontier(
         frontiersToUse (list): A list of Frontier objects of the nSim most similar tasks to task. List of frontier is used to fit unigram / fit 
         bigram / train recognition model
     """
-
+    task = tasks[taskIdx]
     vprint("\n------------------------------------------------ Task {} ----------------------------------------------------".format(task), verbose)
     vprint(task.describe(), verbose)
-    simDf, matchingFrontiers = createSimilarTasksDf(task, taskIdx, allFrontiers, propertyFeatureExtractor, propertySimTasksMatrix, propertyToPriorDistribution, valuesToInt, 
+    simDf, matchingFrontiers = createSimilarTasksDf(tasks, taskIdx, allFrontiers, propertyFeatureExtractor, propertySimTasksMatrix, propertyToPriorDistribution, valuesToInt, 
         onlyUseTrueProperties=onlyUseTrueProperties, filterSimilarProperties=filterSimilarProperties, maxFractionSame=maxFractionSame, 
         recomputeTasksWithTaskSpecificInputs=recomputeTasksWithTaskSpecificInputs, computePriorFromTasks=computePriorFromTasks, verbose=verbose)
 
@@ -130,7 +130,7 @@ def filterProperties(properties, propTasksMatrix, maxFractionSame, save=False, f
 
 
 def createSimilarTasksDf(
-    task, 
+    tasks, 
     taskIdx, 
     allFrontiers, 
     propertyFeatureExtractor, 
@@ -159,6 +159,7 @@ def createSimilarTasksDf(
         similarity score of every task
 
     """
+    task = tasks[taskIdx]
     taskSig = np.array([valuesToInt[prop.getValue(task)] for prop in propertyFeatureExtractor.properties])
     if onlyUseTrueProperties:
         print('onlyUseTrueProperties')
@@ -174,7 +175,7 @@ def createSimilarTasksDf(
     # we use the sampled programs but execute on inputs of tasks we want to solve
     if recomputeTasksWithTaskSpecificInputs: 
         allFrontiers = createFrontiersWithInputsFromTask(allFrontiers, task)
-        propertySimTasksMatrix, propertyToPriorDistribution = _getSimTaskMatrixAndPropertyPriors(allFrontiers, properties, valuesToInt, computePriorFromTasks)
+        propertySimTasksMatrix, propertyToPriorDistribution = _getSimTaskMatrixAndPropertyPriors(tasks, allFrontiers, properties, valuesToInt, computePriorFromTasks)
         # update propertyToIdx to point to the idx of property in the new data structures
         propertyToIdx = {p:i for i,p in enumerate(properties)}
         print("new shape of propertyToPriorDistribution: {}".format(propertyToPriorDistribution.shape))
@@ -254,7 +255,7 @@ def getPriorDistributionsOfProperties(properties, propertySimTasksMatrix, values
     return probs
 
 
-def _getSimTaskMatrixAndPropertyPriors(frontiers, properties, valuesToInt, computePriorFromTasks):
+def _getSimTaskMatrixAndPropertyPriors(tasks, frontiers, properties, valuesToInt, computePriorFromTasks):
 
     print("Creating Similar Task Matrix")
     propertySimTasksMatrix = getPropertySimTasksMatrix([f.task for f in frontiers], properties, valuesToInt)
@@ -305,12 +306,12 @@ def getPropSimGrammars(
 
     propertySimTasksMatrix, propertyToPriorDistribution = None, None
     if not recomputeTasksWithTaskSpecificInputs:
-        propertySimTasksMatrix, propertyToPriorDistribution = _getSimTaskMatrixAndPropertyPriors(task2Frontiers[tasks[0]], propertyFeatureExtractor.properties, valuesToInt, computePriorFromTasks)
+        propertySimTasksMatrix, propertyToPriorDistribution = _getSimTaskMatrixAndPropertyPriors(tasks, task2Frontiers[tasks[0]], propertyFeatureExtractor.properties, valuesToInt, computePriorFromTasks)
 
     for taskIdx,task in enumerate(tasks):
         # use the sampled programs to create new specs with the same inputs as the task we want to solve
         vprint("Find {} most similar tasks for task: {}".format(nSim, task.name), verbose)
-        similarFrontiers, weights, solved = getTaskSimilarFrontier(task2Frontiers[task], propertyFeatureExtractor, propertySimTasksMatrix, valuesToInt, task, taskIdx, task2Grammar[task], featureExtractorArgs, 
+        similarFrontiers, weights, solved = getTaskSimilarFrontier(task2Frontiers[task], propertyFeatureExtractor, propertySimTasksMatrix, valuesToInt, tasks, taskIdx, task2Grammar[task], featureExtractorArgs, 
             filterSimilarProperties=filterSimilarProperties, maxFractionSame=maxFractionSame, nSim=nSim, propertyToPriorDistribution=propertyToPriorDistribution, 
             onlyUseTrueProperties=onlyUseTrueProperties, recomputeTasksWithTaskSpecificInputs=recomputeTasksWithTaskSpecificInputs, computePriorFromTasks=computePriorFromTasks, verbose=verbose)
         task2SimilarFrontiers[task] = similarFrontiers
