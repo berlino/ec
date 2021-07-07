@@ -355,38 +355,35 @@ def enumerationProxy(task2FittedGrammar, train, frontiers, grammar, nSim, verbos
 
     numTasks = 0
     for task in train:
-
-        if task in taskToFrontier:
+        # if we have a fitted grammar for this task and a ground truth program we can score the grammar on
+        if task in task2FittedGrammar and task in taskToFrontier:
             bestFrontier = taskToFrontier[task].topK(1)
             program = bestFrontier.entries[0].program
             logPosterior = bestFrontier.entries[0].logPosterior
             numTasks += 1
-        else:
-            continue
+
+            vprint("\n-------------------------------------------------------------------------------", verbose)
+            vprint(task.describe(), verbose)
+            vprint("Ground Truth Program: {}".format(program), verbose)
+            vprint("---------------------------------------------------------------------------------", verbose)
+            uniformGrammarPrior = grammar.logLikelihood(task.request, program)
+            vprint("Uniform Grammar Prior: {}".format(uniformGrammarPrior), verbose)
+            logVariableGrammar = Grammar(2.0, [(0.0, p.infer(), p) for p in grammar.primitives], continuationType=None)
+            logVariableGrammarPrior = logVariableGrammar.logLikelihood(task.request, program)
+            vprint("Log Variable Program Prior: {}".format(logVariableGrammarPrior), verbose)
+            vprint("---------------------------------------------------------------------------------", verbose)
 
 
-        vprint("\n-------------------------------------------------------------------------------", verbose)
-        vprint(task.describe(), verbose)
-        vprint("Ground Truth Program: {}".format(program), verbose)
-        vprint("---------------------------------------------------------------------------------", verbose)
-        uniformGrammarPrior = grammar.logLikelihood(task.request, program)
-        vprint("Uniform Grammar Prior: {}".format(uniformGrammarPrior), verbose)
-        logVariableGrammar = Grammar(2.0, [(0.0, p.infer(), p) for p in grammar.primitives], continuationType=None)
-        logVariableGrammarPrior = logVariableGrammar.logLikelihood(task.request, program)
-        vprint("Log Variable Program Prior: {}".format(logVariableGrammarPrior), verbose)
-        vprint("---------------------------------------------------------------------------------", verbose)
+            fittedLogPosterior = task2FittedGrammar[task].logLikelihood(task.request, program)
+            vprint("PropSim Grammar LP ({} frontiers): {}".format(nSim, fittedLogPosterior), verbose)
 
+            baselineLogPosterior = bestFrontier.entries[0].logPosterior
+            vprint("Baseline LogPosterior: {}\n".format(baselineLogPosterior), verbose)
 
-        fittedLogPosterior = task2FittedGrammar[task].logLikelihood(task.request, program)
-        vprint("PropSim Grammar LP ({} frontiers): {}".format(nSim, fittedLogPosterior), verbose)
-
-        baselineLogPosterior = bestFrontier.entries[0].logPosterior
-        vprint("Baseline LogPosterior: {}\n".format(baselineLogPosterior), verbose)
-
-        uniformGrammarPriors += uniformGrammarPrior
-        logVariableGrammarPriors += logVariableGrammarPrior
-        baselineLogPosteriors += baselineLogPosterior
-        fittedLogPosteriors += fittedLogPosterior
+            uniformGrammarPriors += uniformGrammarPrior
+            logVariableGrammarPriors += logVariableGrammarPrior
+            baselineLogPosteriors += baselineLogPosterior
+            fittedLogPosteriors += fittedLogPosterior
 
     if numTasks == 0:
         print("No solved frontiers from which to report metrics")
