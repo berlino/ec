@@ -314,7 +314,7 @@ def getPropSimGrammars(
     propertySimTasksMatrix, propertyToPriorDistribution = None, None
     # we can get away with computing once for all tasks if the below conditions are True
     if not recomputeTasksWithTaskSpecificInputs and computePriorFromTasks and propSimIteration == 0:
-        propertySimTasksMatrix, propertyToPriorDistribution = _getSimTaskMatrixAndPropertyPriors(allTasks, False, propertyFeatureExtractor.properties, valuesToInt, True)
+        propertySimTasksMatrix, propertyToPriorDistribution = _getSimTaskMatrixAndPropertyPriors(allTasks, sampledFrontiers[tasksToSolve[0]], propertyFeatureExtractor.properties, valuesToInt, True)
 
     for taskIdx,task in enumerate(allTasks):
         # use the sampled programs to create new specs with the same inputs as the task we want to solve

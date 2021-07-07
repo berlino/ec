@@ -471,11 +471,12 @@ def main(args):
                     sampledFrontiers = loadEnumeratedTasks(dslName=libraryName, filename=helmholtzFrontiersFilename, hmfSeed=hmfSeed)
                     randomFrontierIndices = random.sample(range(len(sampledFrontiers)),k=1000)
                     sampledFrontiers = [f for i,f in enumerate(sampledFrontiers) if i in randomFrontierIndices]
-                    # randomTaskIndices = random.sample(range(len(tasks)),k=10)
-                    randomTaskIndices = [40, 57]
+                    randomTaskIndices = random.sample(range(len(tasks)),k=10)
                     tasksToSolve = [task for i,task in enumerate(tasks) if i in randomTaskIndices]
                 else:
-                    tasksToSolve = tasks[::]
+                    fileName = "enumerationResults/neural_2021-06-28 21:14:46.702305_t=1800.pkl"
+                    frontiers, times = dill.load(open(fileName, "rb"))
+                    tasksToSolve = [f.task for f in frontiers if len(f.entries) == 0]
                     sampledFrontiers = loadEnumeratedTasks(dslName=libraryName, filename=helmholtzFrontiersFilename, hmfSeed=hmfSeed)
                 sampledFrontiers = {t: sampledFrontiers for t in tasksToSolve}
             
@@ -486,14 +487,14 @@ def main(args):
             sampledFrontiers = {}
             for t in tasksToSolve:
                 sampledFrontiers[t] = enumerateHelmholtzOcaml(tasks, task2FittedGrammar[t], args["enumerationTimeout"], args["CPUs"], featureExtractor, save=save, libraryName=libraryName, dataset=dataset)
-
+                print("Enumerated {} helmholtz tasks for task {}".format(len(sampledFrontiers[t]), t))
         # use subset (numHelmFrontiers) of helmholtz tasks
         for t in tasksToSolve:
             if numHelmFrontiers is not None and numHelmFrontiers < len(sampledFrontiers[t]):
                 sampledFrontiers[t] = sorted(sampledFrontiers[t], key=lambda f: f.topK(1).entries[0].logPosterior, reverse=True)
                 sampledFrontiers[t] = sampledFrontiers[t][:min(len(sampledFrontiers[t]), numHelmFrontiers)]
 
-            print("Finished loading {} helmholtz tasks for task {}\n".format(len(sampledFrontiers[t]), t))
+            print("Finished loading {} helmholtz tasks for task {}".format(len(sampledFrontiers[t]), str(t)))
 
         ##################################
         # Get Grammars
