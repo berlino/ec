@@ -469,15 +469,13 @@ def main(args):
             if helmholtzFrontiersFilename is not None:
                 if debug:
                     sampledFrontiers = loadEnumeratedTasks(dslName=libraryName, filename=helmholtzFrontiersFilename, hmfSeed=hmfSeed)
-                    randomFrontierIndices = random.sample(range(len(sampledFrontiers)),k=1000)
-                    sampledFrontiers = [f for i,f in enumerate(sampledFrontiers) if i in randomFrontierIndices]
-                    randomTaskIndices = random.sample(range(len(tasks)),k=10)
-                    tasksToSolve = [task for i,task in enumerate(tasks) if i in randomTaskIndices]
-                else:
+                    # randomFrontierIndices = random.sample(range(len(sampledFrontiers)),k=1000)
+                    # sampledFrontiers = [f for i,f in enumerate(sampledFrontiers) if i in randomFrontierIndices]
                     fileName = "enumerationResults/propSim_2021-06-28 19:33:34.730379_t=1800.pkl"
                     frontiers, times = dill.load(open(fileName, "rb"))
-
-                    tasksToSolve = [f.task for f in frontiers if len(f.entries) == 0]
+                    tasksToSolve = [f.task for f in frontiers if len(f.entries) > 0][5:10]
+                else:
+                    tasksToSolve = tasks
                     sampledFrontiers = loadEnumeratedTasks(dslName=libraryName, filename=helmholtzFrontiersFilename, hmfSeed=hmfSeed)
                 sampledFrontiers = {t: sampledFrontiers for t in tasksToSolve}
             
@@ -536,7 +534,7 @@ def main(args):
         print("\nSolved {} tasks at iteration {}".format(len(tasksSolved), propSimIteration))
         fileName = "enumerationResults/propSim_2021-06-28 19:33:34.730379_t=1800.pkl"
         frontiers, times = dill.load(open(fileName, "rb"))
-        enumerationProxy(task2FittedGrammar, tasksToSolve, frontiers, baseGrammar, nSim, verbose=True)
+        enumerationProxy(task2FittedGrammar, tasks, frontiers, baseGrammar, nSim, verbose=True)
 
         tasksToSolve = [t for t in tasksToSolve if t not in tasksSolved]
         print("{} still unsolved\n".format(len(tasksToSolve)))
