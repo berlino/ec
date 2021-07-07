@@ -56,7 +56,7 @@ def getTaskSimilarFrontier(
         simProgram = matchingFrontiers[idx].entries[0].program
         solved = task.check(simProgram, timeout=1)
         if solved:
-            print("\nFound program solution: {}".format(simProgram))
+            print("\nFound program solution for task {}: {}".format(task, simProgram))
             break
 
 

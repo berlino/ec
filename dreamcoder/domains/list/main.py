@@ -474,8 +474,9 @@ def main(args):
                     randomTaskIndices = random.sample(range(len(tasks)),k=10)
                     tasksToSolve = [task for i,task in enumerate(tasks) if i in randomTaskIndices]
                 else:
-                    fileName = "enumerationResults/neural_2021-06-28 21:14:46.702305_t=1800.pkl"
+                    fileName = "enumerationResults/propSim_2021-06-28 19:33:34.730379_t=1800.pkl"
                     frontiers, times = dill.load(open(fileName, "rb"))
+
                     tasksToSolve = [f.task for f in frontiers if len(f.entries) == 0]
                     sampledFrontiers = loadEnumeratedTasks(dslName=libraryName, filename=helmholtzFrontiersFilename, hmfSeed=hmfSeed)
                 sampledFrontiers = {t: sampledFrontiers for t in tasksToSolve}
@@ -533,7 +534,7 @@ def main(args):
             verbose=verbose)
 
         print("\nSolved {} tasks at iteration {}".format(len(tasksSolved), propSimIteration))
-        fileName = "enumerationResults/propSim_2021-06-23 17:02:48.628976_t=600.pkl"
+        fileName = "enumerationResults/propSim_2021-06-28 19:33:34.730379_t=1800.pkl"
         frontiers, times = dill.load(open(fileName, "rb"))
         enumerationProxy(task2FittedGrammar, tasksToSolve, frontiers, baseGrammar, nSim, verbose=True)
 
