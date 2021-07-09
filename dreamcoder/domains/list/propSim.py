@@ -6,6 +6,7 @@ from dreamcoder.utilities import vprint
 
 from dreamcoder.domains.list.utilsProperties import createFrontiersWithInputsFromTask
 
+MAX_NUM_SIM_TASKS_TO_PRINT = 5
 
 def getPropertySimTasksMatrix(helmholtzTasks, properties, taskPropertyValueToInt):
     """
@@ -27,7 +28,7 @@ def getTaskSimilarFrontier(
     valuesToInt, 
     allTasks,
     taskIdx, 
-    grammar, 
+    grammar,
     featureExtractorArgs, 
     filterSimilarProperties, 
     maxFractionSame, 
@@ -62,10 +63,11 @@ def getTaskSimilarFrontier(
 
     vprint("\n{} Most Similar Prop Sig Tasks\n--------------------------------------------------------------------------------".format(nSim), verbose)
     frontiersToUse, frontierWeights = [], []
-    for idx in simDf.head(nSim).index.values:        
-        vprint("\nTask similarity score: {}".format(simDf.loc[idx, "score"]), verbose)
-        vprint(matchingFrontiers[idx].task.describe(), verbose)
-        vprint("\nProgram ({}): {}".format(simDf.loc[idx, "programPrior"], simDf.loc[idx, "program"]), verbose)
+    for i,idx in enumerate(simDf.head(nSim).index.values):
+        if i < MAX_NUM_SIM_TASKS_TO_PRINT:
+            vprint("\nTask similarity score: {}".format(simDf.loc[idx, "score"]), verbose)
+            vprint(matchingFrontiers[idx].task.describe(), verbose)
+            vprint("\nProgram ({}): {}".format(simDf.loc[idx, "programPrior"], simDf.loc[idx, "program"]), verbose)
         
         # evalReducedProgram = _reduceByEvaluating(simDf.loc[idx, "program"], {p.name: p for p in grammar.primitives})
         # vprint("\nEvaluation Reduced Program ({}): {}".format(grammar.logLikelihood(propertyFeatureExtractor.tasks[idx].request, evalReducedProgram), evalReducedProgram), verbose)
@@ -359,7 +361,6 @@ def enumerationProxy(task2FittedGrammar, train, frontiers, grammar, nSim, verbos
         if task in task2FittedGrammar and task in taskToFrontier:
             bestFrontier = taskToFrontier[task].topK(1)
             program = bestFrontier.entries[0].program
-            logPosterior = bestFrontier.entries[0].logPosterior
             numTasks += 1
 
             vprint("\n-------------------------------------------------------------------------------", verbose)
