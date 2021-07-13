@@ -207,7 +207,7 @@ def createSimilarTasksDf(
     vprint("{} Highest scoring properties:".format(n), verbose)
     for prop,score in sortedPropAndScores[:n]:
         vprint("{} -> {} ({})".format(score, prop, prop.getValue(task)), verbose)
-        vprint(propertyToPriorDistribution[:, propertyToIdx[prop]], verbose)
+        # vprint(propertyToPriorDistribution[:, propertyToIdx[prop]], verbose)
         # print(propertySimTasksMatrix[:, propertyToIdx[prop]])
 
     data = propertySimTasksMatrix[:, [propertyToIdx[p] for p in properties]]
@@ -356,9 +356,15 @@ def enumerationProxy(task2FittedGrammar, train, frontiers, grammar, nSim, verbos
     taskToFrontier = {f.task:f for f in frontiers if len(f.entries) > 0}
 
     numTasks = 0
+    fittedTasks = None
+    if isinstance(task2FittedGrammar, list):
+        fittedTasks = list(task2FittedGrammar[0].keys())
+    else:
+        fittedTasks = list(task2FittedGrammar.keys())
     for task in train:
         # if we have a fitted grammar for this task and a ground truth program we can score the grammar on
-        if task in task2FittedGrammar and task in taskToFrontier:
+        if task in taskToFrontier and (task in fittedTasks):
+
             bestFrontier = taskToFrontier[task].topK(1)
             program = bestFrontier.entries[0].program
             numTasks += 1
@@ -374,13 +380,23 @@ def enumerationProxy(task2FittedGrammar, train, frontiers, grammar, nSim, verbos
             vprint("Log Variable Program Prior: {}".format(logVariableGrammarPrior), verbose)
             vprint("---------------------------------------------------------------------------------", verbose)
 
-
-            fittedLogPosterior = task2FittedGrammar[task].logLikelihood(task.request, program)
-            vprint("PropSim Grammar LP ({} frontiers): {}".format(nSim, fittedLogPosterior), verbose)
-
+            if isinstance(task2FittedGrammar, list):
+                toPrint = "PropSim Grammar LP ({} frontiers):".format(nSim)
+                for task2Grammar in task2FittedGrammar:
+                    if task in task2Grammar:     
+                        fittedLogPosterior = task2Grammar[task].logLikelihood(task.request, program)
+                        toPrint += " {} ->".format(fittedLogPosterior)
+                    else:
+                        toPrint += "solved"
+                vprint(toPrint, verbose)
+            else:
+                if task in task2FittedGrammar:
+                    fittedLogPosterior = task2FittedGrammar[task].logLikelihood(task.request, program)
+                    vprint("ProSim Grammar LP ({} frontier): {}".format(nSim, fittedLogPosterior), verbose) 
             baselineLogPosterior = bestFrontier.entries[0].logPosterior
             vprint("Baseline LogPosterior: {}\n".format(baselineLogPosterior), verbose)
-
+            
+            
             uniformGrammarPriors += uniformGrammarPrior
             logVariableGrammarPriors += logVariableGrammarPrior
             baselineLogPosteriors += baselineLogPosterior
