@@ -38,7 +38,7 @@ def getPropertySamplingGrammar(baseGrammar, grammarName, frontiers, pseudoCounts
         frontiersToFitOn = [f for f in frontiers if (len(f.entries) > 0 and baseGrammar.logLikelihood(f.task.request, f.topK(1).entries[0].program) > MIN_LOG_PRIOR)]
         print("Fitting on {} frontiers with logPrior > {}".format(len(frontiersToFitOn), MIN_LOG_PRIOR))
         grammar = baseGrammar.insideOutside(frontiersToFitOn, pseudoCounts=pseudoCounts)
-    elif grammarName == "uniform":
+    elif grammarName == "same":
         grammar = baseGrammar
     else:
         raise Exception("Provided sampling grammar weights argument: {} is invalid".format(grammarName))
