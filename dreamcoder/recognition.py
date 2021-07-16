@@ -863,7 +863,7 @@ class RecognitionModel(nn.Module):
               timeout=None, evaluationTimeout=0.001,
               helmholtzFrontiers=[], helmholtzRatio=0., helmholtzBatch=1000,
               biasOptimal=None, defaultRequest=None, auxLoss=False, vectorized=True,
-              epochs=99999, earlyStopping=True, lrModel=False, holdout=False):
+              epochs=99999, earlyStopping=False, lrModel=False, holdout=False):
         """
         helmholtzRatio: What fraction of the training data should be forward samples from the generative model?
         helmholtzFrontiers: Frontiers from programs enumerated from generative model (optional)

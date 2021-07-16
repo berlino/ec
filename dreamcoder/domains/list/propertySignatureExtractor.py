@@ -1,5 +1,5 @@
 from dreamcoder.domains.list.listPrimitives import bootstrapTarget_extra
-from dreamcoder.domains.list.handwrittenProperties import handWrittenProperties, handWrittenPropertyFuncs, tinput, toutput
+from dreamcoder.domains.list.handwrittenProperties import handWrittenProperties, handWrittenPropertyFuncs, tinput, toutput, getHandwrittenPropertiesFromTemplates
 from dreamcoder.domains.list.makeListTasks import joshTasks
 from dreamcoder.domains.list.property import Property
 from dreamcoder.domains.list.utilsProperties import convertToPropertyTasks
@@ -44,12 +44,13 @@ class PropertySignatureExtractor(nn.Module):
         super(PropertySignatureExtractor, self).__init__()
 
         print("Initializing PropertySignatureExtractor")
+        print(featureExtractorArgs)
 
         self.special = "unique"
         self.CUDA = cuda
         self.recomputeTasks = True
         self.outputDimensionality = H
-        self.useEmbeddings = not featureExtractorArgs["propNoEmbeddings"]
+        self.useEmbeddings = featureExtractorArgs["propUseEmbeddings"]
         self.featureExtractorArgs = featureExtractorArgs
         self.grammar = grammar
 
@@ -100,7 +101,7 @@ class PropertySignatureExtractor(nn.Module):
             self.CUDA=True
             self.cuda()  # I think this should work?
 
-        self.properties = properties if properties is not None else self._getProperties()
+        self.properties = self._getProperties()
         assert len(self.properties) > 0
 
         self.linear = nn.Linear(len(self.properties) * self.embedSize, H)
@@ -163,14 +164,64 @@ class PropertySignatureExtractor(nn.Module):
 
     def _getProperties(self):
 
-        self.propertyGrammar = self._getPropertyGrammar()
-        if self.featureExtractorArgs["propDreamTasks"]:
-            dreamtTasks = sellf._getHelmholtzTasks(1000)
-            properties, likelihoodModel = enumerateProperties(self.featureExtractorArgs, self.propertyGrammar, dreamtTasks, self.propertyRequest, allTasks=self.propertyAllTasks)
-        else:
-            properties, likelihoodModel = enumerateProperties(self.featureExtractorArgs, self.propertyGrammar, self.propertyTasksToSolve, self.propertyRequest, allTasks=self.propertyAllTasks)
+        if self.featureExtractorArgs["propToUse"] == "handwritten":
+            properties = getHandwrittenPropertiesFromTemplates(self.allTasks)
+            print("Loaded {} properties from: {}".format(len(properties), "handwritten"))
+            return properties
         
-        return properties
+        elif self.featureExtractorArgs["propToUse"]:
+            assert propFilename is not None
+            properties = dill.load(open(DATA_DIR + SAMPLED_PROPERTIES_DIR + self.featureExtractorArgs["propFilename"], "rb"))
+            if isinstance(properties, dict):
+                assert len(properties) == 1
+                properties = list(properties.values())[0]
+                # filter properties that are only on inputs
+                properties = [p for p in properties if "$0" in p.name]
+            return properties
+
+        
+        elif self.featureExtractorArgs["propToUse"] == "sample":
+            raise NotImplementedError
+            # # only used if property sampling grammar weights are "fitted"
+            # fileName = "enumerationResults/neuralRecognizer_2021-05-18 15:27:58.504808_t=600.pkl"
+            # frontiers, times = dill.load(open(fileName, "rb"))
+            # allProperties = {}
+            # tasksToSolve = tasks[0:1]
+            # returnTypes = [tbool]
+
+            # for returnType in returnTypes:
+            #     propertyRequest = arrow(tlist(tint), tlist(tint), returnType)
+
+            #     grammar = getPropertySamplingGrammar(baseGrammar, propSamplingGrammarWeights, frontiers, pseudoCounts=1, seed=args["seed"])
+            #     try:
+            #         featureExtractor = extractor(tasksToSolve=tasksToSolve, allTasks=tasks, grammar=grammar, cuda=False, featureExtractorArgs=featureExtractorArgs, propertyRequest=propertyRequest)
+            #         for task in tasksToSolve:
+            #             allProperties[task] = allProperties.get(task, []) + featureExtractor.properties[task]
+            #     # assertion triggered if 0 properties enumerated
+            #     except AssertionError:
+            #         print("0 properties found")
+            
+            # for task in tasksToSolve:
+            #     print("Found {} properties for task {}".format(len(allProperties.get(task, [])), task))
+            #     for p in sorted(allProperties.get(task, []), key=lambda p: p.score, reverse=True):
+            #         print("program: {} \nreturnType: {} \nprior: {:.2f} \nscore: {:.2f}".format(p, p.request.returns(), p.logPrior, p.score))
+            #         print("-------------------------------------------------------------")
+
+            # if save:
+            #     filename = "sampled_properties_weights={}_sampling_timeout={}s_return_types={}_seed={}.pkl".format(
+            #         propSamplingGrammarWeights, int(featureExtractorArgs["propSamplingTimeout"]), returnTypes, args["seed"])
+            #     savePath = DATA_DIR + SAMPLED_PROPERTIES_DIR + filename
+            #     dill.dump(allProperties, open(savePath, "wb"))
+            #     print("Saving sampled properties at: {}".format(savePath))
+
+            self.propertyGrammar = self._getPropertyGrammar()
+            if self.featureExtractorArgs["propDreamTasks"]:
+                dreamtTasks = sellf._getHelmholtzTasks(1000)
+                properties, likelihoodModel = enumerateProperties(self.featureExtractorArgs, self.propertyGrammar, dreamtTasks, self.propertyRequest, allTasks=self.propertyAllTasks)
+            else:
+                properties, likelihoodModel = enumerateProperties(self.featureExtractorArgs, self.propertyGrammar, self.propertyTasksToSolve, self.propertyRequest, allTasks=self.propertyAllTasks)
+            
+            return properties
 
 
     def forward(self, v, v2=None):

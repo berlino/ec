@@ -10,6 +10,9 @@ from dreamcoder.taskBatcher import *
 from dreamcoder.primitiveGraph import graphPrimitives
 from dreamcoder.dreaming import backgroundHelmholtzEnumeration
 
+from dreamcoder.domains.list.propSimModel import PropSimModel
+from dreamcoder.domains.list.utilsProperties import enumerateHelmholtzOcaml
+
 
 class ECResult():
     def __init__(self, _=None,
@@ -85,6 +88,7 @@ class ECResult():
                      "contextual": "CO",
                      "topK": "K",
                      "enumerationTimeout": "ET",
+                     "unconditionalEnumerationTimeout": "uET",
                      "useRecognitionModel": "rec",
                      "use_ll_cutoff": "llcut",
                      "topk_use_only_likelihood": "topkNotMAP",
@@ -152,6 +156,7 @@ def ecIterator(grammar, tasks,
                iterations=None,
                resume=None,
                enumerationTimeout=None,
+               unconditionalEnumerationTimeout=None,
                testingTimeout=None,
                testEvery=1,
                reuseRecognition=False,
@@ -176,6 +181,7 @@ def ecIterator(grammar, tasks,
                cuda=False,
                message="",
                outputPrefix=None,
+               outputDirectory=None,
                storeTaskMetrics=False,
                rewriteTaskMetrics=True,
                auxiliaryLoss=False,
@@ -185,7 +191,22 @@ def ecIterator(grammar, tasks,
                dopruning=False,
                skiptesting=False,
                featureExtractorArgs={},
-               epochs=99999
+               epochs=99999,
+               propSim=False,
+               earlyStopping=False,
+               verbose=False,
+
+               numHelmFrontiers=None,
+               onlyUseTrueProperties=None, 
+               nSim=None, 
+               propPseudocounts=None,
+               weightedSim=None,
+               weightByPrior=None,
+               recomputeTasksWithTaskSpecificInputs=None,
+               computePriorFromTasks=None,
+               filterSimilarProperties=None,
+               maxFractionSame=None,
+               valuesToInt=None,
             ):
 
     if enumerationTimeout is None:
@@ -226,6 +247,9 @@ def ecIterator(grammar, tasks,
     parameters = {
         k: v for k,
         v in locals().items() if k not in {
+            "verbose",
+            "featureExtractorArgs",
+            "epochs",
             "noConsolidation",
             "solver",
             "tasks",
@@ -241,6 +265,7 @@ def ecIterator(grammar, tasks,
             "message",
             "CPUs",
             "outputPrefix",
+            "outputDirectory",
             "resume",
             "resumeFrontierSize",
             "addFullTaskMetrics",
@@ -248,7 +273,9 @@ def ecIterator(grammar, tasks,
             "evaluationTimeout",
             "testingTasks",
             "compressor",
-            "custom_wake_generative"} and v is not None}
+            "custom_wake_generative",
+            "earlyStopping"
+            } and v is not None}
     if not useRecognitionModel:
         for k in {"helmholtzRatio", "recognitionTimeout", "biasOptimal", "mask",
                   "contextual", "matrixRank", "reuseRecognition", "auxiliaryLoss", "ensembleSize"}:
@@ -268,15 +295,18 @@ def ecIterator(grammar, tasks,
     
     # Uses `parameters` to construct the checkpoint path
     def checkpointPath(iteration, extra=""):
+        
         parameters["iterations"] = iteration
         # if parameters["featureExtractorArgs"] is not None:
         #     for key, val in parameters['featureExtractorArgs'].items():
         #         parameters[key] = val
+
         kvs = [
             "{}={}".format(
                 ECResult.abbreviate(k),
                 parameters[k]) for k in sorted(
-                parameters.keys()) if k != 'featureExtractorArgs']
+                parameters.keys())]
+
         return "{}_{}{}.pickle".format(outputPrefix, "_".join(kvs), extra)
 
     if message:
@@ -302,7 +332,7 @@ def ecIterator(grammar, tasks,
             path = checkpointPath(resume)
         except ValueError:
             path = resume
-        with open(path, "rb") as handle:
+        with open(outputDirectory + path, "rb") as handle:
             result = dill.load(handle)
         resume = len(result.grammars) - 1
         eprint("Loaded checkpoint from", path)
@@ -431,7 +461,7 @@ def ecIterator(grammar, tasks,
             topDownFrontiers, times = wake_generative(grammar, wakingTaskBatch,
                                                       solver=solver,
                                                       maximumFrontier=maximumFrontier,
-                                                      enumerationTimeout=enumerationTimeout,
+                                                      enumerationTimeout=unconditionalEnumerationTimeout,
                                                       CPUs=CPUs,
                                                       evaluationTimeout=evaluationTimeout)
             result.trainSearchTime = {t: tm for t, tm in times.items() if tm is not None}
@@ -463,8 +493,15 @@ def ecIterator(grammar, tasks,
             if j == 0 and not biasOptimal: thisRatio = 0
             if all( f.empty for f in result.allFrontiers.values() ): thisRatio = 1.                
 
-            tasksHitBottomUp = \
-             sleep_recognition(result, grammar, wakingTaskBatch, tasks, testingTasks, result.allFrontiers.values(),
+            if propSim:
+                tasksHitBottomUp = \
+                    sleep_propsim(result, grammar, wakingTaskBatch, tasks, result.allFrontiers.values(), ensembleSize, featureExtractor, contextual, 
+                                enumerationTimeout, evaluationTimeout, maximumFrontier, cuda, CPUs, solver, featureExtractorArgs, numHelmFrontiers,
+                                onlyUseTrueProperties, nSim, propPseudocounts, weightedSim, weightByPrior, recomputeTasksWithTaskSpecificInputs,
+                                computePriorFromTasks, filterSimilarProperties, maxFractionSame, valuesToInt, verbose)
+            else:
+                tasksHitBottomUp = \
+                    sleep_recognition(result, grammar, wakingTaskBatch, tasks, testingTasks, result.allFrontiers.values(),
                                ensembleSize=ensembleSize, featureExtractor=featureExtractor, mask=mask,
                                activation=activation, contextual=contextual, biasOptimal=biasOptimal,
                                previousRecognitionModel=previousRecognitionModel, matrixRank=matrixRank,
@@ -501,6 +538,10 @@ def ecIterator(grammar, tasks,
             
         if outputPrefix is not None:
             path = checkpointPath(j + 1)
+
+            # hack so that path isn't too long
+            os.chdir(outputDirectory)
+
             with open(path, "wb") as handle:
                 try:
                     dill.dump(result, handle)
@@ -512,6 +553,10 @@ def ecIterator(grammar, tasks,
                 ECResult.clearRecognitionModel(path)
 
             graphPrimitives(result, "%s_primitives_%d_"%(outputPrefix,j))
+
+            os.chdir('../../../')
+
+
             
 
         yield result
@@ -586,6 +631,111 @@ def default_wake_generative(grammar, tasks,
     summaryStatistics("Generative model", [t for t in times.values() if t is not None])
     return topDownFrontiers, times
 
+def sleep_propsim(result, grammar, taskBatch, tasks, allFrontiers, ensembleSize, featureExtractor, contextual, 
+    enumerationTimeout, evaluationTimeout, maximumFrontier, cuda, CPUs, solver, featureExtractorArgs, verbose,
+    numHelmFrontiers, onlyUseTrueProperties, nSim, propPseudocounts, weightedSim, weightByPrior, recomputeTasksWithTaskSpecificInputs,
+    computePriorFromTasks, filterSimilarProperties, maxFractionSame, valuesToInt):
+    
+    # initialize property feature extractor, sampling properties if needed
+    propertyFeatureExtractor = [featureExtractor(tasksToSolve=taskBatch, allTasks=tasks, grammar=grammar, cuda=cuda, featureExtractorArgs=featureExtractorArgs) for i in range(ensembleSize)]
+    recognizers = [PropSimModel(featureExtractor,grammar,
+                 rank=None,contextual=contextual,mask=False,
+                 cuda=cuda, id=i) for i in range(ensembleSize)]
+
+    # enumerate helmholtz tasks from which to select n most similar
+    helmholtzFrontiers = enumerateHelmholtzOcaml(tasks, grammar, enumerationTimeout, CPUs, propertyFeatureExtractor, save=False)
+    print("Enumerated {} helmholtz tasks".format(len(helmholtzFrontiers)))
+    if numHelmFrontiers is not None and numHelmFrontiers < len(sampledFrontiers):
+        helmholtzFrontiers = sorted(helmholtzFrontiers, key=lambda f: f.topK(1).entries[0].logPosterior, reverse=True)
+        helmholtzFrontiers = helmholtzFrontiers[:min(len(helmholtzFrontiers), numHelmFrontiers)]
+
+    fittedRecognizers = parallelMap(min(CPUs,len(recognizers)),
+                                     lambda recognizer: recognizer.fit(
+                                        taskBatch, 
+                                        tasks, 
+                                        helmholtzFrontiers, 
+                                        onlyUseTrueProperties, 
+                                        nSim, 
+                                        propPseudocounts,
+                                        weightedSim,
+                                        weightByPrior,
+                                        recomputeTasksWithTaskSpecificInputs,
+                                        computePriorFromTasks,
+                                        filterSimilarProperties,
+                                        maxFractionSame,
+                                        valuesToInt,
+                                        verbose)
+                                    )
+
+    eprint(f"Currently using this much memory: {getThisMemoryUsage()}")
+    # Enumerate frontiers for each of the recognizers.
+    eprint("Fitted an ensemble of %d recognition models, now enumerating." % len(fittedRecognizers))
+    ensembleFrontiers, ensembleTimes, ensembleRecognitionTimes = [], [], []
+    mostTasks = 0
+    bestRecognizer = None
+    totalTasksHitBottomUp = set()
+    for recIndex, recognizer in enumerate(trainedRecognizers):
+        eprint("Enumerating from recognizer %d of %d" % (recIndex, len(fittedRecognizers)))
+        bottomupFrontiers, allRecognitionTimes, _, _ = \
+                        recognizer.enumerateFrontiers(taskBatch, 
+                                                      CPUs=CPUs,
+                                                      maximumFrontier=maximumFrontier,
+                                                      enumerationTimeout=enumerationTimeout,
+                                                      evaluationTimeout=evaluationTimeout,
+                                                      solver=solver)
+        ensembleFrontiers.append(bottomupFrontiers)
+        ensembleTimes.append([t for t in allRecognitionTimes.values() if t is not None])
+        ensembleRecognitionTimes.append(allRecognitionTimes)
+
+        recognizerTasksHitBottomUp = {f.task for f in bottomupFrontiers if not f.empty}
+        totalTasksHitBottomUp.update(recognizerTasksHitBottomUp)
+        eprint("Recognizer %d solved %d/%d tasks; total tasks solved is now %d." % (recIndex, len(recognizerTasksHitBottomUp), len(tasks), len(totalTasksHitBottomUp)))
+        if len(recognizerTasksHitBottomUp) >= mostTasks:
+            # TODO (cathywong): could consider keeping the one that put the highest likelihood on the solved tasks.
+            bestRecognizer = recIndex
+
+    # Store the recognizer that discovers the most frontiers in the result.
+    eprint("Best recognizer: %d." % bestRecognizer)
+    result.recognitionModel = trainedRecognizers[bestRecognizer]
+    result.trainSearchTime = {tk: tm for tk, tm in ensembleRecognitionTimes[bestRecognizer].items()
+                              if tm is not None}
+    updateTaskSummaryMetrics(result.recognitionTaskMetrics, ensembleRecognitionTimes[bestRecognizer], 'recognitionBestTimes')
+    # updateTaskSummaryMetrics(result.recognitionTaskMetrics, result.recognitionModel.taskGrammarLogProductions(tasks), 'taskLogProductions')
+    # updateTaskSummaryMetrics(result.recognitionTaskMetrics, result.recognitionModel.taskGrammarEntropies(tasks), 'taskGrammarEntropies')
+    # if contextual:
+    #     updateTaskSummaryMetrics(result.recognitionTaskMetrics,
+    #                              result.recognitionModel.taskGrammarStartProductions(tasks),
+    #                              'startProductions')
+
+    result.hitsAtEachWake.append(len(totalTasksHitBottomUp))
+    eprint(f"Currently using this much memory: {getThisMemoryUsage()}")
+
+    """ Rescore and combine the frontiers across the ensemble of recognition models."""
+    eprint("Recognition model enumeration results for the best recognizer.")
+    eprint(Frontier.describe(ensembleFrontiers[bestRecognizer]))
+    summaryStatistics("Recognition model", ensembleTimes[bestRecognizer])
+
+    eprint("Cumulative results for the full ensemble of %d recognizers: " % len(fittedRecognizers))
+    # Rescore all of the ensemble frontiers according to the generative model
+    # and then combine w/ original frontiers
+    for bottomupFrontiers in ensembleFrontiers:
+        for b in bottomupFrontiers:
+            if b.task not in result.allFrontiers: continue # backwards compatibility with old checkpoints
+            result.allFrontiers[b.task] = result.allFrontiers[b.task].\
+                                          combine(grammar.rescoreFrontier(b)).\
+                                          topK(maximumFrontier)
+
+    eprint("Frontiers discovered bottom up: " + str(len(totalTasksHitBottomUp)))
+    eprint("Total frontiers: " + str(len([f for f in result.allFrontiers.values() if not f.empty])))
+
+    result.searchTimes.append(ensembleTimes[bestRecognizer])
+    if len(ensembleTimes[bestRecognizer]) > 0:
+        eprint("Average search time: ", int(mean(ensembleTimes[bestRecognizer]) + 0.5),
+               "sec.\tmedian:", int(median(ensembleTimes[bestRecognizer]) + 0.5),
+               "\tmax:", int(max(ensembleTimes[bestRecognizer]) + 0.5),
+               "\tstandard deviation", int(standardDeviation(ensembleTimes[bestRecognizer]) + 0.5))
+    return totalTasksHitBottomUp
+
 def sleep_recognition(result, grammar, taskBatch, tasks, testingTasks, allFrontiers, _=None,
                       ensembleSize=1, featureExtractor=None, matrixRank=None, mask=False,
                       activation=None, contextual=True, biasOptimal=True,
@@ -607,7 +757,7 @@ def sleep_recognition(result, grammar, taskBatch, tasks, testingTasks, allFronti
                                     id=i) for i in range(ensembleSize)]
     eprint(f"Currently using this much memory: {getThisMemoryUsage()}")
     trainedRecognizers = parallelMap(min(CPUs,len(recognizers)),
-                                     lambda recognizer: recognizer.train(allFrontiers,
+                                     lambda recognizer: recognizer.trainRecognizer(allFrontiers,
                                                                          biasOptimal=biasOptimal,
                                                                          helmholtzFrontiers=helmholtzFrontiers, 
                                                                          CPUs=CPUs,
@@ -732,6 +882,7 @@ def consolidate(result, grammar, _=None, topK=None, arity=None, pseudoCounts=Non
 def commandlineArguments(_=None,
                          iterations=None,
                          enumerationTimeout=None,
+                         unconditionalEnumerationTimeout=None,
                          testEvery=1,
                          topK=1,
                          reuseRecognition=False,
@@ -768,6 +919,10 @@ def commandlineArguments(_=None,
     parser.add_argument("-t", "--enumerationTimeout",
                         default=enumerationTimeout,
                         help="In seconds. default: %s" % enumerationTimeout,
+                        type=int)
+    parser.add_argument("-t0", "--unconditionalEnumerationTimeout",
+                        default=unconditionalEnumerationTimeout,
+                        help="In seconds. default: %s" % unconditionalEnumerationTimeout,
                         type=int)
     parser.add_argument("-R", "--recognitionTimeout",
                         default=recognitionTimeout,
