@@ -85,7 +85,7 @@ def enumerateHelmholtzOcaml(tasks, grammar, enumerationTimeout, CPUs, featureExt
     inputs = list({tuplify(xs)
                        for t in tasks if t.request == request
                        for xs, y in t.examples})
-
+    print("Enumerating helmholtz tasks for {} seconds".format(enumerationTimeout))
     response = helmholtzEnumeration(grammar, request, inputs, enumerationTimeout, _=None, special="unique", evaluationTimeout=0.004, maximumSize=99999999)
     print("Response length: {}".format(len(response)))
     frontiers = []
