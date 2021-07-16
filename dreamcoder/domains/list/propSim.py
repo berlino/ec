@@ -412,3 +412,5 @@ def enumerationProxy(task2FittedGrammar, train, frontiers, grammar, nSim, verbos
     print("Mean Fitted Log Posterior ({} frontiers): {}".format(nSim, fittedLogPosteriors / numTasks))
 
     return task2FittedGrammar
+
+

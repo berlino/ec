@@ -8,7 +8,6 @@ from dreamcoder.domains.arithmetic.arithmeticPrimitives import k1, k0, addition,
 from dreamcoder.frontier import Frontier, FrontierEntry
 from dreamcoder.grammar import Grammar
 from dreamcoder.program import Program
-from dreamcoder.recognition import RecognitionModel, DummyFeatureExtractor
 from dreamcoder.task import Task
 from dreamcoder.type import arrow, tint
 from dreamcoder.utilities import tuplify, timing, eprint, get_root_dir, mean
@@ -78,15 +77,4 @@ if __name__ == "__main__":
                                      arrow(tint, tint),
                                      [[0], [1], [2]],
                                      10.)
-    eprint("average frontier size", mean(len(f.entries) for f in frontiers))
-    f = DummyFeatureExtractor([])
-    r = RecognitionModel(f, g, hidden=[], contextual=True)
-    r.trainBiasOptimal(frontiers, frontiers, steps=70)
-    g = r.grammarOfTask(frontiers[0].task).untorch()
-    frontiers = helmholtzEnumeration(g,
-                                     arrow(tint, tint),
-                                     [[0], [1], [2]],
-                                     10.)
-    for f in frontiers:
-        eprint(f.summarizeFull())
     eprint("average frontier size", mean(len(f.entries) for f in frontiers))
