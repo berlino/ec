@@ -234,7 +234,7 @@ def list_options(parser):
 
     # Arguments relating to propSim
     parser.add_argument("--propSim", action="store_true", default=False)
-
+    parser.add_argument("--helmEnumerationTimeout", type=int, default=1)
     parser.add_argument("--propNumIters", type=int, default=1)
     parser.add_argument("--hmfSeed", type=int, default=1)
     parser.add_argument("--numHelmFrontiers", type=int, default=None)
