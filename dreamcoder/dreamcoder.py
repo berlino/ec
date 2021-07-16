@@ -637,15 +637,15 @@ def sleep_propsim(result, grammar, taskBatch, tasks, allFrontiers, ensembleSize,
     computePriorFromTasks, filterSimilarProperties, maxFractionSame, valuesToInt):
     
     # initialize property feature extractor, sampling properties if needed
-    propertyFeatureExtractor = [featureExtractor(tasksToSolve=taskBatch, allTasks=tasks, grammar=grammar, cuda=cuda, featureExtractorArgs=featureExtractorArgs) for i in range(ensembleSize)]
-    recognizers = [PropSimModel(featureExtractor,grammar,
+    propertyFeatureExtractors = [featureExtractor(tasksToSolve=taskBatch, allTasks=tasks, grammar=grammar, cuda=cuda, featureExtractorArgs=featureExtractorArgs) for i in range(ensembleSize)]
+    recognizers = [PropSimModel(propertyFeatureExtractors[i],grammar,
                  rank=None,contextual=contextual,mask=False,
                  cuda=cuda, id=i) for i in range(ensembleSize)]
 
     # enumerate helmholtz tasks from which to select n most similar
-    helmholtzFrontiers = enumerateHelmholtzOcaml(tasks, grammar, enumerationTimeout, CPUs, propertyFeatureExtractor, save=False)
+    helmholtzFrontiers = enumerateHelmholtzOcaml(tasks, grammar, enumerationTimeout, CPUs, propertyFeatureExtractors[0], save=False)
     print("Enumerated {} helmholtz tasks".format(len(helmholtzFrontiers)))
-    if numHelmFrontiers is not None and numHelmFrontiers < len(sampledFrontiers):
+    if numHelmFrontiers is not None and numHelmFrontiers < len(helmholtzFrontiers):
         helmholtzFrontiers = sorted(helmholtzFrontiers, key=lambda f: f.topK(1).entries[0].logPosterior, reverse=True)
         helmholtzFrontiers = helmholtzFrontiers[:min(len(helmholtzFrontiers), numHelmFrontiers)]
 
@@ -664,7 +664,9 @@ def sleep_propsim(result, grammar, taskBatch, tasks, allFrontiers, ensembleSize,
                                         filterSimilarProperties,
                                         maxFractionSame,
                                         valuesToInt,
-                                        verbose)
+                                        verbose),
+                                    recognizers,
+                                    seedRandom=True
                                     )
 
     eprint(f"Currently using this much memory: {getThisMemoryUsage()}")

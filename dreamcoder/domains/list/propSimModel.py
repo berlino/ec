@@ -39,7 +39,7 @@ class PropSimModel:
            taskBatch,
            allTasks, 
            helmholtzFrontiers, 
-           self.featureExtractor,
+           self.featureExtractor.properties,
            onlyUseTrueProperties, 
            nSim, 
            propPseudocounts, 
