@@ -209,6 +209,8 @@ def ecIterator(grammar, tasks,
                valuesToInt=None,
             ):
 
+    print("valuesToInt", valuesToInt)
+
     if enumerationTimeout is None:
         eprint(
             "Please specify an enumeration timeout:",
@@ -274,8 +276,22 @@ def ecIterator(grammar, tasks,
             "testingTasks",
             "compressor",
             "custom_wake_generative",
-            "earlyStopping"
+            "earlyStopping",
+            "numHelmFrontiers",
+            "onlyUseTrueProperties",
+            "nSim",
+            "propPseudocounts",
+            "weightedSim",
+            "weightByPrio",
+            "recomputeTasksWithTaskSpecificInputs",
+            "computePriorFromTasks",
+            "filterSimilarProperties",
+            "maxFractionSame",
+            "verbose",
+            "valuesToInt",
+            "weightByPrior",
             } and v is not None}
+            
     if not useRecognitionModel:
         for k in {"helmholtzRatio", "recognitionTimeout", "biasOptimal", "mask",
                   "contextual", "matrixRank", "reuseRecognition", "auxiliaryLoss", "ensembleSize"}:
@@ -632,9 +648,9 @@ def default_wake_generative(grammar, tasks,
     return topDownFrontiers, times
 
 def sleep_propsim(result, grammar, taskBatch, tasks, allFrontiers, ensembleSize, featureExtractor, contextual, 
-    enumerationTimeout, evaluationTimeout, maximumFrontier, cuda, CPUs, solver, featureExtractorArgs, verbose,
+    enumerationTimeout, evaluationTimeout, maximumFrontier, cuda, CPUs, solver, featureExtractorArgs,
     numHelmFrontiers, onlyUseTrueProperties, nSim, propPseudocounts, weightedSim, weightByPrior, recomputeTasksWithTaskSpecificInputs,
-    computePriorFromTasks, filterSimilarProperties, maxFractionSame, valuesToInt):
+    computePriorFromTasks, filterSimilarProperties, maxFractionSame, valuesToInt, verbose):
     
     # initialize property feature extractor, sampling properties if needed
     propertyFeatureExtractors = [featureExtractor(tasksToSolve=taskBatch, allTasks=tasks, grammar=grammar, cuda=cuda, featureExtractorArgs=featureExtractorArgs) for i in range(ensembleSize)]
@@ -644,6 +660,8 @@ def sleep_propsim(result, grammar, taskBatch, tasks, allFrontiers, ensembleSize,
 
     # enumerate helmholtz tasks from which to select n most similar
     helmholtzFrontiers = enumerateHelmholtzOcaml(tasks, grammar, enumerationTimeout, CPUs, propertyFeatureExtractors[0], save=False)
+    # helmholtzFrontiers = [f for f in allFrontiers if len(f.entries) > 0]
+
     print("Enumerated {} helmholtz tasks".format(len(helmholtzFrontiers)))
     if numHelmFrontiers is not None and numHelmFrontiers < len(helmholtzFrontiers):
         helmholtzFrontiers = sorted(helmholtzFrontiers, key=lambda f: f.topK(1).entries[0].logPosterior, reverse=True)
@@ -676,10 +694,10 @@ def sleep_propsim(result, grammar, taskBatch, tasks, allFrontiers, ensembleSize,
     mostTasks = 0
     bestRecognizer = None
     totalTasksHitBottomUp = set()
-    for recIndex, recognizer in enumerate(trainedRecognizers):
+    for recIndex, recognizer in enumerate(fittedRecognizers):
         eprint("Enumerating from recognizer %d of %d" % (recIndex, len(fittedRecognizers)))
         bottomupFrontiers, allRecognitionTimes, _, _ = \
-                        recognizer.enumerateFrontiers(taskBatch, 
+                        recognizer.enumerateFrontiers(taskBatch=taskBatch, 
                                                       CPUs=CPUs,
                                                       maximumFrontier=maximumFrontier,
                                                       enumerationTimeout=enumerationTimeout,
@@ -698,7 +716,7 @@ def sleep_propsim(result, grammar, taskBatch, tasks, allFrontiers, ensembleSize,
 
     # Store the recognizer that discovers the most frontiers in the result.
     eprint("Best recognizer: %d." % bestRecognizer)
-    result.recognitionModel = trainedRecognizers[bestRecognizer]
+    result.recognitionModel = fittedRecognizers[bestRecognizer]
     result.trainSearchTime = {tk: tm for tk, tm in ensembleRecognitionTimes[bestRecognizer].items()
                               if tm is not None}
     updateTaskSummaryMetrics(result.recognitionTaskMetrics, ensembleRecognitionTimes[bestRecognizer], 'recognitionBestTimes')

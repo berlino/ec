@@ -1,4 +1,3 @@
-
 from collections import defaultdict
 import copy
 import datetime
@@ -446,6 +445,7 @@ def main(args):
         "outputPrefix": "jrule",
         "outputDirectory": outputDirectory,
         "evaluationTimeout": 0.0005,
+        "valuesToInt": valuesToInt
     })
 
     if singleTask:

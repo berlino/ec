@@ -160,6 +160,7 @@ def createSimilarTasksDf(
         similarity score of every task
 
     """
+    print("valuesToInt", valuesToInt)
     task = allTasks[taskIdx]
     taskSig = np.array([valuesToInt[prop.getValue(task)] for prop in properties])
     if onlyUseTrueProperties:

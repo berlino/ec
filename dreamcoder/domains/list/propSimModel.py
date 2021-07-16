@@ -55,9 +55,9 @@ class PropSimModel:
            verbose=verbose)
 
         self.task2FittedGrammar = task2FittedGrammar
-        return task2FittedGrammar
+        return self
 
-    def enumerateFrontiers(taskBatch, CPUs, maximumFrontier, enumerationTimeout, evaluationTimeout, solver):
+    def enumerateFrontiers(self, taskBatch, CPUs, maximumFrontier, enumerationTimeout, evaluationTimeout, solver):
         return multicoreEnumeration(self.task2FittedGrammar, taskBatch, _=None,
                              enumerationTimeout=enumerationTimeout,
                              solver=solver,
