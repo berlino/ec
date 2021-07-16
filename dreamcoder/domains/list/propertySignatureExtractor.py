@@ -169,7 +169,7 @@ class PropertySignatureExtractor(nn.Module):
             print("Loaded {} properties from: {}".format(len(properties), "handwritten"))
             return properties
         
-        elif self.featureExtractorArgs["propToUse"]:
+        elif self.featureExtractorArgs["propToUse"] == "preloaded":
             assert propFilename is not None
             properties = dill.load(open(DATA_DIR + SAMPLED_PROPERTIES_DIR + self.featureExtractorArgs["propFilename"], "rb"))
             if isinstance(properties, dict):
@@ -181,10 +181,13 @@ class PropertySignatureExtractor(nn.Module):
 
         
         elif self.featureExtractorArgs["propToUse"] == "sample":
-            propertyRequest = arrow(tlist(tint), tlist(tint), returnType)
             self.propertyGrammar = self._getPropertyGrammar()
-            properties, likelihoodModel = enumerateProperties(self.featureExtractorArgs, self.propertyGrammar, self.propertyTasksToSolve, propertyRequest, allTasks=self.propertyAllTasks)
+            properties, likelihoodModel = enumerateProperties(self.featureExtractorArgs, self.propertyGrammar, self.propertyTasksToSolve, self.propertyRequest, allTasks=self.propertyAllTasks)
+            print("Loaded {} properties by enumerating for {}s".format(len(properties), self.featureExtractorArgs["propEnumerationTimeout"]))
             return properties
+
+        else:
+            raise NotImplementedError
 
 
     def forward(self, v, v2=None):

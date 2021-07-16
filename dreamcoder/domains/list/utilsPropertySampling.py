@@ -51,6 +51,7 @@ def enumerateProperties(args, propertyGrammar, tasksToSolve, propertyRequest, al
     # for every task, as whether we choose to include the property or not depends on all tasks.
     if args["propScoringMethod"] == "unique_task_signature":
         likelihoodModel = UniqueTaskSignatureScore(timeout=0.1, tasks=allTasks)
+        tasksToSolve = tasksToSolve[0:1]
     elif args["propScoringMethod"] == "general_unique_task_signature":
         likelihoodModel = GeneralUniqueTaskSignatureScore(timeout=0.1, tasks=allTasks)
     elif args["propScoringMethod"] == "per_task_surprisal":
@@ -60,8 +61,8 @@ def enumerateProperties(args, propertyGrammar, tasksToSolve, propertyRequest, al
 
     print("Enumerating with {} CPUs".format(args["propCPUs"]))
     frontiers, times, pcs, likelihoodModel = multicoreEnumeration(propertyGrammar, tasksToSolve, solver=args["propSolver"],maximumFrontier= int(10e7),
-                                                 enumerationTimeout= args["propSamplingTimeout"], CPUs=args["propCPUs"],
-                                                 evaluationTimeout=0.01,
+                                                 enumerationTimeout= args["propEnumerationTimeout"], CPUs=args["propCPUs"],
+                                                 evaluationTimeout=0.1,
                                                  testing=True, likelihoodModel=likelihoodModel)
 
     if args["propScoringMethod"] == "general_unique_task_signature":
@@ -70,24 +71,19 @@ def enumerateProperties(args, propertyGrammar, tasksToSolve, propertyRequest, al
             program, allSameValues = propertyInfo
             print("program: {}".format(program))
             print("allSameValues: {}".format(allSameValues))
-
         raise Exception("debug")
 
-    propertiesPerTask = {}
-    for frontier in frontiers:
+    elif args["propScoringMethod"] == "unique_task_signature":
         properties = []
-
-        for entry in frontier.entries:
+        for frontier in frontiers:
+            entry = frontier.topK(1).entries[0]
             prop = Property(program=entry.program.evaluate([]), 
                             request=propertyRequest, 
                             name=str(entry.program), 
                             logPrior=entry.logPrior, 
                             score=entry.logLikelihood)
             properties.append(prop)
-
-        propertiesPerTask[frontier.task] = properties
-
-    return propertiesPerTask, likelihoodModel
+    return properties, likelihoodModel
 
 
 def propertyEnumerationMain(grammar, tasks, propertyRequest, featureExtractor, featureExtractorArgs):

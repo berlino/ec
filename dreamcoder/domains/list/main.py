@@ -250,13 +250,13 @@ def list_options(parser):
     parser.add_argument("--verbose", action="store_true", default=False)
     parser.add_argument("--weightByPrior", action="store_true", default=False)
     parser.add_argument("--weightedSim", action="store_true", default=False)
-    parser.add_argument("--recomputeTasksWithTaskSpecificInputs", action="store_true", default=False)
+    parser.add_argument("--taskSpecificInputs", action="store_true", default=False)
     parser.add_argument("--earlyStopping", action="store_true", default=False)
     parser.add_argument("--singleTask", action="store_true", default=False)
     parser.add_argument("--debug", action="store_true", default=False)
     parser.add_argument("--propCPUs", type=int, default=numberOfCPUs())
     parser.add_argument("--propSolver",default="ocaml",type=str)
-    parser.add_argument("--propSamplingTimeout",default=600,type=float)
+    parser.add_argument("--propEnumerationTimeout",default=1,type=float)
     parser.add_argument("--propUseConjunction", action="store_true", default=False)
     parser.add_argument("--propAddZeroToNinePrims", action="store_true", default=False)
     parser.add_argument("--propScoringMethod", default="unique_task_signature", choices=[
@@ -300,7 +300,7 @@ def main(args):
     hidden = args.pop("hidden")
     propCPUs = args.pop("propCPUs")
     propSolver = args.pop("propSolver")
-    propSamplingTimeout = args.pop("propSamplingTimeout")
+    propEnumerationTimeout = args.pop("propEnumerationTimeout")
     propUseConjunction = args.pop("propUseConjunction")
     propAddZeroToNinePrims = args.pop("propAddZeroToNinePrims")
     propScoringMethod = args.pop("propScoringMethod")
@@ -315,7 +315,7 @@ def main(args):
     propPseudocounts = args["propPseudocounts"]
     weightedSim = args["weightedSim"]
     weightByPrior= args["weightByPrior"]
-    recomputeTasksWithTaskSpecificInputs = args["recomputeTasksWithTaskSpecificInputs"]
+    taskSpecificInputs = args["taskSpecificInputs"]
     computePriorFromTasks = args["computePriorFromTasks"]
     filterSimilarProperties = args["filterSimilarProperties"]
     maxFractionSame = args["maxFractionSame"]
@@ -374,7 +374,7 @@ def main(args):
         featureExtractorArgs = {
             "propCPUs": propCPUs,
             "propSolver": propSolver,
-            "propSamplingTimeout": propSamplingTimeout,
+            "propEnumerationTimeout": propEnumerationTimeout,
             "propUseConjunction": propUseConjunction,
             "propAddZeroToNinePrims": propAddZeroToNinePrims,
             "propScoringMethod": propScoringMethod,
@@ -386,54 +386,54 @@ def main(args):
             "propToUse": propToUse
         }
 
-        if propToUse == "handwritten":
-            properties = getHandwrittenPropertiesFromTemplates(tasks)
-            featureExtractor = extractor(tasksToSolve=tasks, allTasks=tasks, grammar=baseGrammar, cuda=False, featureExtractorArgs=featureExtractorArgs, properties=properties)
-            print("Loaded {} properties from: {}".format(len(properties), "handwritten"))
+        # if propToUse == "handwritten":
+        #     properties = getHandwrittenPropertiesFromTemplates(tasks)
+        #     featureExtractor = extractor(tasksToSolve=tasks, allTasks=tasks, grammar=baseGrammar, cuda=False, featureExtractorArgs=featureExtractorArgs, properties=properties)
+        #     print("Loaded {} properties from: {}".format(len(properties), "handwritten"))
         
-        elif propToUse == "preloaded":
-            assert propFilename is not None
-            properties = dill.load(open(DATA_DIR + SAMPLED_PROPERTIES_DIR + propFilename, "rb"))
-            if isinstance(properties, dict):
-                assert len(properties) == 1
-                properties = list(properties.values())[0]
-                # filter properties that are only on inputs
-                properties = [p for p in properties if "$0" in p.name]
-            featureExtractor = extractor(tasksToSolve=tasks, allTasks=tasks, grammar=baseGrammar, cuda=False, featureExtractorArgs=featureExtractorArgs, properties=properties)
-            print("Loaded {} properties from: {}".format(len(properties), propFilename))
+        # elif propToUse == "preloaded":
+        #     assert propFilename is not None
+        #     properties = dill.load(open(DATA_DIR + SAMPLED_PROPERTIES_DIR + propFilename, "rb"))
+        #     if isinstance(properties, dict):
+        #         assert len(properties) == 1
+        #         properties = list(properties.values())[0]
+        #         # filter properties that are only on inputs
+        #         properties = [p for p in properties if "$0" in p.name]
+        #     featureExtractor = extractor(tasksToSolve=tasks, allTasks=tasks, grammar=baseGrammar, cuda=False, featureExtractorArgs=featureExtractorArgs, properties=properties)
+        #     print("Loaded {} properties from: {}".format(len(properties), propFilename))
         
-        elif propToUse == "sample":
-            # only used if property sampling grammar weights are "fitted"
-            fileName = "enumerationResults/neuralRecognizer_2021-05-18 15:27:58.504808_t=600.pkl"
-            frontiers, times = dill.load(open(fileName, "rb"))
-            allProperties = {}
-            tasksToSolve = tasks[0:1]
-            returnTypes = [tbool]
+        # elif propToUse == "sample":
+        #     # only used if property sampling grammar weights are "fitted"
+        #     fileName = "enumerationResults/neuralRecognizer_2021-05-18 15:27:58.504808_t=600.pkl"
+        #     frontiers, times = dill.load(open(fileName, "rb"))
+        #     allProperties = {}
+        #     tasksToSolve = tasks[0:1]
+        #     returnTypes = [tbool]
 
-            for returnType in returnTypes:
-                propertyRequest = arrow(tlist(tint), tlist(tint), returnType)
+        #     for returnType in returnTypes:
+        #         propertyRequest = arrow(tlist(tint), tlist(tint), returnType)
 
-                grammar = getPropertySamplingGrammar(baseGrammar, propSamplingGrammarWeights, frontiers, pseudoCounts=1, seed=args["seed"])
-                try:
-                    featureExtractor = extractor(tasksToSolve=tasksToSolve, allTasks=tasks, grammar=grammar, cuda=False, featureExtractorArgs=featureExtractorArgs, propertyRequest=propertyRequest)
-                    for task in tasksToSolve:
-                        allProperties[task] = allProperties.get(task, []) + featureExtractor.properties[task]
-                # assertion triggered if 0 properties enumerated
-                except AssertionError:
-                    print("0 properties found")
+        #         grammar = getPropertySamplingGrammar(baseGrammar, propSamplingGrammarWeights, frontiers, pseudoCounts=1, seed=args["seed"])
+        #         try:
+        #             featureExtractor = extractor(tasksToSolve=tasksToSolve, allTasks=tasks, grammar=grammar, cuda=False, featureExtractorArgs=featureExtractorArgs, propertyRequest=propertyRequest)
+        #             for task in tasksToSolve:
+        #                 allProperties[task] = allProperties.get(task, []) + featureExtractor.properties[task]
+        #         # assertion triggered if 0 properties enumerated
+        #         except AssertionError:
+        #             print("0 properties found")
             
-            for task in tasksToSolve:
-                print("Found {} properties for task {}".format(len(allProperties.get(task, [])), task))
-                for p in sorted(allProperties.get(task, []), key=lambda p: p.score, reverse=True):
-                    print("program: {} \nreturnType: {} \nprior: {:.2f} \nscore: {:.2f}".format(p, p.request.returns(), p.logPrior, p.score))
-                    print("-------------------------------------------------------------")
+        #     for task in tasksToSolve:
+        #         print("Found {} properties for task {}".format(len(allProperties.get(task, [])), task))
+        #         for p in sorted(allProperties.get(task, []), key=lambda p: p.score, reverse=True):
+        #             print("program: {} \nreturnType: {} \nprior: {:.2f} \nscore: {:.2f}".format(p, p.request.returns(), p.logPrior, p.score))
+        #             print("-------------------------------------------------------------")
 
-            if save:
-                filename = "sampled_properties_weights={}_sampling_timeout={}s_return_types={}_seed={}.pkl".format(
-                    propSamplingGrammarWeights, int(featureExtractorArgs["propSamplingTimeout"]), returnTypes, args["seed"])
-                savePath = DATA_DIR + SAMPLED_PROPERTIES_DIR + filename
-                dill.dump(allProperties, open(savePath, "wb"))
-                print("Saving sampled properties at: {}".format(savePath))
+        #     if save:
+        #         filename = "sampled_properties_weights={}_sampling_timeout={}s_return_types={}_seed={}.pkl".format(
+        #             propSamplingGrammarWeights, int(featureExtractorArgs["propEnumerationTimeout"]), returnTypes, args["seed"])
+        #         savePath = DATA_DIR + SAMPLED_PROPERTIES_DIR + filename
+        #         dill.dump(allProperties, open(savePath, "wb"))
+        #         print("Saving sampled properties at: {}".format(savePath))
 
 
     timestamp = datetime.datetime.now().isoformat()

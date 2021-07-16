@@ -8,6 +8,9 @@ from dreamcoder.domains.list.utilsProperties import createFrontiersWithInputsFro
 
 MAX_NUM_SIM_TASKS_TO_PRINT = 5
 
+class ZeroPropertiesFound(Exception):
+    pass
+
 def getPropertySimTasksMatrix(helmholtzTasks, properties, taskPropertyValueToInt):
     """
 
@@ -45,9 +48,12 @@ def getTaskSimilarFrontier(
     task = allTasks[taskIdx]
     vprint("\n------------------------------------------------ Task {} ----------------------------------------------------".format(task), verbose)
     vprint(task.describe(), verbose)
-    simDf, matchingFrontiers = createSimilarTasksDf(allTasks, taskIdx, allFrontiers, properties, propertySimTasksMatrix, propertyToPriorDistribution, valuesToInt, 
-        onlyUseTrueProperties=onlyUseTrueProperties, filterSimilarProperties=filterSimilarProperties, maxFractionSame=maxFractionSame, 
-        recomputeTasksWithTaskSpecificInputs=recomputeTasksWithTaskSpecificInputs, computePriorFromTasks=computePriorFromTasks, verbose=verbose)
+    try:
+        simDf, matchingFrontiers = createSimilarTasksDf(allTasks, taskIdx, allFrontiers, properties, propertySimTasksMatrix, propertyToPriorDistribution, valuesToInt, 
+            onlyUseTrueProperties=onlyUseTrueProperties, filterSimilarProperties=filterSimilarProperties, maxFractionSame=maxFractionSame, 
+            recomputeTasksWithTaskSpecificInputs=recomputeTasksWithTaskSpecificInputs, computePriorFromTasks=computePriorFromTasks, verbose=verbose)
+    except ZeroPropertiesFound:
+        return allFrontiers, [1 for i in range(len(allFrontiers))], False
 
 
     # check if any of the similar tasks programs are actually solutions for the task we want to solve
@@ -172,6 +178,9 @@ def createSimilarTasksDf(
     # filter properties only keeping ones with values desired for task to solve
     propertyToIdx = {p:i for i,p in enumerate(properties)}
     properties = [p for i,p in enumerate(properties) if propertiesMask[i]]
+
+    if len(properties) == 0:
+        raise ZeroPropertiesFound
     
     # this will only be true on the first iteration of iterative propSim where we use the same frontier for alll tasks
     if propertySimTasksMatrix is not None and propertyToPriorDistribution is not None:
@@ -308,9 +317,11 @@ def getPropSimGrammars(
         baseGrammars = {t: baseGrammars for t in tasksToSolve}
     task2Grammar = baseGrammars
 
+    print("sampledFrontiers", sampledFrontiers)
     if not isinstance(sampledFrontiers, dict):
         sampledFrontiers = {t: sampledFrontiers for t in tasksToSolve}
     task2Frontiers = sampledFrontiers
+    print("task2Frontiers", task2Frontiers)
 
     if not isinstance(properties, dict):
         properties = {t: properties for t in tasksToSolve}

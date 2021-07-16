@@ -202,7 +202,7 @@ def ecIterator(grammar, tasks,
                propPseudocounts=None,
                weightedSim=None,
                weightByPrior=None,
-               recomputeTasksWithTaskSpecificInputs=None,
+               taskSpecificInputs=None,
                computePriorFromTasks=None,
                filterSimilarProperties=None,
                maxFractionSame=None,
@@ -284,7 +284,7 @@ def ecIterator(grammar, tasks,
             "propPseudocounts",
             "weightedSim",
             "weightByPrio",
-            "recomputeTasksWithTaskSpecificInputs",
+            "taskSpecificInputs",
             "computePriorFromTasks",
             "filterSimilarProperties",
             "maxFractionSame",
@@ -515,7 +515,7 @@ def ecIterator(grammar, tasks,
                 tasksHitBottomUp = \
                     sleep_propsim(result, grammar, wakingTaskBatch, tasks, result.allFrontiers.values(), ensembleSize, featureExtractor, contextual, 
                                 enumerationTimeout, evaluationTimeout, maximumFrontier, cuda, CPUs, solver, featureExtractorArgs, numHelmFrontiers,
-                                onlyUseTrueProperties, nSim, propPseudocounts, weightedSim, weightByPrior, recomputeTasksWithTaskSpecificInputs,
+                                onlyUseTrueProperties, nSim, propPseudocounts, weightedSim, weightByPrior, taskSpecificInputs,
                                 computePriorFromTasks, filterSimilarProperties, maxFractionSame, valuesToInt, helmEnumerationTimeout, verbose)
             else:
                 tasksHitBottomUp = \
@@ -651,7 +651,7 @@ def default_wake_generative(grammar, tasks,
 
 def sleep_propsim(result, grammar, taskBatch, tasks, allFrontiers, ensembleSize, featureExtractor, contextual, 
     enumerationTimeout, evaluationTimeout, maximumFrontier, cuda, CPUs, solver, featureExtractorArgs,
-    numHelmFrontiers, onlyUseTrueProperties, nSim, propPseudocounts, weightedSim, weightByPrior, recomputeTasksWithTaskSpecificInputs,
+    numHelmFrontiers, onlyUseTrueProperties, nSim, propPseudocounts, weightedSim, weightByPrior, taskSpecificInputs,
     computePriorFromTasks, filterSimilarProperties, maxFractionSame, valuesToInt, helmEnumerationTimeout, verbose):
     
     # initialize property feature extractor, sampling properties if needed
@@ -661,8 +661,8 @@ def sleep_propsim(result, grammar, taskBatch, tasks, allFrontiers, ensembleSize,
                  cuda=cuda, id=i) for i in range(ensembleSize)]
 
     # enumerate helmholtz tasks from which to select n most similar
-    helmholtzFrontiers = enumerateHelmholtzOcaml(tasks, grammar, helmEnumerationTimeout, CPUs, propertyFeatureExtractors[0], save=False)
-    # helmholtzFrontiers = [f for f in allFrontiers if len(f.entries) > 0]
+    # helmholtzFrontiers = enumerateHelmholtzOcaml(tasks, grammar, helmEnumerationTimeout, CPUs, propertyFeatureExtractors[0], save=False)
+    helmholtzFrontiers = [f for f in allFrontiers if len(f.entries) > 0]
 
     print("Enumerated {} helmholtz tasks".format(len(helmholtzFrontiers)))
     if numHelmFrontiers is not None and numHelmFrontiers < len(helmholtzFrontiers):
@@ -679,7 +679,7 @@ def sleep_propsim(result, grammar, taskBatch, tasks, allFrontiers, ensembleSize,
                                         propPseudocounts,
                                         weightedSim,
                                         weightByPrior,
-                                        recomputeTasksWithTaskSpecificInputs,
+                                        taskSpecificInputs,
                                         computePriorFromTasks,
                                         filterSimilarProperties,
                                         maxFractionSame,
