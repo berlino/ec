@@ -311,6 +311,10 @@ def getPropSimGrammars(
         sampledFrontiers = {t: sampledFrontiers for t in tasksToSolve}
     task2Frontiers = sampledFrontiers
 
+    if not isinstance(properties, dict):
+        properties = {t: properties for t in tasksToSolve}
+    task2Properties = properties
+
     propertySimTasksMatrix, propertyToPriorDistribution = None, None
     # we can get away with computing once for all tasks if the below conditions are True
     if not recomputeTasksWithTaskSpecificInputs and computePriorFromTasks and propSimIteration == 0:
@@ -319,7 +323,7 @@ def getPropSimGrammars(
     for taskIdx,task in enumerate(allTasks):
         # use the sampled programs to create new specs with the same inputs as the task we want to solve
         if task in tasksToSolve:
-            similarFrontiers, weights, solved = getTaskSimilarFrontier(task2Frontiers[task], properties, propertySimTasksMatrix, valuesToInt, allTasks, taskIdx, task2Grammar[task], 
+            similarFrontiers, weights, solved = getTaskSimilarFrontier(task2Frontiers[task], task2Properties[task], propertySimTasksMatrix, valuesToInt, allTasks, taskIdx, task2Grammar[task], 
                 filterSimilarProperties=filterSimilarProperties, maxFractionSame=maxFractionSame, nSim=nSim, propertyToPriorDistribution=propertyToPriorDistribution, 
                 onlyUseTrueProperties=onlyUseTrueProperties, recomputeTasksWithTaskSpecificInputs=recomputeTasksWithTaskSpecificInputs, computePriorFromTasks=computePriorFromTasks, verbose=verbose)
             task2SimilarFrontiers[task] = similarFrontiers

@@ -100,9 +100,9 @@ class TaskSurprisalScore(PropertyScore):
 
         taskMeanEntropy = np.mean(taskEntropies)
         otherTasksMeanEntropy = np.mean(otherTasksEntropies)
-        # print("otherTasksMeanEntropy: {}\ntaskMeanEntropy: {}".format(otherTasksMeanEntropy, taskMeanEntropy))
         score = otherTasksMeanEntropy - taskMeanEntropy
-        return (score > 1.0 and taskMeanEntropy == 0.0), score
+        print("score", score)
+        return score > 0.7, score
 
 
 class GeneralUniqueTaskSignatureScore(PropertyScore):
