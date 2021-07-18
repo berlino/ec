@@ -506,6 +506,7 @@ def ecIterator(grammar, tasks,
         eprint("Total frontiers: " + str(len([f for f in result.allFrontiers.values() if not f.empty])))
 
         # Train + use recognition model
+        # if useRecognitionModel and (not (j == 0 and propSim)):
         if useRecognitionModel:
             # Should we initialize the weights to be what they were before?
             previousRecognitionModel = None
@@ -660,15 +661,18 @@ def sleep_propsim(result, j, grammar, taskBatch, tasks, allFrontiers, ensembleSi
     computePriorFromTasks, filterSimilarProperties, maxFractionSame, valuesToInt, helmEnumerationTimeout, outputDirectory, verbose):
     
     # initialize property feature extractor, sampling properties if needed
-    propertyFeatureExtractors = [featureExtractor(tasksToSolve=taskBatch, allTasks=tasks, grammar=grammar, cuda=cuda, featureExtractorArgs=featureExtractorArgs) for i in range(ensembleSize)]
+    properties = None
+    if result.recognitionModel is not None:
+        properties = result.recognitionModel.featureExtractor.properties[::]
+    propertyFeatureExtractors = [featureExtractor(tasksToSolve=taskBatch, allTasks=tasks, grammar=grammar, properties=properties, cuda=cuda, featureExtractorArgs=featureExtractorArgs) for i in range(ensembleSize)]
     recognizers = [PropSimModel(propertyFeatureExtractors[i],grammar,
                  rank=None,contextual=contextual,mask=False,
                  cuda=cuda, id=i) for i in range(ensembleSize)]
 
     # enumerate helmholtz tasks from which to select n most similar
-    # helmholtzFrontiers = enumerateHelmholtzOcaml(tasks, grammar, helmEnumerationTimeout, CPUs, propertyFeatureExtractors[0], save=False)
+    helmholtzFrontiers = enumerateHelmholtzOcaml(tasks, grammar, helmEnumerationTimeout, CPUs, propertyFeatureExtractors[0], save=False)
     # use for debug only locally where we can't do Ocaml enumeration
-    helmholtzFrontiers = [f for f in allFrontiers if len(f.entries) > 0]
+    # helmholtzFrontiers = [f for f in allFrontiers if len(f.entries) > 0]
 
     print("Enumerated {} helmholtz tasks".format(len(helmholtzFrontiers)))
     if numHelmFrontiers is not None and numHelmFrontiers < len(helmholtzFrontiers):
