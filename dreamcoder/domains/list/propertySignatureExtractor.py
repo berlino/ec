@@ -38,7 +38,7 @@ class PropertySignatureExtractor(nn.Module):
         helmholtzEvaluationTimeout=0.01,
         grammar=None,
         featureExtractorArgs={},
-        propertyRequest=arrow(tinput, toutput, tbool),
+        propertyRequest=arrow(tlist(tint), tlist(tint), tbool),
         properties=None
         ):
         super(PropertySignatureExtractor, self).__init__()
@@ -139,10 +139,10 @@ class PropertySignatureExtractor(nn.Module):
         maxLL = maxLL if maxLL < 0 else 3
 
         propertyPrimitives = self.grammar.primitives
-        if tinput in self.propertyRequest.functionArguments():
-            toutputToList = Primitive("toutput_to_tlist", arrow(toutput, tlist(tint)), lambda x: x)
-            tinputToList = Primitive("tinput_to_tlist", arrow(tinput, tlist(tint)), lambda x: x)
-            propertyPrimitives = propertyPrimitives + [tinputToList, toutputToList]
+        # if tinput in self.propertyRequest.functionArguments():
+        #     toutputToList = Primitive("toutput_to_tlist", arrow(toutput, tlist(tint)), lambda x: x)
+        #     tinputToList = Primitive("tinput_to_tlist", arrow(tinput, tlist(tint)), lambda x: x)
+        #     propertyPrimitives = propertyPrimitives + [tinputToList, toutputToList]
 
         if self.featureExtractorArgs["propAddZeroToNinePrims"]:
 
@@ -157,7 +157,7 @@ class PropertySignatureExtractor(nn.Module):
             propertyPrimitives.append(Primitive("and", arrow(tbool, tbool, tbool), lambda a: lambda b: a and b))
 
         productions = [(self.grammar.expression2likelihood.get(p, maxLL), p) for p in propertyPrimitives]
-        propertyGrammar = Grammar.fromProductions(productions, logVariable=maxLL)
+        propertyGrammar = Grammar.fromProductions(productions, logVariable=0)
         print("property grammar: {}".format(propertyGrammar))
         return propertyGrammar
 
@@ -184,6 +184,8 @@ class PropertySignatureExtractor(nn.Module):
             self.propertyGrammar = self._getPropertyGrammar()
             properties, likelihoodModel = enumerateProperties(self.featureExtractorArgs, self.propertyGrammar, self.propertyTasksToSolve, self.propertyRequest, allTasks=self.propertyAllTasks)
             print("Loaded {} properties by enumerating for {}s".format(len(properties), self.featureExtractorArgs["propEnumerationTimeout"]))
+            for p in properties:
+                print("Property:{} ({})".format(p.name, p.score))
             return properties
 
         else:
