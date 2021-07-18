@@ -77,7 +77,7 @@ def makeTaskFromProgram(program, request, featureExtractor, differentOutputs=Tru
     return task
 
 
-def enumerateHelmholtzOcaml(tasks, grammar, enumerationTimeout, CPUs, featureExtractor, save=False, libraryName=None, dataset=None):
+def enumerateHelmholtzOcaml(tasks, grammar, enumerationTimeout, CPUs, featureExtractor, save=False, libraryName=None, dataset=None, saveDirectory=None):
 
     requests = list({t.request for t in tasks})
     request = requests[0]
@@ -100,15 +100,18 @@ def enumerateHelmholtzOcaml(tasks, grammar, enumerationTimeout, CPUs, featureExt
         frontier = Frontier([FrontierEntry(program=Program.parse(p), logPrior=entry["ll"], logLikelihood=0.0) for p in entry["programs"]], task=task)
         return frontier
 
-    frontiers = parallelMap(CPUs, lambda entry: parseAndMakeTaskFromProgram(entry, request, featureExtractor), response)
+    frontiers = parallelMap(CPUs, lambda entry: parseAndMakeTaskFromProgram(entry, request, featureExtractor), response, memorySensitive=True)
     frontiers = [f for f in frontiers if f is not None] 
     print("{} Frontiers after filtering".format(len(frontiers)))
     
     if save:
-        filename = "helmholtzFrontiers/{}_enumerated/{}_with_{}-inputs.pkl".format(libraryName, len(frontiers), dataset)
-        path = DATA_DIR + filename
-        print("Saving frontiers at: {}".format(path))
+        if saveDirectory is not None:
+            path = saveDirectory
+        else:
+            filename = "helmholtzFrontiers/{}_enumerated/{}_with_{}-inputs.pkl".format(libraryName, len(frontiers), dataset)
+            path = DATA_DIR + filename
         dill.dump(frontiers, open(path, "wb"))
+        print("Saving frontiers at: {}".format(path))
 
     return frontiers
 
@@ -139,7 +142,7 @@ def enumerateAndSave(grammar, request, featureExtractor, dslName, numTasks, k, b
     totalNumTasks = {bound: 0 for bound in bounds}
 
     if CPUs > 1:
-        parallelMap(CPUs, lambda bounds: enumerateWithinBounds(bounds[0], bounds[1], totalNumTasks), bounds)
+        parallelMap(CPUs, lambda bounds: enumerateWithinBounds(bounds[0], bounds[1], totalNumTasks), bounds, memorySensitive=True)
 
     print(totalNumTasks)
     return

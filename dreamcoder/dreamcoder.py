@@ -513,10 +513,10 @@ def ecIterator(grammar, tasks,
 
             if propSim:
                 tasksHitBottomUp = \
-                    sleep_propsim(result, grammar, wakingTaskBatch, tasks, result.allFrontiers.values(), ensembleSize, featureExtractor, contextual, 
+                    sleep_propsim(result, j, grammar, wakingTaskBatch, tasks, result.allFrontiers.values(), ensembleSize, featureExtractor, contextual, 
                                 enumerationTimeout, evaluationTimeout, maximumFrontier, cuda, CPUs, solver, featureExtractorArgs, numHelmFrontiers,
                                 onlyUseTrueProperties, nSim, propPseudocounts, weightedSim, weightByPrior, taskSpecificInputs,
-                                computePriorFromTasks, filterSimilarProperties, maxFractionSame, valuesToInt, helmEnumerationTimeout, verbose)
+                                computePriorFromTasks, filterSimilarProperties, maxFractionSame, valuesToInt, helmEnumerationTimeout, outputDirectory, verbose)
             else:
                 tasksHitBottomUp = \
                     sleep_recognition(result, grammar, wakingTaskBatch, tasks, testingTasks, result.allFrontiers.values(),
@@ -649,10 +649,10 @@ def default_wake_generative(grammar, tasks,
     summaryStatistics("Generative model", [t for t in times.values() if t is not None])
     return topDownFrontiers, times
 
-def sleep_propsim(result, grammar, taskBatch, tasks, allFrontiers, ensembleSize, featureExtractor, contextual, 
+def sleep_propsim(result, j, grammar, taskBatch, tasks, allFrontiers, ensembleSize, featureExtractor, contextual, 
     enumerationTimeout, evaluationTimeout, maximumFrontier, cuda, CPUs, solver, featureExtractorArgs,
     numHelmFrontiers, onlyUseTrueProperties, nSim, propPseudocounts, weightedSim, weightByPrior, taskSpecificInputs,
-    computePriorFromTasks, filterSimilarProperties, maxFractionSame, valuesToInt, helmEnumerationTimeout, verbose):
+    computePriorFromTasks, filterSimilarProperties, maxFractionSame, valuesToInt, helmEnumerationTimeout, outputDirectory, verbose):
     
     # initialize property feature extractor, sampling properties if needed
     propertyFeatureExtractors = [featureExtractor(tasksToSolve=taskBatch, allTasks=tasks, grammar=grammar, cuda=cuda, featureExtractorArgs=featureExtractorArgs) for i in range(ensembleSize)]
@@ -661,13 +661,16 @@ def sleep_propsim(result, grammar, taskBatch, tasks, allFrontiers, ensembleSize,
                  cuda=cuda, id=i) for i in range(ensembleSize)]
 
     # enumerate helmholtz tasks from which to select n most similar
-    # helmholtzFrontiers = enumerateHelmholtzOcaml(tasks, grammar, helmEnumerationTimeout, CPUs, propertyFeatureExtractors[0], save=False)
-    helmholtzFrontiers = [f for f in allFrontiers if len(f.entries) > 0]
+    helmholtzFrontiers = enumerateHelmholtzOcaml(tasks, grammar, helmEnumerationTimeout, CPUs, propertyFeatureExtractors[0], save=False)
+    # helmholtzFrontiers = [f for f in allFrontiers if len(f.entries) > 0]
 
     print("Enumerated {} helmholtz tasks".format(len(helmholtzFrontiers)))
     if numHelmFrontiers is not None and numHelmFrontiers < len(helmholtzFrontiers):
         helmholtzFrontiers = sorted(helmholtzFrontiers, key=lambda f: f.topK(1).entries[0].logPosterior, reverse=True)
         helmholtzFrontiers = helmholtzFrontiers[:min(len(helmholtzFrontiers), numHelmFrontiers)]
+
+    saveDirectory = outputDirectory + "/helmholtzFrontiers_numFrontiers={}_iter={}.pkl".format(len(helmholtzFrontiers), j)
+    dill.dump(helmholtzFrontiers, open(saveDirectory, "rb"))
 
     fittedRecognizers = parallelMap(min(CPUs,len(recognizers)),
                                      lambda recognizer: recognizer.fit(

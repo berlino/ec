@@ -996,7 +996,7 @@ class RecognitionModel(nn.Module):
                            parallelMap(updateCPUs,
                                        lambda f: f.calculateTask(),
                                        helmholtzFrontiers[helmholtzIndex[0]:helmholtzIndex[0] + helmholtzBatch],
-                                       seedRandom=True)
+                                       seedRandom=True, memorySensitive=True)
 
             badIndices = []
             endingIndex = min(helmholtzIndex[0] + helmholtzBatch, len(helmholtzFrontiers))
