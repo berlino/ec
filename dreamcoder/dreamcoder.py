@@ -673,8 +673,8 @@ def sleep_propsim(result, j, grammar, taskBatch, tasks, allFrontiers, ensembleSi
         helmholtzFrontiers = sorted(helmholtzFrontiers, key=lambda f: f.topK(1).entries[0].logPosterior, reverse=True)
         helmholtzFrontiers = helmholtzFrontiers[:min(len(helmholtzFrontiers), numHelmFrontiers)]
 
-    saveDirectory = outputDirectory + "/helmholtzFrontiers_numFrontiers={}_iter={}.pkl".format(len(helmholtzFrontiers), j)
-    dill.dump(helmholtzFrontiers, open(saveDirectory, "rb"))
+    saveDirectory = outputDirectory + "helmholtzFrontiers_numFrontiers={}_iter={}.pkl".format(len(helmholtzFrontiers), j)
+    dill.dump(helmholtzFrontiers, open(saveDirectory, "wb"))
 
     fittedRecognizers = parallelMap(min(CPUs,len(recognizers)),
                                      lambda recognizer: recognizer.fit(
