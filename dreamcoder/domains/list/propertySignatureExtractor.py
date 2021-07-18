@@ -101,7 +101,8 @@ class PropertySignatureExtractor(nn.Module):
             self.CUDA=True
             self.cuda()  # I think this should work?
 
-        self.properties = self._getProperties()
+        newProperties = self._getProperties()
+        self.properties = newProperties if properties is None else newProperties + properties
         assert len(self.properties) > 0
 
         self.linear = nn.Linear(len(self.properties) * self.embedSize, H)
