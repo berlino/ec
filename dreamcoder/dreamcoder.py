@@ -250,6 +250,9 @@ def ecIterator(grammar, tasks,
     parameters = {
         k: v for k,
         v in locals().items() if k not in {
+            "doshaping",
+            "parallelTest",
+            "propSim",
             "verbose",
             "featureExtractorArgs",
             "epochs",
@@ -350,7 +353,9 @@ def ecIterator(grammar, tasks,
             path = checkpointPath(resume)
         except ValueError:
             path = resume
-        with open(outputDirectory + path, "rb") as handle:
+        if "experimentOutputs" not in path:
+            path = outputDirectory + path
+        with open(path, "rb") as handle:
             result = dill.load(handle)
         resume = len(result.grammars) - 1
         eprint("Loaded checkpoint from", path)
@@ -661,8 +666,7 @@ def sleep_propsim(result, grammar, taskBatch, tasks, allFrontiers, ensembleSize,
                  cuda=cuda, id=i) for i in range(ensembleSize)]
 
     # enumerate helmholtz tasks from which to select n most similar
-    # helmholtzFrontiers = enumerateHelmholtzOcaml(tasks, grammar, helmEnumerationTimeout, CPUs, propertyFeatureExtractors[0], save=False)
-    helmholtzFrontiers = [f for f in allFrontiers if len(f.entries) > 0]
+    helmholtzFrontiers = enumerateHelmholtzOcaml(tasks, grammar, helmEnumerationTimeout, CPUs, propertyFeatureExtractors[0], save=False)
 
     print("Enumerated {} helmholtz tasks".format(len(helmholtzFrontiers)))
     if numHelmFrontiers is not None and numHelmFrontiers < len(helmholtzFrontiers):

@@ -166,7 +166,6 @@ def createSimilarTasksDf(
         similarity score of every task
 
     """
-    print("valuesToInt", valuesToInt)
     task = allTasks[taskIdx]
     taskSig = np.array([valuesToInt[prop.getValue(task)] for prop in properties])
     if onlyUseTrueProperties:
@@ -317,11 +316,9 @@ def getPropSimGrammars(
         baseGrammars = {t: baseGrammars for t in tasksToSolve}
     task2Grammar = baseGrammars
 
-    print("sampledFrontiers", sampledFrontiers)
     if not isinstance(sampledFrontiers, dict):
         sampledFrontiers = {t: sampledFrontiers for t in tasksToSolve}
     task2Frontiers = sampledFrontiers
-    print("task2Frontiers", task2Frontiers)
 
     if not isinstance(properties, dict):
         properties = {t: properties for t in tasksToSolve}
