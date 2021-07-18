@@ -76,9 +76,7 @@ def makeTaskFromProgram(program, request, featureExtractor, differentOutputs=Tru
                 return None
     return task
 
-
-def enumerateHelmholtzOcaml(tasks, grammar, enumerationTimeout, CPUs, featureExtractor, save=False, libraryName=None, dataset=None, saveDirectory=None):
-
+def enumerateFromOcamlGrammar(tasks, grammar, enumerationTimeout):
     requests = list({t.request for t in tasks})
     request = requests[0]
     assert len(requests) == 1
@@ -87,6 +85,10 @@ def enumerateHelmholtzOcaml(tasks, grammar, enumerationTimeout, CPUs, featureExt
                        for xs, y in t.examples})
     print("Enumerating helmholtz tasks for {} seconds".format(enumerationTimeout))
     response = helmholtzEnumeration(grammar, request, inputs, enumerationTimeout, _=None, special="unique", evaluationTimeout=0.004, maximumSize=99999999)
+    return response
+
+def enumerateHelmholtzOcaml(tasks, grammar, enumerationTimeout, CPUs, featureExtractor, save=False, libraryName=None, dataset=None, saveDirectory=None):
+    response = enumerateFromOcamlGrammar(tasks, grammar, enumerationTimeout)
     print("Response length: {}".format(len(response)))
     frontiers = []
     print("First 200 characters of response: {}".format(response[:200]))

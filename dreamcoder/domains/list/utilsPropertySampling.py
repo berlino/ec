@@ -60,29 +60,41 @@ def enumerateProperties(args, propertyGrammar, tasksToSolve, propertyRequest, al
         raise NotImplementedError
 
     print("Enumerating with {} CPUs".format(args["propCPUs"]))
-    frontiers, times, pcs, likelihoodModel = multicoreEnumeration(propertyGrammar, tasksToSolve, solver=args["propSolver"],maximumFrontier= int(10e7),
-                                                 enumerationTimeout= args["propEnumerationTimeout"], CPUs=args["propCPUs"],
-                                                 evaluationTimeout=0.1,
-                                                 testing=True, likelihoodModel=likelihoodModel)
+    # frontiers, times, pcs, likelihoodModel = multicoreEnumeration(propertyGrammar, tasksToSolve, solver=args["propSolver"],maximumFrontier= int(10e7),
+    #                                              enumerationTimeout= args["propEnumerationTimeout"], CPUs=args["propCPUs"],
+    #                                              evaluationTimeout=0.1,
+    #                                              testing=True, likelihoodModel=likelihoodModel)
 
-    if args["propScoringMethod"] == "general_unique_task_signature":
-        print("{} properties of type: {}".format(len(likelihoodModel.properties), propertyRequest))
-        for propertyInfo in likelihoodModel.properties:
-            program, allSameValues = propertyInfo
-            print("program: {}".format(program))
-            print("allSameValues: {}".format(allSameValues))
-        raise Exception("debug")
+    def parseAndScore(entry, propertyTask, likelihoodModel):
+        program = Program.parse(entry["programs"][0])
+        keep, propScore = likelihoodModel.score(program, propertyTask, str(program), propertyTask.request)
+        if keep:
+            prop = Property(program=program, name=str(program), request=propertyTask.request, score=propScore)
+            return True, prop
+        return False, None
 
-    elif args["propScoringMethod"] == "unique_task_signature":
-        properties = []
-        for frontier in frontiers:
-            entry = frontier.topK(1).entries[0]
-            prop = Property(program=entry.program.evaluate([]), 
-                            request=propertyRequest, 
-                            name=str(entry.program), 
-                            logPrior=entry.logPrior, 
-                            score=entry.logLikelihood)
-            properties.append(prop)
+
+    response = enumerateFromOcamlGrammar(tasksToSolve, propertyGrammar, enumerationTimeout[args["propEnumerationTimeout"]])
+    properties = parallelMap(args["propCPUs"], lambda entry: parseAndScore(entry, request, likelihoodModel), response, memorySensitive=True)
+    
+    # if args["propScoringMethod"] == "general_unique_task_signature":
+    #     print("{} properties of type: {}".format(len(likelihoodModel.properties), propertyRequest))
+    #     for propertyInfo in likelihoodModel.properties:
+    #         program, allSameValues = propertyInfo
+    #         print("program: {}".format(program))
+    #         print("allSameValues: {}".format(allSameValues))
+    #     raise Exception("debug")
+
+    # elif args["propScoringMethod"] == "unique_task_signature":
+    #     properties = []
+    #     for frontier in frontiers:
+    #         entry = frontier.topK(1).entries[0]
+    #         prop = Property(program=entry.program.evaluate([]), 
+    #                         request=propertyRequest, 
+    #                         name=str(entry.program), 
+    #                         logPrior=entry.logPrior, 
+    #                         score=entry.logLikelihood)
+    #         properties.append(prop)
     return properties, likelihoodModel
 
 
