@@ -149,15 +149,12 @@ class PropertySignatureExtractor(nn.Module):
             for i in range(10):
                 if str(i) not in [getattr(primitive, "name", "invented_primitive") for primitive in propertyPrimitives]:
                     propertyPrimitives.append(Primitive(str(i), tint, i))
-        else:
-            zeroToNinePrimitives = set([str(i) for i in range(10)])
-            propertyPrimitives = [p for p in propertyPrimitives if p.name not in zeroToNinePrimitives]
 
         if self.featureExtractorArgs["propUseConjunction"]:
             propertyPrimitives.append(Primitive("and", arrow(tbool, tbool, tbool), lambda a: lambda b: a and b))
 
         productions = [(self.grammar.expression2likelihood.get(p, maxLL), p) for p in propertyPrimitives]
-        propertyGrammar = Grammar.fromProductions(productions, logVariable=0)
+        propertyGrammar = Grammar.fromProductions(productions, logVariable=maxLL)
         print("property grammar: {}".format(propertyGrammar))
         return propertyGrammar
 
