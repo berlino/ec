@@ -1,3 +1,4 @@
+
 from collections import defaultdict
 import copy
 import datetime
@@ -91,7 +92,6 @@ try:
                         x = ["LIST_START"] + x + ["LIST_END"]
                     else:
                         x = [x]
-                    x = sanitize(x)
                     if len(x) > self.maximumLength:
                         return None
                     serializedInputs.append(x)
@@ -569,14 +569,13 @@ def main(args):
     # Plotting
     #####################
 
-    # fileNames = [
+    # filenames = [
     #     "propSim_2021-06-28 22:01:10.416733_t=13200.pkl",
     #     "propSim_2021-06-28 19:33:34.730379_t=1800.pkl",
     #     "neural_2021-06-28 23:20:57.808000_t=13200.pkl",
     #     "neural_2021-06-28 21:14:46.702305_t=1800.pkl",
     #     "helmholtzFitted_2021-06-25 15:36:35.402559_t=600.pkl",
-    #     "uniform_2021-06-25 15:47:14.810385_t=600.pkl",
-    #     "iterativePropSim_2021-07-13 11:58:26.710084_t=1800.pkl"
+    #     "uniform_2021-06-25 15:47:14.810385_t=600.pkl"
     # ]
 
     # modelNames = [
@@ -585,11 +584,8 @@ def main(args):
     #     "neural (RS 10,000)",
     #     "neural (RS 10,000)",
     #     "helmholtzFitted",
-    #     "unifGrammarPrior",
-    #     "iterativePropSim"
+    #     "unifGrammarPrior"
     # ]
-
-    # plotFrontiers(fileNames, modelNames, save=False)
     
     ######################
     # Enumeration Proxy
