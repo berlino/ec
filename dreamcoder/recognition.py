@@ -1258,7 +1258,7 @@ class RecognitionModel(nn.Module):
             lambda n: self.sampleHelmholtz(requests,
                                            statusUpdate='.' if n % frequency == 0 else None,
                                            seed=startingSeed + n),
-            range(N))
+            range(N), memorySensitive=True)
         eprint()
         flushEverything()
         samples = [z for z in samples if z is not None]
