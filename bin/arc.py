@@ -4,12 +4,12 @@ try:
 except ModuleNotFoundError:
     import bin.binutil  # alt import if called as module
 
+from dreamcoder import decoderUtils
 from dreamcoder.domains.arc import evanPostProcessing
 from dreamcoder.domains.arc.main import arc_options, main
 from dreamcoder.recognition import DummyFeatureExtractor
 from dreamcoder.dreamcoder import commandlineArguments
 from dreamcoder.utilities import numberOfCPUs
-
 
 if __name__ == '__main__':
     # print(retrieveARCJSONTasks('/Users/theo/Development/program_induction/ARC/data/training/007bbfb7.json')[1])
@@ -21,6 +21,6 @@ if __name__ == '__main__':
         CPUs=numberOfCPUs(),
         extras=arc_options)
 
-    # viewResults()
+    # decoderUtils.main()
     main(args)
 

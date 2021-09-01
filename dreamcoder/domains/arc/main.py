@@ -169,6 +169,19 @@ def preload_initial_frontiers(preload_frontiers_file):
     print(f"Preloaded frontiers for {len(tasks_to_preloaded_frontiers)} tasks.")
     return tasks_to_preloaded_frontiers
 
+def filter_preloaded_frontiers(preloaded_frontiers, primitives):
+    """
+    Keep only preloaded frontiers that are only made up of primitives in primitives
+    """
+
+    filtered_preloaded_frontiers = {}
+    for t,f in preloaded_frontiers.items():
+        best_program_tokens = f.topK(1).entries[0].program.left_order_tokens(show_vars=False)
+        primitive_names = [p.name for p in primitives]
+        if all([p in primitive_names for p in best_program_tokens]):
+            filtered_preloaded_frontiers[t] = f
+    return filtered_preloaded_frontiers
+
 def arc_options(parser):
     # parser.add_argument("--random-seed", type=int, default=17)
     parser.add_argument("--singleTask", default=False, action="store_true")
@@ -277,9 +290,14 @@ def main(args):
         "base": basePrimitives() + leafPrimitives(),
         "rich": basePrimitives() + leafPrimitives() + moreSpecificPrimitives()
         }
+    primitives_set = args.pop("primitives")
+    primitives = primitivesTable[primitives_set]
+    baseGrammar = Grammar.uniform(primitives)
 
-    baseGrammar = Grammar.uniform(primitivesTable[args.pop("primitives")])
-    # print("base Grammar {}".format(baseGrammar))
+    if primitives_set == "base":
+        preloaded_frontiers = filter_preloaded_frontiers(preloaded_frontiers, primitives)
+
+
 
     timestamp = datetime.datetime.now().isoformat()
     outputDirectory = "experimentOutputs/arc/%s" % timestamp

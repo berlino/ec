@@ -73,6 +73,24 @@ class Program(object):
             "FATAL: uncurry has a bug. %s : %s, but uncurried to %s : %s" % (self, self.infer(),
                                                                              e, e.infer())
         return e
+
+    def left_order_tokens_alt(self):
+
+        def t(tokens, p):
+            if p.isIndex:
+                    return tokens + ["VAR"]
+            elif p.isAbstraction:
+                return tokens + ["LAMBDA"] + t([], p.body)
+            elif p.isApplication:
+                return tokens + t([], p.f) + t([], p.x)
+            elif p.isInvented:
+                return tokens + [str(p)]
+            elif p.isPrimitive:
+                return tokens + [str(p)]
+            else:
+                assert False
+        # ignore the first lambda
+        return t([], self)[1:]
     
     def left_order_tokens(self, show_vars=False):
         def t(show_vars, tokens, p):

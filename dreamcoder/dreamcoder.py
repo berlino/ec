@@ -3,6 +3,7 @@ import datetime
 import dill
 
 from dreamcoder.compression import induceGrammar
+from dreamcoder.encoderDecoderModel import *
 from dreamcoder.recognition import *
 from dreamcoder.enumeration import *
 from dreamcoder.fragmentGrammar import *
@@ -181,6 +182,8 @@ def ecIterator(grammar, tasks,
                preloaded_frontiers={}, # Dictionary from tasks to preloaded initial frontiers.
                no_background_helmholtz=False,
                analysis_store_frontiers=False,
+               skipEnumeration=False,
+               useEncoderDecoder=False
                ):
 
     if enumerationTimeout is None:
@@ -457,16 +460,20 @@ def ecIterator(grammar, tasks,
             if j == 0 and not biasOptimal: thisRatio = 0
             if all( f.empty for f in result.allFrontiers.values() ): thisRatio = 1.                
 
-            tasksHitBottomUp = \
-             sleep_recognition(result, grammar, wakingTaskBatch, tasks, testingTasks, result.allFrontiers.values(),
-                               ensembleSize=ensembleSize, featureExtractor=featureExtractor, mask=mask,
-                               activation=activation, contextual=contextual, biasOptimal=biasOptimal,
-                               previousRecognitionModel=previousRecognitionModel, matrixRank=matrixRank,
-                               timeout=recognitionTimeout, evaluationTimeout=evaluationTimeout,
-                               enumerationTimeout=enumerationTimeout,
-                               helmholtzRatio=thisRatio, helmholtzFrontiers=helmholtzFrontiers(),
-                               auxiliaryLoss=auxiliaryLoss, cuda=cuda, CPUs=CPUs, solver=solver,
-                               recognitionSteps=recognitionSteps, maximumFrontier=maximumFrontier)
+            if useEncoderDecoder:
+                temp = sleep_encoder_decoder_recognition(result, grammar, wakingTaskBatch, tasks, testingTasks, ensembleSize, featureExtractor, cuda)
+                tasksHitBottomUp = set()
+            else:
+                tasksHitBottomUp = \
+                 sleep_recognition(result, grammar, wakingTaskBatch, tasks, testingTasks, result.allFrontiers.values(),
+                                   ensembleSize=ensembleSize, featureExtractor=featureExtractor, mask=mask,
+                                   activation=activation, contextual=contextual, biasOptimal=biasOptimal,
+                                   previousRecognitionModel=previousRecognitionModel, matrixRank=matrixRank,
+                                   timeout=recognitionTimeout, evaluationTimeout=evaluationTimeout,
+                                   enumerationTimeout=enumerationTimeout,
+                                   helmholtzRatio=thisRatio, helmholtzFrontiers=helmholtzFrontiers(),
+                                   auxiliaryLoss=auxiliaryLoss, cuda=cuda, CPUs=CPUs, solver=solver, skipEnumeration=skipEnumeration,
+                                   recognitionSteps=recognitionSteps, maximumFrontier=maximumFrontier)
 
             showHitMatrix(tasksHitTopDown, tasksHitBottomUp, wakingTaskBatch)
             
@@ -579,6 +586,34 @@ def default_wake_generative(grammar, tasks,
     eprint(Frontier.describe(topDownFrontiers))
     summaryStatistics("Generative model", [t for t in times.values() if t is not None])
     return topDownFrontiers, times
+
+def sleep_encoder_decoder_recognition(result, grammar, taskBatch, tasks, testingTasks, ensembleSize, featureExtractor, cuda):
+    featureExtractorObjects = [featureExtractor(tasks, testingTasks=testingTasks, cuda=cuda) for i in range(ensembleSize)]
+    recognizer = EncoderDecoderModel(featureExtractorObjects[0], grammar, cuda=False, previousRecognitionModel=None, id=0, embedding_size=128, program_size=128)
+
+    supervisedTasks = [(t,f.topK(1).entries[0].program) for t,f in result.allFrontiers.items() if len(f.entries) > 0]
+    opt = torch.optim.Adam(recognizer.parameters(), lr=0.001)
+
+    for i in range(100):
+
+        totalScore = 0
+
+        for t,groundTprogram in supervisedTasks:
+            groundTprogramTokens = [Program.parse(token) if token not in ["LAMBDA", "VAR"] else token for token in groundTprogram.left_order_tokens_alt()]
+            # print("program: {}".format(groundTprogram))
+            # print("tokens: {}".format(groundTprogramTokens))
+            out, score = recognizer([t], mode="score", targets=[groundTprogramTokens])
+            totalScore += score
+
+        print("Score at iteration {}: {}".format(i, totalScore))
+
+        (-score).backward()
+        opt.step()
+        opt.zero_grad()
+
+
+
+    return
 
 def sleep_recognition(result, grammar, taskBatch, tasks, testingTasks, allFrontiers, _=None,
                       ensembleSize=1, featureExtractor=None, matrixRank=None, mask=False,
@@ -976,9 +1011,14 @@ def commandlineArguments(_=None,
                         featureExtractor=featureExtractor,
                         maximumFrontier=maximumFrontier,
                         cuda=cuda)
-    
     parser.add_argument("--analysis_store_frontiers", action="store_true",
         help="Writes out result frontiers from a resumed checkpoint to a desired filepath.")
+
+    parser.add_argument("--skipEnumeration", action="store_true",
+        help="Skips enumeration from bigram distribution after training recognition model")
+
+    parser.add_argument("--useEncoderDecoder", action="store_true",
+        help="Whether to use encoder-decoder recognition model instead of standard unigram / bigram")
         
     if extras is not None:
         extras(parser)

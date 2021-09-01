@@ -70,31 +70,35 @@ def writeSyntheticNlData(paths, runNames):
 
 def main():
 
-    # run that solved the most tasks ever with rich DSL and 6 iterations
-    path = "experimentOutputs/arc/2020-05-10T14:49:21.186479/"
-    pickleFilename = "arc_aic=1.0_arity=3_BO=True_CO=True_ES=1_ET=1200_t_zero=28800_HR=0.0_it=6_MF=10_noConsolidation=False_pc=1.0_RT=1800_RR=False_RW=False_solver=ocaml_STM=True_L=1.0_TRR=unsolved_K=2_topkNotMAP=False.pickle"
+    path = "experimentOutputs/arc/2021-04-21T20:11:03.040547/"
+    pickleFilename = "arc_arity=0_BO=False_CO=True_ES=1_ET=600_t_zero=3600_HR=0_it=2_MF=10_noConsolidation=True_RS=10000_RT=3600_RR=False_RW=False_solver=ocaml_STM=True_TRR=default_K=2_topkNotMAP=False_DSL=False.pickle"
     picklePath1 = path + pickleFilename
 
-    # run with rich DSL and 20 iterations and batching
-    path = "experimentOutputs/arc/2020-05-01T19:00:26.769291/"
-    pickleFilename = "arc_aic=1.0_arity=3_BO=True_CO=True_ES=1_ET=1200_t_zero=3600_HR=0.0_it=20_MF=10_noConsolidation=False_pc=1.0_RT=1200_RR=False_RW=False_solver=ocaml_STM=True_L=1.0_batch=30_TRR=randomShuffle_K=2_topkNotMAP=False.pickle"
-    picklePath2 = path + pickleFilename
+    # run that solved the most tasks ever with rich DSL and 6 iterations
+    # path = "experimentOutputs/arc/2020-05-10T14:49:21.186479/"
+    # pickleFilename = "arc_aic=1.0_arity=3_BO=True_CO=True_ES=1_ET=1200_t_zero=28800_HR=0.0_it=6_MF=10_noConsolidation=False_pc=1.0_RT=1800_RR=False_RW=False_solver=ocaml_STM=True_L=1.0_TRR=unsolved_K=2_topkNotMAP=False.pickle"
+    # picklePath1 = path + pickleFilename
 
-    # recent run of just iterative bigram fitting
-    path = "experimentOutputs/arc/2021-04-23T16:33:13.110429/"
-    pickleFilename = "arc_arity=3_BO=True_CO=True_ES=1_ET=1200_t_zero=3600_HR=0.0_it=9_MF=5_noConsolidation=False_RS=10000_RT=3600_RR=False_RW=False_solver=ocaml_STM=True_TRR=unsolved_K=2_topkNotMAP=False_DSL=False.pickle"
-    picklePath3 = path + pickleFilename
+    # # run with rich DSL and 20 iterations and batching
+    # path = "experimentOutputs/arc/2020-05-01T19:00:26.769291/"
+    # pickleFilename = "arc_aic=1.0_arity=3_BO=True_CO=True_ES=1_ET=1200_t_zero=3600_HR=0.0_it=20_MF=10_noConsolidation=False_pc=1.0_RT=1200_RR=False_RW=False_solver=ocaml_STM=True_L=1.0_batch=30_TRR=randomShuffle_K=2_topkNotMAP=False.pickle"
+    # picklePath2 = path + pickleFilename
 
-    # recent dc run with trimmed DSL + arcCNN
-    path = "experimentOutputs/arc/2021-04-24T20:09:56.975531/"
-    pickleFilename = "arc_aic=1.0_arity=3_BO=True_CO=True_ES=1_ET=1200_t_zero=1_HR=0.0_it=9_MF=5_noConsolidation=False_pc=30.0_RS=10000_RT=3600_RR=False_RW=False_solver=ocaml_STM=True_L=1.5_TRR=unsolved_K=2_topkNotMAP=False_UET=14400.pickle"
-    picklePath4 = path + pickleFilename
+    # # recent run of just iterative bigram fitting
+    # path = "experimentOutputs/arc/2021-04-23T16:33:13.110429/"
+    # pickleFilename = "arc_arity=3_BO=True_CO=True_ES=1_ET=1200_t_zero=3600_HR=0.0_it=9_MF=5_noConsolidation=False_RS=10000_RT=3600_RR=False_RW=False_solver=ocaml_STM=True_TRR=unsolved_K=2_topkNotMAP=False_DSL=False.pickle"
+    # picklePath3 = path + pickleFilename
+
+    # # recent dc run with trimmed DSL + arcCNN
+    # path = "experimentOutputs/arc/2021-04-24T20:09:56.975531/"
+    # pickleFilename = "arc_aic=1.0_arity=3_BO=True_CO=True_ES=1_ET=1200_t_zero=1_HR=0.0_it=9_MF=5_noConsolidation=False_pc=30.0_RS=10000_RT=3600_RR=False_RW=False_solver=ocaml_STM=True_L=1.5_TRR=unsolved_K=2_topkNotMAP=False_UET=14400.pickle"
+    # picklePath4 = path + pickleFilename
 
     # writeSyntheticNlData([picklePath1, picklePath2, picklePath3, picklePath4], ["rich", "rich_2", "trimmed", "trimmed_2"])
 
     count = 0
     result, _, _ = resume_from_path(picklePath1)
-    result3, _, _ = resume_from_path(picklePath3)
+    # result3, _, _ = resume_from_path(picklePath3)
 
     task2Frontier = {}
 
@@ -109,12 +113,15 @@ def main():
         else:
             handWrittenFrontiers[task] = Frontier([], task)
 
-    for task, frontiers in result.frontiersOverTime.items():
-        # print(task, frontiers[0])
-        task2Frontier[task] = frontiers[0].combine(result3.allFrontiers[task])
+    # for task, frontiers in result.frontiersOverTime.items():
+    #     # print(task, frontiers[0])
+    #     task2Frontier[task] = frontiers[0].combine(result3.allFrontiers[task])
 
     for t,f in handWrittenFrontiers.items():
-        print(t,f)
+        if len(f.entries) > 0:
+            program = f.entries[0].program
+            print("\nprogram", program)
+            print("program - left_order_tokens", program.left_order_tokens(show_vars=True))
 
     # print(len([t for t,f in handWrittenFrontiers.items() if len(f.entries) > 0]))
     # dill.dump(handWrittenFrontiers, open("data/arc/handwritten_frontiers.pkl", "wb"))
