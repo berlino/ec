@@ -19,11 +19,11 @@ def onehot_initialization(a, num_cats):
     return out
 
 
-def arc2torch(grid, num_cats=11):
+def arc2torch(grid, device, num_cats=11):
     """convert 2-d grid of original arc format to 3-d one-hot encoded tensor"""
     grid = onehot_initialization(grid, num_cats)
     grid = np.rollaxis(grid, 2)
-    return torch.from_numpy(grid).float()
+    return torch.from_numpy(grid).float().to(device)
 
 
 def load_task_to_programs_from_frontiers_json(grammar, token_to_idx, json_file_name="data/arc/prior_enumeration_frontiers_8hr.json"):
@@ -75,7 +75,7 @@ def load_task_to_programs_from_frontiers_pkl(grammar, request, token_to_idx, pkl
 class LARC_Cell_Dataset(Dataset):
     """dataset for predicting each cell color in LARC dataset."""
 
-    def __init__(self, tasks_json_path, resize=(30,30), num_ios=3, tasks_subset=None, max_tasks=float('inf'), task_to_programs=None):
+    def __init__(self, tasks_json_path, resize=(30,30), num_ios=3, tasks_subset=None, max_tasks=float('inf'), task_to_programs=None, device=torch.device("CPU")):
         """
         Params:
             tasks_json_path: path to folder with task jsons in it
@@ -117,14 +117,14 @@ class LARC_Cell_Dataset(Dataset):
                 io_out_padded[:io_out.shape[0],:io_out.shape[1]] = io_out
 
                 # make grid one-hot
-                new_ios.append((arc2torch(io_in_padded),
-                                arc2torch(io_out_padded)))
+                new_ios.append((arc2torch(io_in_padded, device=device),
+                                arc2torch(io_out_padded, device=device)))
 
             # TODO: mask extra ios
             # ensure same number IO examples per task (give 1x1 placeholder task)
             if num_ios is not None and len(new_ios) < num_ios:
-                new_ios += [(arc2torch(np.full((30, 30), PAD_VAL)),
-                             arc2torch(np.full((30, 30), PAD_VAL))) for _ in range(num_ios - len(new_ios))]
+                new_ios += [(arc2torch(np.full((30, 30), PAD_VAL), device=device),
+                             arc2torch(np.full((30, 30), PAD_VAL), device=device)) for _ in range(num_ios - len(new_ios))]
             new_task['io_grids'] = new_ios
 
             # pad test input
@@ -132,23 +132,30 @@ class LARC_Cell_Dataset(Dataset):
             test_in_size = resize if resize is not None else test_in.shape
             test_in_padded = np.full(test_in_size, PAD_VAL)
             test_in_padded[:test_in.shape[0], :test_in.shape[1]] = test_in
-            new_task['test_in'] = arc2torch(test_in_padded)
+            new_task['test_in'] = arc2torch(test_in_padded, device=device)
 
             # tokenize description
-            new_task['desc_tokens'] = {k: torch.tensor(v) for k, v in tokenizer.encode_plus(larc_pred_task['desc']).items()}
+            new_task['desc_tokens'] = {k: torch.tensor(v, device=device) for k, v in tokenizer.encode_plus(larc_pred_task['desc']).items()}
 
             # if we are generating tasks for synthesis model then we don't need x and y positions as input
             if task_to_programs is None:
 
                 # 1-hot x and y
                 max_x, max_y = 30, 30
-                new_task['x'] = torch.zeros(max_x)
+                new_task['x'] = torch.zeros(max_x, device=device)
                 new_task['x'][larc_pred_task['x']] = 1
-                new_task['y'] = torch.zeros(max_y)
+                new_task['y'] = torch.zeros(max_y, device=device)
                 new_task['y'][larc_pred_task['y']] = 1
 
             else:
-                new_task["programs"] = [torch.tensor(token_sequence) for token_sequence in new_task["programs"]]
+                new_task["programs"] = [torch.tensor(token_sequence, device=device) for token_sequence in new_task["programs"]]
+
+            for key, value in new_task.items():
+                print(key)
+                print(value)
+                print("-----------------------------------------------------------------------------")
+
+            break
 
             self.tasks.append(new_task)
 
