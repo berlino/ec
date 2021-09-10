@@ -313,6 +313,9 @@ def train_imitiation_learning(model, tasks, batch_size, lr, weight_decay, num_ep
 
 
 def main():
+
+    use_cuda = True
+    if use_cuda: assert torch.cuda.is_available()
     
     # load grammar / DSL
     primitives_to_use = "base"
@@ -336,6 +339,12 @@ def main():
     task_to_programs = load_task_to_programs_from_frontiers_json(grammar, token_to_idx, json_file_name="data/arc/prior_enumeration_frontiers_8hr.json")
     larc_train_dataset = LARC_Cell_Dataset(tasks_dir, tasks_subset=None, num_ios=3, resize=(30, 30), task_to_programs=task_to_programs)
     dataset = larc_train_dataset[0:16]
+
+    if use_cuda:
+        larc_train_dataset = larc_train_dataset.to('cuda')
+        print("larc_train_dataset is on: {}".format(larc_train_dataset.device))
+        model = model.to('cuda')
+        print("model is on: {}".format(model.device))
 
     model = train_imitiation_learning(model, dataset, batch_size=1, lr=1e-3, weight_decay=0.0, num_epochs=5000)
 
