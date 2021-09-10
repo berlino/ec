@@ -88,7 +88,7 @@ class LARC_Cell_Dataset(Dataset):
         self.tasks = []
         self.task_to_programs = task_to_programs
         tasks_subset = set(tasks_subset) if tasks_subset is not None else None    # for O(1) checks
-        tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
+        tokenizer = BertTokenizer.from_pretrained("bert-base-uncased", cache_dir=".cache/")
 
         task_generator = self.gen_larc_pred_tasks(tasks_json_path, tasks_subset) if task_to_programs is None \
         else self.gen_larc_synth_tasks(tasks_json_path, tasks_subset, self.task_to_programs)
