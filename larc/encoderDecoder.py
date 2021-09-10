@@ -314,48 +314,28 @@ def train_imitiation_learning(model, tasks, batch_size, lr, weight_decay, num_ep
 
 def main():
     
+    # load grammar / DSL
     primitives_to_use = "base"
     if primitives_to_use == "base":
         primitives = basePrimitives() + leafPrimitives()
     else:
         primitives = basePrimitives() + leafPrimitives() + moreSpecificPrimitives()
-
-    task_to_frontiers = pickle.load(open("data/arc/prior_enumeration_frontiers_8hr.pkl", "rb"))
-    
     grammar = Grammar.uniform(primitives)
+
+    # create dict from tokens to corresponding indices (to be used as indices for nn.Embedding)
     token_to_idx = {"START": 0, "LAMBDA": 1, "LAMBDA_INPUT":2, "INPUT": 3}
     num_special_tokens = len(token_to_idx)
     token_to_idx.update({str(token):i+num_special_tokens for i,token in enumerate(grammar.primitives)})
     idx_to_token = {idx: token for token,idx in token_to_idx.items()}
 
-    task_to_programs = {}
-    for task, frontier in task_to_frontiers.items():
-        all_programs_for_task = []
-
-        # hacky way to check that all programs to be used for imitation learning can be parse (e.g. don't contain primitives not in our grammar)
-        for e in frontier.entries:
-            try: 
-                Program.parse(str(e.program))
-                all_programs_for_task.append(e.program)
-            except:
-                pass
-
-        task_to_programs[str(task)] = [[token_to_idx[token] for token in program_to_token_sequence(p, grammar)] for p in all_programs_for_task]
-    
     request = arrow(tgridin, tgridout)
-    assert all([task.request == request for task in task_to_frontiers.keys()])
     model = EncoderDecoder(grammar=grammar, request=request, cuda=False, program_embedding_size=128, program_size=128, primitive_to_idx=token_to_idx)
 
+    # load dataset
     tasks_dir = "data/larc/tasks_json"
+    task_to_programs = load_task_to_programs_from_frontiers_json(grammar, token_to_idx, json_file_name="data/arc/prior_enumeration_frontiers_8hr.json")
     larc_train_dataset = LARC_Cell_Dataset(tasks_dir, tasks_subset=None, num_ios=3, resize=(30, 30), task_to_programs=task_to_programs)
     dataset = larc_train_dataset[0:16]
-
-    # for t in larc_train_dataset:
-    #     if len(t["programs"]) > 0:
-    #         print(task2frontiers[t["name"]])
-    #         print([[idx_to_token[idx] for idx in program] for program in t["programs"]])
-    #         print(t["desc"])
-    #         return
 
     model = train_imitiation_learning(model, dataset, batch_size=1, lr=1e-3, weight_decay=0.0, num_epochs=5000)
 

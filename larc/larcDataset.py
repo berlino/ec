@@ -1,9 +1,13 @@
 import numpy as np
+import pickle
 import torch
 from torch.utils.data import Dataset
 from transformers import BertTokenizer
 import os
 import json
+
+from dreamcoder.program import Program
+from larc.decoderUtils import program_to_token_sequence
 
 PAD_VAL = 10
 
@@ -20,6 +24,53 @@ def arc2torch(grid, num_cats=11):
     grid = onehot_initialization(grid, num_cats)
     grid = np.rollaxis(grid, 2)
     return torch.from_numpy(grid).float()
+
+
+def load_task_to_programs_from_frontiers_json(grammar, token_to_idx, json_file_name="data/arc/prior_enumeration_frontiers_8hr.json"):
+    """
+    Load prior enumeration frontiers and process into dictionary with task names as keys and lists of corresponding programs as values.
+    Each program is represented as a list of indicies created used token_to_idx argument.
+    """
+
+    task_to_programs_raw = json.load(open(json_file_name, 'r'))
+    task_to_programs = {}
+    for task, task_programs in task_to_programs_raw.items():
+        task_to_programs[task] = []
+        for program_string in task_programs:
+
+            # hacky way to check that all programs to be used for imitation learning can be parsed (e.g. don't contain primitives not in our grammar)
+            try: 
+                program = Program.parse(program_string)
+            except:
+                continue
+
+            task_to_programs[task].append([token_to_idx[token] for token in program_to_token_sequence(program, grammar)])
+    return task_to_programs
+
+
+def load_task_to_programs_from_frontiers_pkl(grammar, request, token_to_idx, pkl_name="data/arc/prior_enumeration_frontiers_8hr.pkl"):
+    """
+    Load prior enumeration frontiers and process into dictionary with task names as keys and lists of corresponding programs as values.
+    Each program is represented as a list of indicies created used token_to_idx argument.
+    """
+
+    task_to_frontiers = pickle.load(open(pkl_name, 'rb'))
+    assert all([task.request == request for task in task_to_frontiers.keys()])
+
+    task_to_programs = {}
+    for task, frontier in task_to_frontiers.items():
+        all_programs_for_task = []
+
+        # hacky way to check that all programs to be used for imitation learning can be parsed (e.g. don't contain primitives not in our grammar)
+        for e in frontier.entries:
+            try: 
+                Program.parse(str(e.program))
+                all_programs_for_task.append(e.program)
+            except:
+                pass
+
+        task_to_programs[str(task)] = [[token_to_idx[token] for token in program_to_token_sequence(p, grammar)] for p in all_programs_for_task]
+    return task_to_programs
 
 class LARC_Cell_Dataset(Dataset):
     """dataset for predicting each cell color in LARC dataset."""
