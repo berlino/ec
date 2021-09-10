@@ -57,12 +57,13 @@ class Stack:
 
 
 class ProgramDecoder(nn.Module):
-    def __init__(self, embedding_size, grammar, request, max_program_length, encoderOutputSize, primitive_to_idx):
+    def __init__(self, embedding_size, grammar, request, cuda, device, max_program_length, encoderOutputSize, primitive_to_idx):
         super().__init__()
         
         self.embedding_size = embedding_size
         self.grammar = grammar
         self.request = request
+        self.device = device
         self.max_program_length = max_program_length
         self.encoderOutputSize = encoderOutputSize
 
@@ -75,7 +76,9 @@ class ProgramDecoder(nn.Module):
         self.output_token_embeddings = nn.Embedding(len(self.primitiveToIdx), self.embedding_size)
 
         self.linearly_transform_query = nn.Linear(self.embedding_size + self.encoderOutputSize, self.embedding_size)
-    
+
+        if cuda: self.cuda()
+        
     def getKeysMask(self, nextTokenType, lambdaVarsTypeStack, lambdaVarInScope, request):
         """
         Given the the type of the next token we want and the stack of variables returns a mask (where we attend over 0s and not over -INF)
@@ -83,7 +86,7 @@ class ProgramDecoder(nn.Module):
         """
 
         possibleNextPrimitives = get_primitives_of_type(nextTokenType, self.grammar)
-        keys_mask = torch.full((1,len(self.primitiveToIdx)), -float("Inf"))
+        keys_mask = torch.full((1,len(self.primitiveToIdx)), -float("Inf"), device=self.device)
         keys_mask[:, [self.primitiveToIdx[p] for p in possibleNextPrimitives]] = 0
 
         # if the next token we need is a function then add creating a lambda abstraction as a possible action to sample.
@@ -144,8 +147,8 @@ class ProgramDecoder(nn.Module):
 
                 return targetTokenIdx.item(), score
 
-        parentTokenIdx = self.primitiveToIdx["START"]
-        parentTokenEmbedding = self.output_token_embeddings(torch.LongTensor([parentTokenIdx]))
+        parentTokenIdx = torch.tensor([self.primitiveToIdx["START"]], device=self.device)
+        parentTokenEmbedding = self.output_token_embeddings(parentTokenIdx)
         nextTokenTypeStack.push(self.request.returns())
         parentTokenStack.push(parentTokenIdx)
 
@@ -162,7 +165,7 @@ class ProgramDecoder(nn.Module):
             # get parent primitive of next token
             parentTokenIdx = parentTokenStack.pop()
             # sample next token
-            partialProgramEmbedding = self.output_token_embeddings(torch.LongTensor([parentTokenIdx]))
+            partialProgramEmbedding = self.output_token_embeddings(torch.tensor([parentTokenIdx], device=self.device))
 
             if mode == "score":
                 # TODO: Make compatible with batching
@@ -231,19 +234,16 @@ class EncoderDecoder(nn.Module):
         3. Use output from 2 as query and token embeddings as keys to get attention vector
     """
 
-    def __init__(self, grammar, request, cuda=False, program_embedding_size=128, program_size=128, primitive_to_idx=None):
+    def __init__(self, grammar, request, cuda, device, program_embedding_size=128, program_size=128, primitive_to_idx=None):
         super().__init__()
         
-        self.use_cuda = cuda
-
-        self.encoder = LARCEncoder()
+        self.encoder = LARCEncoder(cuda=cuda, device=device)
         # there are three additional tokens, one for the start token input grid (tgridin) variable and the other for input 
         # variable of lambda expression (assumes no nested lambdas)
-        self.decoder = ProgramDecoder(embedding_size=program_embedding_size, grammar=grammar, request=request, max_program_length=10, 
+        self.decoder = ProgramDecoder(embedding_size=program_embedding_size, grammar=grammar, request=request, cuda=cuda, device=device, max_program_length=10, 
             encoderOutputSize=64, primitive_to_idx=primitive_to_idx)
-
+        
         if cuda: self.cuda()
-
 
     def forward(self, io_grids, test_in, desc_tokens, mode, targets=None):
 
@@ -314,7 +314,7 @@ def train_imitiation_learning(model, tasks, batch_size, lr, weight_decay, num_ep
 
 def main():
 
-    use_cuda = False
+    use_cuda = True
     if use_cuda: 
         assert torch.cuda.is_available()
         device = torch.device("cuda")
@@ -336,17 +336,13 @@ def main():
     idx_to_token = {idx: token for token,idx in token_to_idx.items()}
 
     request = arrow(tgridin, tgridout)
-    model = EncoderDecoder(grammar=grammar, request=request, cuda=False, program_embedding_size=128, program_size=128, primitive_to_idx=token_to_idx)
+    model = EncoderDecoder(grammar=grammar, request=request, cuda=use_cuda, device=device, program_embedding_size=128, program_size=128, primitive_to_idx=token_to_idx)
 
     # load dataset
     tasks_dir = "data/larc/tasks_json"
     task_to_programs = load_task_to_programs_from_frontiers_json(grammar, token_to_idx, json_file_name="data/arc/prior_enumeration_frontiers_8hr.json")
     larc_train_dataset = LARC_Cell_Dataset(tasks_dir, tasks_subset=None, num_ios=3, resize=(30, 30), task_to_programs=task_to_programs, device=device)
     dataset = larc_train_dataset[0:16]
-
-    if use_cuda:
-        model = model.to('cuda')
-        print("model is on: {}".format(model.device))
 
     model = train_imitiation_learning(model, dataset, batch_size=1, lr=1e-3, weight_decay=0.0, num_epochs=5000)
 

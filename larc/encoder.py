@@ -11,8 +11,10 @@ class LARCEncoder(nn.Module):
         - better way to handle different grid sizes than padding with special token
         - make LM changeable at initialization
     """
-    def __init__(self):
+    def __init__(self, cuda, device):
         super().__init__()
+        
+        self.device = device
 
         # grid encoder
         # 30x30x11 --> 256
@@ -52,7 +54,7 @@ class LARCEncoder(nn.Module):
 
         # natural language description encoding
         # nl --> 64
-        self.bert = BertModel.from_pretrained("bert-base-uncased")
+        self.bert = BertModel.from_pretrained("bert-base-uncased", cache_dir=".cache/")
         self.bert.requires_grad_(False)
         self.bert_resize = nn.Sequential(
             nn.Linear(768, 64),
@@ -63,6 +65,8 @@ class LARCEncoder(nn.Module):
         # 5x64 --> 5x64
         encoder_layer = nn.TransformerEncoderLayer(d_model=5, nhead=5)
         self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=6)
+
+        if cuda: self.cuda()
 
     def forward(self, io_grids, test_in, desc_tokens):
         # run grids through encoders

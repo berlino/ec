@@ -25,6 +25,15 @@ def arc2torch(grid, device, num_cats=11):
     grid = np.rollaxis(grid, 2)
     return torch.from_numpy(grid).float().to(device)
 
+def print_device(el):
+    if type(el) == torch.Tensor:
+        print(el.device)
+    elif type(el) == list or type(el) == tuple:
+        for x in el:
+            print_device(x)
+    else:
+        print("type of el is: {}".format(type(el)))
+    return
 
 def load_task_to_programs_from_frontiers_json(grammar, token_to_idx, json_file_name="data/arc/prior_enumeration_frontiers_8hr.json"):
     """
@@ -75,7 +84,7 @@ def load_task_to_programs_from_frontiers_pkl(grammar, request, token_to_idx, pkl
 class LARC_Cell_Dataset(Dataset):
     """dataset for predicting each cell color in LARC dataset."""
 
-    def __init__(self, tasks_json_path, resize=(30,30), num_ios=3, tasks_subset=None, max_tasks=float('inf'), task_to_programs=None, device=torch.device("CPU")):
+    def __init__(self, tasks_json_path, resize=(30,30), num_ios=3, tasks_subset=None, max_tasks=float('inf'), task_to_programs=None, device=torch.device("cpu")):
         """
         Params:
             tasks_json_path: path to folder with task jsons in it
@@ -150,12 +159,8 @@ class LARC_Cell_Dataset(Dataset):
             else:
                 new_task["programs"] = [torch.tensor(token_sequence, device=device) for token_sequence in new_task["programs"]]
 
-            for key, value in new_task.items():
-                print(key)
-                print(value)
-                print("-----------------------------------------------------------------------------")
-
-            break
+            # for key, value in new_task.items():
+            #    print_device(value)            
 
             self.tasks.append(new_task)
 
