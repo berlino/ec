@@ -3,7 +3,6 @@ import datetime
 import dill
 
 from dreamcoder.compression import induceGrammar
-from dreamcoder.encoderDecoderModel import *
 from dreamcoder.recognition import *
 from dreamcoder.enumeration import *
 from dreamcoder.fragmentGrammar import *
@@ -594,24 +593,24 @@ def sleep_encoder_decoder_recognition(result, grammar, taskBatch, tasks, testing
     supervisedTasks = [(t,f.topK(1).entries[0].program) for t,f in result.allFrontiers.items() if len(f.entries) > 0]
     opt = torch.optim.Adam(recognizer.parameters(), lr=0.001)
 
+    # 
+
+    # Imitation learning training
     for i in range(100):
-
         totalScore = 0
-
-        for t,groundTprogram in supervisedTasks:
+        for t,groundTprogram in tasks:
             groundTprogramTokens = [Program.parse(token) if token not in ["LAMBDA", "VAR"] else token for token in groundTprogram.left_order_tokens_alt()]
             # print("program: {}".format(groundTprogram))
             # print("tokens: {}".format(groundTprogramTokens))
             out, score = recognizer([t], mode="score", targets=[groundTprogramTokens])
             totalScore += score
+            (-score).backward()
+            opt.step()
+            opt.zero_grad()
 
         print("Score at iteration {}: {}".format(i, totalScore))
 
-        (-score).backward()
-        opt.step()
-        opt.zero_grad()
-
-
+    torch.save(recognizer.state_dict(), "data/arc/model_st_dict.pkl")
 
     return
 
