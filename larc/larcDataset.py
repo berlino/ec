@@ -10,6 +10,8 @@ from dreamcoder.program import Program
 from larc.decoderUtils import program_to_token_sequence
 
 PAD_VAL = 10
+TOKEN_PAD_VALUE = -1
+MAX_DESC_SEQ_LENGTH = 70
 
 def onehot_initialization(a, num_cats):
     """https://stackoverflow.com/questions/36960320/convert-a-2d-matrix-to-a-3d-one-hot-matrix-numpy"""
@@ -35,10 +37,10 @@ def print_device(el):
         print("type of el is: {}".format(type(el)))
     return
 
-def load_task_to_programs_from_frontiers_json(grammar, token_to_idx, json_file_name="data/arc/prior_enumeration_frontiers_8hr.json"):
+def load_task_to_programs_from_frontiers_json(grammar, token_to_idx, max_program_length, json_file_name="data/arc/prior_enumeration_frontiers_8hr.json"):
     """
     Load prior enumeration frontiers and process into dictionary with task names as keys and lists of corresponding programs as values.
-    Each program is represented as a list of indicies created used token_to_idx argument.
+    Each program is represented as a list of indicies created used token_to_idx argument. Pads programs so they are all the same length.
     """
 
     task_to_programs_raw = json.load(open(json_file_name, 'r'))
@@ -53,7 +55,12 @@ def load_task_to_programs_from_frontiers_json(grammar, token_to_idx, json_file_n
             except:
                 continue
 
-            task_to_programs[task].append([token_to_idx[token] for token in program_to_token_sequence(program, grammar)])
+            token_sequence = [token_to_idx[token] for token in program_to_token_sequence(program, grammar)]
+            # pad on the right so that all token sequences are the same length
+            while len(token_sequence) < max_program_length:
+                token_sequence.append(TOKEN_PAD_VALUE)
+            
+            task_to_programs[task].append(token_sequence)
     return task_to_programs
 
 
@@ -131,9 +138,9 @@ class LARC_Cell_Dataset(Dataset):
 
             # TODO: mask extra ios
             # ensure same number IO examples per task (give 1x1 placeholder task)
-            if num_ios is not None and len(new_ios) < num_ios:
-                new_ios += [(arc2torch(np.full((30, 30), PAD_VAL), device=device),
-                             arc2torch(np.full((30, 30), PAD_VAL), device=device)) for _ in range(num_ios - len(new_ios))]
+            if num_ios is not None:
+                while len(new_ios) < num_ios:
+                    new_ios.append((arc2torch(np.full((30, 30), PAD_VAL), device=device),arc2torch(np.full((30, 30), PAD_VAL), device=device)))
             new_task['io_grids'] = new_ios
 
             # pad test input
@@ -144,7 +151,9 @@ class LARC_Cell_Dataset(Dataset):
             new_task['test_in'] = arc2torch(test_in_padded, device=device)
 
             # tokenize description
-            new_task['desc_tokens'] = {k: torch.tensor(v, device=device) for k, v in tokenizer.encode_plus(larc_pred_task['desc']).items()}
+            # padding all sequences to max length of MAX_DESC_SEQ_LENGTH tokens to make batching easier
+            new_task['desc_tokens'] = {k: torch.tensor(v, device=device) for k, v in tokenizer.encode_plus(larc_pred_task['desc'], 
+                padding='max_length', max_length=MAX_DESC_SEQ_LENGTH ,pad_to_max_length=True).items()}
 
             # if we are generating tasks for synthesis model then we don't need x and y positions as input
             if task_to_programs is None:
@@ -157,7 +166,8 @@ class LARC_Cell_Dataset(Dataset):
                 new_task['y'][larc_pred_task['y']] = 1
 
             else:
-                new_task["programs"] = [torch.tensor(token_sequence, device=device) for token_sequence in new_task["programs"]]
+                # TODO: Fix to use all programs
+                new_task["programs"] = torch.tensor(new_task["programs"][0], device=device)
 
             # for key, value in new_task.items():
             #    print_device(value)            

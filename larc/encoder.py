@@ -61,9 +61,9 @@ class LARCEncoder(nn.Module):
             nn.ReLU(),
         )
 
-        # transformer
-        # 5x64 --> 5x64
-        encoder_layer = nn.TransformerEncoderLayer(d_model=5, nhead=5)
+        # transformer:
+        # batch_size x 64 x 5 --> batch_size x 64 x 5
+        encoder_layer = nn.TransformerEncoderLayer(d_model=5, nhead=5, batch_first=True)
         self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=6)
 
         if cuda: self.cuda()
@@ -72,8 +72,6 @@ class LARCEncoder(nn.Module):
         # run grids through encoders
         transformer_input = []
         for io_in, io_out in io_grids:
-            # print("input size: ", io_in.size())
-            # print("output size: ", io_out.size())
             io_in = self.in_encoder(self.encoder(io_in))
             io_out = self.out_encoder(self.encoder(io_out))
             io = self.ex_encoder(torch.cat((io_in, io_out), dim=-1))
@@ -86,8 +84,10 @@ class LARCEncoder(nn.Module):
         # run through BERT
         transformer_input.append(self.bert_resize(self.bert(**desc_tokens)['pooler_output']))
 
-        # concatenate all inputs and run through transformer
-        t_in = torch.transpose(torch.cat(transformer_input, dim=0), 0, 1).unsqueeze(0)
+        # stack all inputs and run through transformer
+        t_in = torch.stack(transformer_input, dim=1).transpose(1,2)
+
+        # batch_size x 64 x 5 --> batch_size x 64 x 5
         t_out = self.transformer(t_in)
 
         # TODO: ask evan about changing

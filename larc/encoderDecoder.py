@@ -19,6 +19,7 @@ from larc.encoder import LARCEncoder
 from larc.larcDataset import *
 
 MAX_PROGRAM_LENGTH = 30
+MAX_NUM_IOS = 3
 
 class Stack:
     """
@@ -57,7 +58,7 @@ class Stack:
 
 
 class ProgramDecoder(nn.Module):
-    def __init__(self, embedding_size, grammar, request, cuda, device, max_program_length, encoderOutputSize, primitive_to_idx):
+    def __init__(self, embedding_size, batch_size, grammar, request, cuda, device, max_program_length, encoderOutputSize, primitive_to_idx):
         super().__init__()
         
         self.embedding_size = embedding_size
@@ -66,13 +67,14 @@ class ProgramDecoder(nn.Module):
         self.device = device
         self.max_program_length = max_program_length
         self.encoderOutputSize = encoderOutputSize
+        self.batch_size = batch_size
 
         # theoretically there could be infinitely nested lambda functions but we assume that
         # we can't have lambdas within lambdas
         self.primitiveToIdx = primitive_to_idx
         self.idxToPrimitive = {idx: primitive for primitive,idx in self.primitiveToIdx.items()}
 
-        self.token_attention = nn.MultiheadAttention(self.embedding_size, 1)
+        self.token_attention = nn.MultiheadAttention(self.embedding_size, 1, batch_first=True)
         self.output_token_embeddings = nn.Embedding(len(self.primitiveToIdx), self.embedding_size)
 
         self.linearly_transform_query = nn.Linear(self.embedding_size + self.encoderOutputSize, self.embedding_size)
@@ -116,15 +118,10 @@ class ProgramDecoder(nn.Module):
 
         def forwardNextToken(encoderOutput, ppEncoding, nextTokenType, mode, targetTokenIdx):
 
-            # print("encoderOutput shape: {}".format(encoderOutput.size()))
-            # print("ppEncoding shape: {}".format(ppEncoding.size()))
-
-            query = torch.cat((encoderOutput,ppEncoding), dim=1).unsqueeze(1)
+            query = torch.cat((encoderOutput,ppEncoding)).reshape(1,1,-1)
             query = self.linearly_transform_query(query)
 
-            # print("query shape: {}".format(query.size()))
-            keys = self.output_token_embeddings.weight
-            # print("keys shape: {}".format(keys.size()))
+            keys = self.output_token_embeddings.weight.unsqueeze(0)
 
             # we only care about attnOutputWeights so values could be anything
             values = keys
@@ -134,7 +131,7 @@ class ProgramDecoder(nn.Module):
             # print("attention_output weights: {}".format(attnOutputWeights))
 
             # sample from attention weight distribution enforcing type constraints 
-            nextTokenDist = Categorical(probs=attnOutputWeights[0, :])
+            nextTokenDist = Categorical(probs=attnOutputWeights)
             
             if mode == "sample":
                 # get primitives of correct type
@@ -148,7 +145,7 @@ class ProgramDecoder(nn.Module):
                 return targetTokenIdx.item(), score
 
         parentTokenIdx = torch.tensor([self.primitiveToIdx["START"]], device=self.device)
-        parentTokenEmbedding = self.output_token_embeddings(parentTokenIdx)
+        parentTokenEmbedding = self.output_token_embeddings(parentTokenIdx)[0, :]
         nextTokenTypeStack.push(self.request.returns())
         parentTokenStack.push(parentTokenIdx)
 
@@ -169,7 +166,7 @@ class ProgramDecoder(nn.Module):
 
             if mode == "score":
                 # TODO: Make compatible with batching
-                targetTokenIdx = targets[0, len(programTokenSeq)]
+                targetTokenIdx = targets[len(programTokenSeq)]
             else:
                 targetTokenIdx = None
 
@@ -234,13 +231,15 @@ class EncoderDecoder(nn.Module):
         3. Use output from 2 as query and token embeddings as keys to get attention vector
     """
 
-    def __init__(self, grammar, request, cuda, device, program_embedding_size=128, program_size=128, primitive_to_idx=None):
+    def __init__(self, batch_size, grammar, request, cuda, device, program_embedding_size=128, program_size=128, primitive_to_idx=None):
         super().__init__()
         
+        self.device = device
+        self.batch_size = batch_size
         self.encoder = LARCEncoder(cuda=cuda, device=device)
         # there are three additional tokens, one for the start token input grid (tgridin) variable and the other for input 
         # variable of lambda expression (assumes no nested lambdas)
-        self.decoder = ProgramDecoder(embedding_size=program_embedding_size, grammar=grammar, request=request, cuda=cuda, device=device, max_program_length=10, 
+        self.decoder = ProgramDecoder(embedding_size=program_embedding_size, batch_size=batch_size, grammar=grammar, request=request, cuda=cuda, device=device, max_program_length=MAX_PROGRAM_LENGTH, 
             encoderOutputSize=64, primitive_to_idx=primitive_to_idx)
         
         if cuda: self.cuda()
@@ -248,8 +247,14 @@ class EncoderDecoder(nn.Module):
     def forward(self, io_grids, test_in, desc_tokens, mode, targets=None):
 
         encoderOutputs = self.encoder(io_grids, test_in, desc_tokens)
-        res = self.decoder(encoderOutputs, mode, targets)
-        return res
+
+        token_sequences = []
+        scores = torch.empty(self.batch_size, device=self.device)
+        for i in range(self.batch_size):
+            token_sequence, score = self.decoder(encoderOutputs[i, :], mode, targets[i, :])
+            token_sequences.append(token_sequences)
+            scores[i] = score
+        return token_sequences, scores
 
 def sample_decode(model, task, n=1000):
 
@@ -269,6 +274,21 @@ def sample_decode(model, task, n=1000):
     print(task_to_samples)
     return task_to_samples
 
+
+def collate(x):
+
+    def stack_entry(x, name):
+        return torch.stack([x[i][name] for i in range(len(x))])
+
+    # stack all tensors of the same input/output type and the same example index to form batch
+    io_grids_batched = [(torch.stack([x[i]["io_grids"][ex_idx][0] for i in range(len(x))]), torch.stack([x[i]["io_grids"][ex_idx][1] for i in range(len(x))])) 
+        for ex_idx in range(MAX_NUM_IOS)]
+
+    return {"io_grids": io_grids_batched,
+            "test_in": stack_entry(x, "test_in"), 
+            "desc_tokens": {key: torch.stack([x[i]["desc_tokens"][key] for i in range(len(x))]) for key in x[0]["desc_tokens"].keys()},
+            "programs": stack_entry(x, "programs")}
+
 def train_imitiation_learning(model, tasks, batch_size, lr, weight_decay, num_epochs):
 
     model.train()
@@ -276,30 +296,29 @@ def train_imitiation_learning(model, tasks, batch_size, lr, weight_decay, num_ep
                                  lr=lr,
                                  weight_decay=weight_decay)
 
-    train_loader = DataLoader(tasks, batch_size=batch_size)
+    train_loader = DataLoader(tasks, batch_size=batch_size, collate_fn=collate, drop_last=True)
 
     epoch_scores = []
     
     # Imitation learning training
     for epoch in range(num_epochs):
         
-        total_score = 0.0
+        epoch_score = 0.0
 
-        for x in train_loader:
+        for batch in train_loader:
             # the sequence will always be the ground truth since we run forward in "score" mode
-            _, score = model(io_grids=x["io_grids"], test_in=x["test_in"], desc_tokens=x["desc_tokens"], mode="score", targets=x['programs'][0])
-            total_score += score
-        
-            # make_dot(score, params=dict(model.named_parameters()))
+            token_sequences, scores = model(io_grids=batch["io_grids"], test_in=batch["test_in"], desc_tokens=batch["desc_tokens"], mode="score", targets=batch['programs'])
+            
+            batch_score = torch.sum(scores)
+            epoch_score += batch_score
 
-        total_score = total_score / len(train_loader)
-        (-total_score).backward()
-        optimizer.step()
-        optimizer.zero_grad()
+            (-batch_score).backward()
+            optimizer.step()
+            optimizer.zero_grad()
 
-        epoch_scores.append(total_score)
-
-        print("Score at epoch {}: {}".format(epoch, total_score))
+        epoch_score = epoch_score / len(train_loader)
+        epoch_scores.append(epoch_score)
+        print("Score at epoch {}: {}".format(epoch, epoch_score))
 
     torch.save({
         'num_epochs': num_epochs,
@@ -314,7 +333,9 @@ def train_imitiation_learning(model, tasks, batch_size, lr, weight_decay, num_ep
 
 def main():
 
-    use_cuda = True
+    use_cuda = False
+    batch_size = 64
+
     if use_cuda: 
         assert torch.cuda.is_available()
         device = torch.device("cuda")
@@ -336,28 +357,29 @@ def main():
     idx_to_token = {idx: token for token,idx in token_to_idx.items()}
 
     request = arrow(tgridin, tgridout)
-    model = EncoderDecoder(grammar=grammar, request=request, cuda=use_cuda, device=device, program_embedding_size=128, program_size=128, primitive_to_idx=token_to_idx)
+    model = EncoderDecoder(batch_size=batch_size, grammar=grammar, request=request, cuda=use_cuda, device=device, program_embedding_size=128, program_size=128, primitive_to_idx=token_to_idx)
 
     # load dataset
     tasks_dir = "data/larc/tasks_json"
-    task_to_programs = load_task_to_programs_from_frontiers_json(grammar, token_to_idx, json_file_name="data/arc/prior_enumeration_frontiers_8hr.json")
-    larc_train_dataset = LARC_Cell_Dataset(tasks_dir, tasks_subset=None, num_ios=3, resize=(30, 30), task_to_programs=task_to_programs, device=device)
-    dataset = larc_train_dataset[0:16]
+    task_to_programs = load_task_to_programs_from_frontiers_json(grammar, token_to_idx, 
+        max_program_length=MAX_PROGRAM_LENGTH, json_file_name="data/arc/prior_enumeration_frontiers_8hr.json")
+    larc_train_dataset = LARC_Cell_Dataset(tasks_dir, tasks_subset=None, num_ios=MAX_NUM_IOS, resize=(30, 30), task_to_programs=task_to_programs, device=device)
+    dataset = larc_train_dataset
 
-    model = train_imitiation_learning(model, dataset, batch_size=1, lr=1e-3, weight_decay=0.0, num_epochs=5000)
+    model = train_imitiation_learning(model, dataset, batch_size=batch_size, lr=1e-3, weight_decay=0.0, num_epochs=5)
 
-    # model.load_state_dict(torch.load("model.pt")["model_state_dict"])
-    task_to_samples = sample_decode(model, dataset, n=10)
+    # # model.load_state_dict(torch.load("model.pt")["model_state_dict"])
+    # task_to_samples = sample_decode(model, dataset, n=10)
     
-    for task in dataset:
-        print("=============================== task {} ====================================".format(task["name"]))
-        print("Ground truth programs")
-        for program in task["programs"]:
-            print([idx_to_token[idx.item()] for idx in program])
+    # for task in dataset:
+    #     print("=============================== task {} ====================================".format(task["name"]))
+    #     print("Ground truth programs")
+    #     for program in task["programs"]:
+    #         print([idx_to_token[idx.item()] for idx in program])
 
-        print("\nSamples")
-        # TODO: fix to work with batching
-        for sample in task_to_samples[task["name"]]:
-            print([idx_to_token[idx] for idx in sample])
+    #     print("\nSamples")
+    #     # TODO: fix to work with batching
+    #     for sample in task_to_samples[task["name"]]:
+    #         print([idx_to_token[idx] for idx in sample])
 
 
