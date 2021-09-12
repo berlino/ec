@@ -74,7 +74,7 @@ class ProgramDecoder(nn.Module):
         self.primitiveToIdx = primitive_to_idx
         self.idxToPrimitive = {idx: primitive for primitive,idx in self.primitiveToIdx.items()}
 
-        self.token_attention = nn.MultiheadAttention(self.embedding_size, 1, batch_first=True)
+        self.token_attention = nn.MultiheadAttention(self.embedding_size, 1)
         self.output_token_embeddings = nn.Embedding(len(self.primitiveToIdx), self.embedding_size)
 
         self.linearly_transform_query = nn.Linear(self.embedding_size + self.encoderOutputSize, self.embedding_size)
@@ -121,7 +121,8 @@ class ProgramDecoder(nn.Module):
             query = torch.cat((encoderOutput,ppEncoding)).reshape(1,1,-1)
             query = self.linearly_transform_query(query)
 
-            keys = self.output_token_embeddings.weight.unsqueeze(0)
+            # unsqueeze in 1th dimension corresponds to batch_size=1
+            keys = self.output_token_embeddings.weight.unsqueeze(1)
 
             # we only care about attnOutputWeights so values could be anything
             values = keys
@@ -251,7 +252,7 @@ class EncoderDecoder(nn.Module):
         token_sequences = []
         scores = torch.empty(self.batch_size, device=self.device)
         for i in range(self.batch_size):
-            token_sequence, score = self.decoder(encoderOutputs[i, :], mode, targets[i, :])
+            token_sequence, score = self.decoder(encoderOutputs[:, i], mode, targets[i, :])
             token_sequences.append(token_sequences)
             scores[i] = score
         return token_sequences, scores
@@ -309,7 +310,7 @@ def train_imitiation_learning(model, tasks, batch_size, lr, weight_decay, num_ep
             # the sequence will always be the ground truth since we run forward in "score" mode
             token_sequences, scores = model(io_grids=batch["io_grids"], test_in=batch["test_in"], desc_tokens=batch["desc_tokens"], mode="score", targets=batch['programs'])
             
-            batch_score = torch.sum(scores)
+            batch_score = torch.sum(scores) / batch_size
             epoch_score += batch_score
 
             (-batch_score).backward()
@@ -333,7 +334,7 @@ def train_imitiation_learning(model, tasks, batch_size, lr, weight_decay, num_ep
 
 def main():
 
-    use_cuda = False
+    use_cuda = True
     batch_size = 64
 
     if use_cuda: 
@@ -365,10 +366,10 @@ def main():
         max_program_length=MAX_PROGRAM_LENGTH, json_file_name="data/arc/prior_enumeration_frontiers_8hr.json")
     larc_train_dataset = LARC_Cell_Dataset(tasks_dir, tasks_subset=None, num_ios=MAX_NUM_IOS, resize=(30, 30), task_to_programs=task_to_programs, device=device)
     dataset = larc_train_dataset
+ 
+    model = train_imitiation_learning(model, dataset, batch_size=batch_size, lr=1e-3, weight_decay=0.0, num_epochs=100)
 
-    model = train_imitiation_learning(model, dataset, batch_size=batch_size, lr=1e-3, weight_decay=0.0, num_epochs=5)
-
-    # # model.load_state_dict(torch.load("model.pt")["model_state_dict"])
+    # model.load_state_dict(torch.load("model.pt")["model_state_dict"])
     # task_to_samples = sample_decode(model, dataset, n=10)
     
     # for task in dataset:
