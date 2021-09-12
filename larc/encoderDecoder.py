@@ -13,6 +13,7 @@ from dreamcoder.grammar import Grammar
 from dreamcoder.program import Program
 from dreamcoder.recognition import RecognitionModel
 from dreamcoder.type import arrow
+from dreamcoder.utilities import ParseFailure
 
 from larc.decoderUtils import get_primitives_of_type, program_to_token_sequence
 from larc.encoder import LARCEncoder
@@ -49,7 +50,6 @@ class Stack:
         return len(self.stack)
 
     def __repr__(self):
-        print("popping right to left")
         return self.stack.__str__()
 
     def __iter__(self):
@@ -109,12 +109,18 @@ class ProgramDecoder(nn.Module):
 
     def forward(self, encoderOutput, mode, targets):
 
-        programTokenSeq = [self.primitiveToIdx["START"]]
+        programTokenSeq = [torch.tensor([self.primitiveToIdx["START"]], device=self.device)]
+        programStringsSeq = ["lambda"]
         totalScore = 0.0
         nextTokenTypeStack = Stack()
         lambdaVarsTypeStack = Stack()
+        
         parentTokenStack = Stack()
+
         lambdaIndexInStack = float("inf")
+        
+        openParenthesisStack = Stack()
+        # openParenthesisStack.push(0)
 
         def forwardNextToken(encoderOutput, ppEncoding, nextTokenType, mode, targetTokenIdx):
 
@@ -137,13 +143,13 @@ class ProgramDecoder(nn.Module):
             if mode == "sample":
                 # get primitives of correct type
                 nextTokenIdx = nextTokenDist.sample()
-                return nextTokenIdx.item(), 0.0
+                return nextTokenIdx, 0.0
 
             elif mode == "score":
                 score = nextTokenDist.log_prob(targetTokenIdx)
                 # print("targetTokenIdx: {} () -> {}".format(targetTokenIdx, self.idxToPrimitive[targetTokenIdx.item()], score))
 
-                return targetTokenIdx.item(), score
+                return targetTokenIdx, score
 
         parentTokenIdx = torch.tensor([self.primitiveToIdx["START"]], device=self.device)
         parentTokenEmbedding = self.output_token_embeddings(parentTokenIdx)[0, :]
@@ -152,16 +158,10 @@ class ProgramDecoder(nn.Module):
 
         while len(nextTokenTypeStack) > 0:
 
-            # print("--------------------------------------------------------------------------------")            
-            # print([str(self.idxToPrimitive[idx]) for idx in programTokenSeq])
-            # print("TypeStack: {}".format(nextTokenTypeStack))
-            # print("parentTokenStack: {}".format([self.IdxToPrimitive[idx] for idx in parentTokenStack]))
-            # print("lambdaIndexInStack: {}\n len(parentTokenStack): {}".format(lambdaIndexInStack, len(parentTokenStack)))
-
             # get type of next token
             nextTokenType = nextTokenTypeStack.pop()
-            # get parent primitive of next token
             parentTokenIdx = parentTokenStack.pop()
+
             # sample next token
             partialProgramEmbedding = self.output_token_embeddings(torch.tensor([parentTokenIdx], device=self.device))
 
@@ -174,15 +174,18 @@ class ProgramDecoder(nn.Module):
             # TODO make compatible with batch
             nextTokenIdx, score = forwardNextToken(encoderOutput, parentTokenEmbedding, nextTokenType, mode, targetTokenIdx)
             totalScore += score
+            
             programTokenSeq.append(nextTokenIdx)
 
-            nextToken = self.idxToPrimitive[nextTokenIdx]
+            nextToken = self.idxToPrimitive[nextTokenIdx.item()]
 
             if nextToken == "START":
                 assert Exception("Should never sample START")
             elif nextToken == "INPUT":
+                programStringsSeq.append("${}".format(len(lambdaVarsTypeStack)))
                 pass
             elif nextToken == "LAMBDA_INPUT":
+                programStringsSeq.append("${}".format(len(lambdaVarsTypeStack) - 1))
                 lambdaVarsTypeStack.pop()
             elif nextToken == "LAMBDA":
                 # assume lambdas are used only with one argument
@@ -193,20 +196,39 @@ class ProgramDecoder(nn.Module):
                 # once the stack is this length again it means the lambda function has been synthesized LAMBDA_INPUT
                 # can no longer be used
                 lambdaIndexInStack = len(parentTokenStack)
+                openParenthesisStack.push(len(parentTokenStack))
                 # technically the parent token is LAMBDA but that carries no information so we use the grandparent
-                parentTokenStack.push(parentTokenIdx)
+                parentTokenStack.push(torch.tensor([self.primitiveToIdx["LAMBDA"]], device=self.device))
+                programStringsSeq.append("(lambda")
             else:
                 sampledToken = Program.parse(nextToken)
                 if sampledToken.tp.isArrow() and not(nextTokenType.isArrow()):
                     # print("sampled function when desired type is constant -> add function arguments to type stack")
+                    programStringsSeq.append("(")
+                    # keep track of how many open left parenthesis they are by storing length of the parent token stack when its created
+                    openParenthesisStack.push(len(parentTokenStack))
                     for arg in sampledToken.tp.functionArguments()[::-1]:
                         nextTokenTypeStack.push(arg)
                         # keep track of parent function for which existing one is an argument
                         parentTokenStack.push(nextTokenIdx)
+                programStringsSeq.append(str(sampledToken))
 
             # lambda function was synthesised so can no longer use LAMBDA_INPUT
             if len(parentTokenStack) <= lambdaIndexInStack:
                 lambdaIndexInStack = float("inf")
+
+            # the openParenthesisStack will always contain numbers in ascending order
+            while len(openParenthesisStack) > 0 and len(parentTokenStack) <= openParenthesisStack.toPop():
+                programStringsSeq.append(")")
+                openParenthesisStack.pop()
+
+            # print("--------------------------------------------------------------------------------")            
+            # print("programTokenSeq", [str(self.idxToPrimitive[idx.item()]) for idx in programTokenSeq])
+            # print("openParenthesisStack", openParenthesisStack)
+            # print("programStringsSeq", programStringsSeq)
+            # print("TypeStack: {}".format(nextTokenTypeStack))
+            # print("parentTokenStack: {}".format([self.idxToPrimitive[idx.item()] for idx in parentTokenStack]))
+            # print("lambdaIndexInStack: {}\n len(parentTokenStack): {}".format(lambdaIndexInStack, len(parentTokenStack)))
 
             # program did not terminate within 20 tokens
             if len(programTokenSeq) > MAX_PROGRAM_LENGTH:
@@ -216,7 +238,7 @@ class ProgramDecoder(nn.Module):
         # print('------------------------ Decoded below program ---------------------------------')
         # print(" ".join([str(self.IdxToPrimitive[idx]) for idx in programTokenSeq]))
         # print('--------------------------------------------------------------------------------')
-        return programTokenSeq, totalScore
+        return programTokenSeq, " ".join(programStringsSeq), totalScore
 
 class EncoderDecoder(nn.Module):
     """
@@ -252,28 +274,55 @@ class EncoderDecoder(nn.Module):
         token_sequences = []
         scores = torch.empty(self.batch_size, device=self.device)
         for i in range(self.batch_size):
-            token_sequence, score = self.decoder(encoderOutputs[:, i], mode, targets[i, :])
+            token_sequence, program_string, score = self.decoder(encoderOutputs[:, i], mode, targets[i, :])
             token_sequences.append(token_sequences)
             scores[i] = score
-        return token_sequences, scores
+        return token_sequences, program_string, scores
 
-def sample_decode(model, task, n=1000):
+def sample_decode(model, tasks, batch_size, n=1000):
 
-    data_loader = DataLoader(task, batch_size=1)
-    task_to_samples = {}
+    data_loader = DataLoader(tasks, batch_size=batch_size, drop_last=True)
+    task_to_token_sequences = {}
 
-    for task in data_loader:
-        task_to_samples[task["name"][0]] = []
-        for i in range(n):
-            res = model(io_grids=task["io_grids"], test_in=task["test_in"], desc_tokens=task["desc_tokens"], mode="sample", targets=task['programs'])
-            if res is None:
-                continue
-            else:
-                # TODO: fix for batching
-                task_to_samples[task["name"][0]].append(res[0])
-        print("Failed to sample syntactically valid program after {} tries for task {}".format(n, task["name"][0]))
-    print(task_to_samples)
-    return task_to_samples
+    for batch in data_loader:
+
+        encoderOutputs = model.encoder(batch["io_grids"], batch["test_in"], batch["desc_tokens"])
+
+        # iterate through each task in the batch
+        for i in range(batch_size):
+            
+            task = batch["name"][i]
+            task_to_token_sequences[task] = []
+            print("Decoding task {}".format(task))
+
+            # sample n times for each task
+            for k in range(n):
+                output = model.decoder(encoderOutputs[:, i], "sample", None)
+                # if the we reach the MAX_PROGRAM_LENGTH and the program tree still has holes continue
+                if output is None:
+                    continue
+                else:
+                    token_sequence = output[0]
+                    program_string = output[1]
+                    task_to_token_sequences[task].append((token_sequence, program_string))
+
+    return task_to_token_sequences
+
+# def beam_search_decode(model, tasks, ba)
+
+
+    #     task_to_samples[task["name"][0]] = []
+    #     token_sequences, scores = model(io_grids=batch["io_grids"], test_in=batch["test_in"], desc_tokens=batch["desc_tokens"], mode="sample", targets=batch['programs'])
+    #     for i in range(n):
+    #         res = model(io_grids=task["io_grids"], test_in=task["test_in"], desc_tokens=task["desc_tokens"], mode="sample", targets=task['programs'])
+    #         if res is None:
+    #             continue
+    #         else:
+    #             token_sequences, scores = res
+    #             task_to_samples[task["name"][0]].append(res[0])
+    #     print("Failed to sample syntactically valid program after {} tries for task {}".format(n, task["name"][0]))
+    # print(task_to_samples)
+    # return task_to_samples
 
 
 def collate(x):
@@ -334,7 +383,7 @@ def train_imitiation_learning(model, tasks, batch_size, lr, weight_decay, num_ep
 
 def main():
 
-    use_cuda = True
+    use_cuda = False
     batch_size = 64
 
     if use_cuda: 
@@ -362,25 +411,34 @@ def main():
 
     # load dataset
     tasks_dir = "data/larc/tasks_json"
-    task_to_programs = load_task_to_programs_from_frontiers_json(grammar, token_to_idx, 
-        max_program_length=MAX_PROGRAM_LENGTH, json_file_name="data/arc/prior_enumeration_frontiers_8hr.json")
+    json_file_name = "data/arc/prior_enumeration_frontiers_8hr.json"
+    task_to_programs_json = json.load(open(json_file_name, 'r'))
+    task_to_programs = load_task_to_programs_from_frontiers_json(grammar, token_to_idx,
+        max_program_length=MAX_PROGRAM_LENGTH, task_to_programs_json=task_to_programs_json)
     larc_train_dataset = LARC_Cell_Dataset(tasks_dir, tasks_subset=None, num_ios=MAX_NUM_IOS, resize=(30, 30), task_to_programs=task_to_programs, device=device)
     dataset = larc_train_dataset
  
-    model = train_imitiation_learning(model, dataset, batch_size=batch_size, lr=1e-3, weight_decay=0.0, num_epochs=100)
+    # model = train_imitiation_learning(model, dataset, batch_size=batch_size, lr=1e-3, weight_decay=0.0, num_epochs=100)
 
-    # model.load_state_dict(torch.load("model.pt")["model_state_dict"])
-    # task_to_samples = sample_decode(model, dataset, n=10)
+    model.load_state_dict(torch.load("model.pt")["model_state_dict"])
+    task_to_samples = sample_decode(model, dataset, batch_size, n=10)
     
-    # for task in dataset:
-    #     print("=============================== task {} ====================================".format(task["name"]))
-    #     print("Ground truth programs")
-    #     for program in task["programs"]:
-    #         print([idx_to_token[idx.item()] for idx in program])
+    for task_name, samples in task_to_samples.items():
+        print("=============================== task {} ====================================".format(task_name))
+        # print("Ground truth programs")
+        # for program in task["programs"]:
+        #     print([idx_to_token[idx.item()] for idx in program])
 
-    #     print("\nSamples")
-    #     # TODO: fix to work with batching
-    #     for sample in task_to_samples[task["name"]]:
-    #         print([idx_to_token[idx] for idx in sample])
+        print("\nSamples")
+        # TODO: fix to work with batching
+        for sample in samples:
+            token_sequence, program_string = sample
+            print(program_string)
+            p = Program.parse("(" + program_string + ")")
+            print(p)
+
+        print("Ground truth programs")
+        for program in task_to_programs_json[task_name]:
+            print(program)
 
 

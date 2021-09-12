@@ -37,15 +37,14 @@ def print_device(el):
         print("type of el is: {}".format(type(el)))
     return
 
-def load_task_to_programs_from_frontiers_json(grammar, token_to_idx, max_program_length, json_file_name="data/arc/prior_enumeration_frontiers_8hr.json"):
+def load_task_to_programs_from_frontiers_json(grammar, token_to_idx, max_program_length, task_to_programs_json):
     """
     Load prior enumeration frontiers and process into dictionary with task names as keys and lists of corresponding programs as values.
     Each program is represented as a list of indicies created used token_to_idx argument. Pads programs so they are all the same length.
     """
 
-    task_to_programs_raw = json.load(open(json_file_name, 'r'))
     task_to_programs = {}
-    for task, task_programs in task_to_programs_raw.items():
+    for task, task_programs in task_to_programs_json.items():
         task_to_programs[task] = []
         for program_string in task_programs:
 
