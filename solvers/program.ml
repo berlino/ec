@@ -500,7 +500,7 @@ ignore(primitive "replace-character" (tcharacter @> tcharacter @> tstring @> tst
     s |> List.map ~f:(fun c -> if c = c1 then c2 else c)));;
 
 
-
+(*
 let primitive_run   = primitive
                         "run"
                         (tprogram @> tcanvas)
@@ -689,6 +689,8 @@ let _ = primitive "logo_forLoopM"
 (*let logo_CHEAT2  = primitive "logo_CHEAT2"             (ttvar @> turtle) LogoLib.LogoInterpreter.logo_CHEAT2*)
 (*let logo_CHEAT3  = primitive "logo_CHEAT3"             (ttvar @> turtle) LogoLib.LogoInterpreter.logo_CHEAT3*)
 (*let logo_CHEAT4  = primitive "logo_CHEAT4"             (ttvar @> turtle) LogoLib.LogoInterpreter.logo_CHEAT4*)
+
+*)
 
 let default_recursion_limit = 20;;
 

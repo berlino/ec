@@ -17,11 +17,12 @@ def main():
 			print(i[0].toJson())
 			print(o.toJson())
 
-def taskMessage(t):
+def taskMessage(t, task_to_programs):
     m = {
-        "examples": [{"inputs": xs[0].toJson(), "output": y.toJson()} for xs, y in t.examples],
+        "examples": [{"inputs": [xs[0].toJson()], "output": y.toJson()} for xs, y in t.examples],
         "name": t.name,
-        "request": t.request.json()
+        "request": t.request.json(),
+        "programs": task_to_programs[t.name]
     }
     return m
 

@@ -3,7 +3,7 @@ open Client
 open Timeout
 open Utils
 open Program
-open Task
+(* open Task *)
 open Type
 
 (* Types and Helpers *)
@@ -665,7 +665,7 @@ let p_c0f76784 grid cmap =
   blocks_to_original_grid moved true false ;;
  *)
 
-
+(*
 register_special_task "arc" (fun extras ?timeout:(timeout = 0.001) name ty examples ->
 (* Printf.eprintf "Making an arc task %s \n" name; *)
 { name = name    ;
@@ -701,7 +701,7 @@ register_special_task "arc" (fun extras ?timeout:(timeout = 0.001) name ty examp
           then 0.0
           else log 0.0)
 }) ;;
-
+*)
 (* primitives *)
 
 ignore(primitive "north" tdirection (-1,0)) ;;
@@ -902,7 +902,6 @@ let to_grid task =
   let json = task |> member "grid" |> to_assoc in 
   let grid_points = List.map json ~f:(fun (key, color) -> ((python_split key), (to_int color))) in
   let grid = {points = grid_points ; original_grid = grid_points} in 
-  print_block grid;
   grid ;;
 
 let convert_raw_to_block raw = 

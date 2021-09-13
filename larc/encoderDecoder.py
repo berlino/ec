@@ -412,11 +412,11 @@ def main():
     # model = EncoderDecoder(batch_size=batch_size, grammar=grammar, request=request, cuda=use_cuda, device=device, program_embedding_size=128, program_size=128, primitive_to_idx=token_to_idx)
 
     # # load dataset
-    # tasks_dir = "data/larc/tasks_json"
-    # json_file_name = "data/arc/prior_enumeration_frontiers_8hr.json"
-    # task_to_programs_json = json.load(open(json_file_name, 'r'))
-    # task_to_programs = load_task_to_programs_from_frontiers_json(grammar, token_to_idx,
-    #     max_program_length=MAX_PROGRAM_LENGTH, task_to_programs_json=task_to_programs_json)
+    tasks_dir = "data/larc/tasks_json"
+    json_file_name = "data/arc/prior_enumeration_frontiers_8hr.json"
+    task_to_programs_json = json.load(open(json_file_name, 'r'))
+    task_to_programs_json = {t:programs for t,programs in task_to_programs_json.items() if len(programs) > 0}
+    # task_to_programs = load_task_to_programs_from_frontiers_json(grammar, token_to_idx, max_program_length=MAX_PROGRAM_LENGTH, task_to_programs_json=task_to_programs_json)
     # larc_train_dataset = LARC_Cell_Dataset(tasks_dir, tasks_subset=None, num_ios=MAX_NUM_IOS, resize=(30, 30), task_to_programs=task_to_programs, device=device)
     # dataset = larc_train_dataset
  
@@ -449,7 +449,7 @@ def main():
 
     message = {
         "DSL": grammar.json(),
-        "tasks": [taskMessage(t) for t in tasks],
+        "tasks": [taskMessage(t, task_to_programs_json) for t in tasks if t.name in task_to_programs_json],
         "programTimeout": 0.001,
     }
     with open('message', 'w') as outfile:
