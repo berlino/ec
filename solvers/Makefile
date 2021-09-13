@@ -1,7 +1,7 @@
 c = corebuild -pkg yojson -pkg re2,zmq -tag unsafe -tag "optimize(3)"
 
 execute_arc_programs:
-	$(c) -r execute_arc_programs.native; cp execute_arc_programs.native test
+	$(c) -r execute_arc_programs.native; cp execute_arc_programs.native exec_arc_p
 type:
 	$(c) type.native; cp type.native test
 TikZ:
