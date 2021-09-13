@@ -1,6 +1,84 @@
 from dreamcoder.domains.arc.utilsPostProcessing import *
 from dreamcoder.program import Program
 from dreamcoder.type import Context
+from dreamcoder.utilities import get_root_dir
+
+import subprocess
+
+class Stack:
+    """
+    Stack data structure to enforce type constraints when decoding a program by sequentially sampling
+    its primitives
+    """
+
+    def __init__(self):
+        self.stack = []
+
+    def pop(self):
+        return self.stack.pop(-1)
+
+    def push(self, tp):
+        self.stack.append(tp)
+        return
+
+    def toPop(self):
+        if len(self.stack) > 0:
+            return self.stack[-1]
+        return None
+
+    def __contains__(self, x):
+        return x in self.stack
+
+    def __len__(self):
+        return len(self.stack)
+
+    def __repr__(self):
+        return self.stack.__str__()
+
+    def __iter__(self):
+        for x in self.stack:
+            yield x
+
+def taskMessage(t, task_to_programs):
+    m = {
+        "examples": [{"inputs": [xs[0].toJson()], "output": y.toJson()} for xs, y in t.examples],
+        "name": t.name,
+        "request": t.request.json(),
+        "programs": task_to_programs[t.name]
+    }
+    return m
+
+def execute_programs(tasks, grammar, task_to_programs_json):
+
+    message = {
+        "DSL": grammar.json(),
+        "tasks": [taskMessage(t, task_to_programs_json) for t in tasks],
+        "programTimeout": 0.001,
+    }
+
+    try:
+        solver_file = os.path.join(get_root_dir(), "/solvers/exec_arc_p")
+        process = subprocess.Popen(
+            solver_file, stdin=subprocess.PIPE, stdout=subprocess.PIPE
+        )
+        response, error = process.communicate(bytes(message, encoding="utf-8"))
+        response = json.loads(response.decode("utf-8"))
+        return response
+        
+    except OSError as exc:
+        raise exc
+
+def get_primitives_of_type(request, grammar):
+	primitives = []
+	for p in grammar.primitives:
+		if p.tp.returns() == request:
+			primitives.append(str(p))
+	return primitives
+
+def program_to_token_sequence(program, grammar):
+	program_token_sequence = [token for token in program.left_order_tokens_alt()]
+	return ["START"] + program_token_sequence
+
 
 def main():
 
@@ -16,49 +94,3 @@ def main():
 		for i,o in t.examples:
 			print(i[0].toJson())
 			print(o.toJson())
-
-def taskMessage(t, task_to_programs):
-    m = {
-        "examples": [{"inputs": [xs[0].toJson()], "output": y.toJson()} for xs, y in t.examples],
-        "name": t.name,
-        "request": t.request.json(),
-        "programs": task_to_programs[t.name]
-    }
-    return m
-
-def get_primitives_of_type(request, grammar):
-	primitives = []
-	for p in grammar.primitives:
-		if p.tp.returns() == request:
-			primitives.append(str(p))
-	return primitives
-
-def program_to_token_sequence(program, grammar):
-	program_token_sequence = [token for token in program.left_order_tokens_alt()]
-	return ["START"] + program_token_sequence
-
-
-def parse_token_sequence(program_token_sequence, grammar):
-	"""
-	Args:
-		program_primitive_sequence (list): A list of primtive indices
-		grammar (Grammar): The grammar in which the program we want to parse is generated from
-
-	Returns:
-		program (Program): If the sequence can be parsed into a syntactically valid (i.e. satisfying type constraints)
-		program then return that program, otherwise raise a parse error
-	"""
-
-	# types_queue = []
-
-	# for primitive_idx in program_primitive_sequence:
-	# 	primitive = grammar.primitives[primitive_idx]
-	# 	# iterate through the arguments of the given primitive and record their types
-	# 	for arg in primitive.tp.functionArguments():
-	# 		types_queue.append(arg)
-
-	# for token in program_token_sequence[1:]:
-
-	return Program.parse("(lambda (to_min_grid (fill_color (merge_blocks (splitblocks_to_blocks (split_grid $0 false)) true) (nth_primary_color (grid_to_block $0) 0)) true))")
-
-# program_primitive_sequence = [0, 4, 5, 12]
