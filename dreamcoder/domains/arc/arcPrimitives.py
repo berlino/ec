@@ -338,11 +338,11 @@ class Grid(RectangleBlock):
         rows = [' '.join(row) for row in temp.tolist()]
         return '\n'.join(rows)
 
-    # def toJson(self):
-    #     temp = {}
-    #     for yPos,xPos in self.points:
-    #         temp["{},{}".format(yPos, xPos)] = self.points[(yPos,xPos)]
-    #     return {'grid':temp}
+    def toJson(self):
+        temp = {}
+        for yPos,xPos in self.points:
+            temp["{},{}".format(yPos, xPos)] = self.points[(yPos,xPos)]
+        return {'grid':temp}
 
     def __repr__(self):
         temp = {}
@@ -707,7 +707,7 @@ def basePrimitives():
 ##### tblocks #####
 
     # # arrow (tblocks, tgridout)
-    Primitive('blocks_to_original_grid', arrow(tblocks, tbool, tbool, tgridout),  None),
+    Primitive('blocks_to_original_grid', arrow(tblocks, tbool, tbool, tgridout),  _blocksToGrid),
     Primitive('blocks_to_min_grid', arrow(tblocks, tbool, tbool, tgridout),  None),
 
     # arrow(tblocks, tblock)
@@ -768,9 +768,9 @@ def basePrimitives():
 ##### tgridin #####
 
     # arrow(tgridin, tblocks)
-    Primitive('find_same_color_blocks', arrow(tgridin, tbool, tbool, tblocks), lambda grid: grid),
-    Primitive('find_blocks_by_black_b', arrow(tgridin, tbool, tbool, tblocks), lambda grid: grid),
-    Primitive('find_blocks_by_color', arrow(tgridin, tcolor, tbool, tbool, tblocks), lambda grid: grid),
+    Primitive('find_same_color_blocks', arrow(tgridin, tbool, tbool, tblocks), _findSameColorBlocks),
+    Primitive('find_blocks_by_black_b', arrow(tgridin, tbool, tbool, tblocks), None),
+    Primitive('find_blocks_by_color', arrow(tgridin, tcolor, tbool, tbool, tblocks), _findBlocksByColor),
     Primitive('find_blocks_by_inferred_b', arrow(tgridin, tbool, tbool, tblocks), lambda grid: grid),    
     #arrow(tgridin, tblock)
     Primitive('grid_to_block', arrow(tgridin, tblock), lambda grid: grid),

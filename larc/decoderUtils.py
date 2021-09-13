@@ -13,6 +13,18 @@ def main():
 		if len(f.entries) > 0:
 			print(f.topK(1).entries[0].program.size())
 
+		for i,o in t.examples:
+			print(i[0].toJson())
+			print(o.toJson())
+
+def taskMessage(t):
+    m = {
+        "examples": [{"inputs": xs[0].toJson(), "output": y.toJson()} for xs, y in t.examples],
+        "name": t.name,
+        "request": t.request.json()
+    }
+    return m
+
 def get_primitives_of_type(request, grammar):
 	primitives = []
 	for p in grammar.primitives:

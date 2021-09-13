@@ -675,6 +675,8 @@ register_special_task "arc" (fun extras ?timeout:(timeout = 0.001) name ty examp
         (* Printf.eprintf "Program: %s \n" (string_of_program p) ; *)
         flush_everything () ;
         let p = analyze_lazy_evaluation p in
+        Printf.eprintf "Finished analyzing lazy evaluation";
+        flush_everything();
         let rec loop = function
           | [] -> true
           | (xs,y) :: e ->
@@ -900,7 +902,7 @@ let to_grid task =
   let json = task |> member "grid" |> to_assoc in 
   let grid_points = List.map json ~f:(fun (key, color) -> ((python_split key), (to_int color))) in
   let grid = {points = grid_points ; original_grid = grid_points} in 
-  (* print_block grid; *)
+  print_block grid;
   grid ;;
 
 let convert_raw_to_block raw = 

@@ -1,3 +1,4 @@
+import os
 import pickle
 import torch
 from torch.autograd import Variable
@@ -7,6 +8,7 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from torchviz import make_dot
 
+from dreamcoder.domains.arc.main import retrieveARCJSONTasks
 from dreamcoder.domains.arc.arcPrimitives import basePrimitives, leafPrimitives, moreSpecificPrimitives, tgridin, tgridout
 from dreamcoder.domains.arc.utilsPostProcessing import resume_from_path
 from dreamcoder.grammar import Grammar
@@ -15,7 +17,7 @@ from dreamcoder.recognition import RecognitionModel
 from dreamcoder.type import arrow
 from dreamcoder.utilities import ParseFailure
 
-from larc.decoderUtils import get_primitives_of_type, program_to_token_sequence
+from larc.decoderUtils import get_primitives_of_type, program_to_token_sequence, taskMessage
 from larc.encoder import LARCEncoder
 from larc.larcDataset import *
 
@@ -383,16 +385,16 @@ def train_imitiation_learning(model, tasks, batch_size, lr, weight_decay, num_ep
 
 def main():
 
-    use_cuda = False
-    batch_size = 64
+    # use_cuda = False
+    # batch_size = 64
 
-    if use_cuda: 
-        assert torch.cuda.is_available()
-        device = torch.device("cuda")
-    else:
-        device = torch.device("cpu")
+    # if use_cuda: 
+    #     assert torch.cuda.is_available()
+    #     device = torch.device("cuda")
+    # else:
+    #     device = torch.device("cpu")
     
-    # load grammar / DSL
+    # # load grammar / DSL
     primitives_to_use = "base"
     if primitives_to_use == "base":
         primitives = basePrimitives() + leafPrimitives()
@@ -400,45 +402,56 @@ def main():
         primitives = basePrimitives() + leafPrimitives() + moreSpecificPrimitives()
     grammar = Grammar.uniform(primitives)
 
-    # create dict from tokens to corresponding indices (to be used as indices for nn.Embedding)
-    token_to_idx = {"START": 0, "LAMBDA": 1, "LAMBDA_INPUT":2, "INPUT": 3}
-    num_special_tokens = len(token_to_idx)
-    token_to_idx.update({str(token):i+num_special_tokens for i,token in enumerate(grammar.primitives)})
-    idx_to_token = {idx: token for token,idx in token_to_idx.items()}
+    # # create dict from tokens to corresponding indices (to be used as indices for nn.Embedding)
+    # token_to_idx = {"START": 0, "LAMBDA": 1, "LAMBDA_INPUT":2, "INPUT": 3}
+    # num_special_tokens = len(token_to_idx)
+    # token_to_idx.update({str(token):i+num_special_tokens for i,token in enumerate(grammar.primitives)})
+    # idx_to_token = {idx: token for token,idx in token_to_idx.items()}
 
-    request = arrow(tgridin, tgridout)
-    model = EncoderDecoder(batch_size=batch_size, grammar=grammar, request=request, cuda=use_cuda, device=device, program_embedding_size=128, program_size=128, primitive_to_idx=token_to_idx)
+    # request = arrow(tgridin, tgridout)
+    # model = EncoderDecoder(batch_size=batch_size, grammar=grammar, request=request, cuda=use_cuda, device=device, program_embedding_size=128, program_size=128, primitive_to_idx=token_to_idx)
 
-    # load dataset
-    tasks_dir = "data/larc/tasks_json"
-    json_file_name = "data/arc/prior_enumeration_frontiers_8hr.json"
-    task_to_programs_json = json.load(open(json_file_name, 'r'))
-    task_to_programs = load_task_to_programs_from_frontiers_json(grammar, token_to_idx,
-        max_program_length=MAX_PROGRAM_LENGTH, task_to_programs_json=task_to_programs_json)
-    larc_train_dataset = LARC_Cell_Dataset(tasks_dir, tasks_subset=None, num_ios=MAX_NUM_IOS, resize=(30, 30), task_to_programs=task_to_programs, device=device)
-    dataset = larc_train_dataset
+    # # load dataset
+    # tasks_dir = "data/larc/tasks_json"
+    # json_file_name = "data/arc/prior_enumeration_frontiers_8hr.json"
+    # task_to_programs_json = json.load(open(json_file_name, 'r'))
+    # task_to_programs = load_task_to_programs_from_frontiers_json(grammar, token_to_idx,
+    #     max_program_length=MAX_PROGRAM_LENGTH, task_to_programs_json=task_to_programs_json)
+    # larc_train_dataset = LARC_Cell_Dataset(tasks_dir, tasks_subset=None, num_ios=MAX_NUM_IOS, resize=(30, 30), task_to_programs=task_to_programs, device=device)
+    # dataset = larc_train_dataset
  
-    # model = train_imitiation_learning(model, dataset, batch_size=batch_size, lr=1e-3, weight_decay=0.0, num_epochs=100)
+    # # model = train_imitiation_learning(model, dataset, batch_size=batch_size, lr=1e-3, weight_decay=0.0, num_epochs=100)
 
-    model.load_state_dict(torch.load("model.pt")["model_state_dict"])
-    task_to_samples = sample_decode(model, dataset, batch_size, n=10)
+    # model.load_state_dict(torch.load("model.pt")["model_state_dict"])
+    # task_to_samples = sample_decode(model, dataset, batch_size, n=10)
     
-    for task_name, samples in task_to_samples.items():
-        print("=============================== task {} ====================================".format(task_name))
-        # print("Ground truth programs")
-        # for program in task["programs"]:
-        #     print([idx_to_token[idx.item()] for idx in program])
+    # for task_name, samples in task_to_samples.items():
+    #     print("=============================== task {} ====================================".format(task_name))
+    #     # print("Ground truth programs")
+    #     # for program in task["programs"]:
+    #     #     print([idx_to_token[idx.item()] for idx in program])
 
-        print("\nSamples")
-        # TODO: fix to work with batching
-        for sample in samples:
-            token_sequence, program_string = sample
-            print(program_string)
-            p = Program.parse("(" + program_string + ")")
-            print(p)
+    #     print("\nSamples")
+    #     # TODO: fix to work with batching
+    #     for sample in samples:
+    #         token_sequence, program_string = sample
+    #         print(program_string)
+    #         p = Program.parse("(" + program_string + ")")
+    #         print(p)
 
-        print("Ground truth programs")
-        for program in task_to_programs_json[task_name]:
-            print(program)
+    #     print("Ground truth programs")
+    #     for program in task_to_programs_json[task_name]:
+    #         print(program)
 
+    # homeDirectory = "/".join(os.path.abspath(__file__).split("/")[:-4])
+    dataDirectory = "arc_data/data/"
+    tasks = retrieveARCJSONTasks(dataDirectory + 'training', useEvalExamplesForTraining=True, filenames=None)
+
+    message = {
+        "DSL": grammar.json(),
+        "tasks": [taskMessage(t) for t in tasks],
+        "programTimeout": 0.001,
+    }
+    with open('message', 'w') as outfile:
+        json.dump(message, outfile)
 

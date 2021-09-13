@@ -74,7 +74,7 @@ class ArcTask(Task):
         self.evalExamples = evalExamples
         self.sentences = sentences
 
-    def checkEvalExamples(self, e, timeout=None):
+    def _checkExamples(self, e, examples, timeout=None):
         if timeout is not None:
             def timeoutCallBack(_1, _2): raise EvaluationTimeout()
         try:
@@ -85,21 +85,24 @@ class ArcTask(Task):
                 f = e.evaluate([])
             except IndexError:
                 # free variable
+                print("indexError")
                 return False
             except Exception as e:
                 eprint("Exception during evaluation:", e)
                 return False
 
-            for x, y in self.evalExamples:
+            for x, y in examples:
                 if self.cache and (x, e) in EVALUATIONTABLE:
                     p = EVALUATIONTABLE[(x, e)]
                 else:
                     try:
                         p = self.predict(f, x)
-                    except BaseException:
+                    except BaseException as e:
+                        print("BaseException", e)
                         p = None
                     if self.cache:
                         EVALUATIONTABLE[(x, e)] = p
+                print("p", p)
                 if p != y:
                     if timeout is not None:
                         signal.signal(signal.SIGVTALRM, lambda *_: None)
@@ -117,6 +120,12 @@ class ArcTask(Task):
             if timeout is not None:
                 signal.signal(signal.SIGVTALRM, lambda *_: None)
                 signal.setitimer(signal.ITIMER_VIRTUAL, 0)
+
+    def checkEvalExamples(self, e, timeout=None):
+        return self._checkExamples(e, self.evalExamples, timeout)
+
+    def checkAllExamples(self, e, timeout=None):
+        return self._checkExamples(e, self.examples + self.evalExamples, timeout)
 
 def retrieveARCJSONTasks(directory, useEvalExamplesForTraining=False, filenames=None):
 
