@@ -3,6 +3,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 
 from larc.decoderUtils import *
+from larc.larcDataset import collate
 
 MAX_PROGRAM_LENGTH = 30
 
@@ -51,10 +52,14 @@ class Decoder(nn.Module):
 
         # if the we need is the same as the lambda variable then add this as a possible action to sample.
         # the second clause ensures that LAMBDA_INPUT is in scope i.e. not outside lambda expression
-        if nextTokenType == lambdaVarsTypeStack.toPop() and lambdaVarInScope:
-            keys_mask[:, self.primitiveToIdx["LAMBDA_INPUT"]] = 0
+        lambdaVars = []
+        # by default this is from top of stack to bottom
+        for i,lambdaVarType in enumerate(lambdaVarsTypeStack):
+            if nextTokenType == lambdaVarType:
+                keys_mask[:, self.primitiveToIdx["LAMBDA_INPUT"]] = 0
+                lambdaVars.append(i)
 
-        return keys_mask
+        return keys_mask, lambdaVars
 
     def forward(self, encoderOutput, mode, targets):
 
@@ -81,7 +86,7 @@ class Decoder(nn.Module):
 
             # we only care about attnOutputWeights so values could be anything
             values = keys
-            keys_mask = self.getKeysMask(nextTokenType, lambdaVarsTypeStack, lambdaIndexInStack <= len(parentTokenStack), self.request)
+            keys_mask, lambdaVars = self.getKeysMask(nextTokenType, lambdaVarsTypeStack, lambdaIndexInStack <= len(parentTokenStack), self.request)
             # print('keys mask shape: ', keys_mask.size())
             _, attnOutputWeights = self.token_attention(query, keys, values, key_padding_mask=None, need_weights=True, attn_mask=keys_mask)
             # print("attention_output weights: {}".format(attnOutputWeights))
@@ -92,13 +97,13 @@ class Decoder(nn.Module):
             if mode == "sample":
                 # get primitives of correct type
                 nextTokenIdx = nextTokenDist.sample()
-                return nextTokenIdx, 0.0
+                return nextTokenIdx, 0.0, lambdaVars
 
             elif mode == "score":
                 score = nextTokenDist.log_prob(targetTokenIdx)
                 # print("targetTokenIdx: {} () -> {}".format(targetTokenIdx, self.idxToPrimitive[targetTokenIdx.item()], score))
 
-                return targetTokenIdx, score
+                return targetTokenIdx, score, None
 
         parentTokenIdx = torch.tensor([self.primitiveToIdx["START"]], device=self.device)
         parentTokenEmbedding = self.output_token_embeddings(parentTokenIdx)[0, :]
@@ -121,7 +126,12 @@ class Decoder(nn.Module):
                 targetTokenIdx = None
 
             # TODO make compatible with batch
-            nextTokenIdx, score = forwardNextToken(encoderOutput, parentTokenEmbedding, nextTokenType, mode, targetTokenIdx)
+            nextTokenIdx, score, lambdaVars = forwardNextToken(encoderOutput, parentTokenEmbedding, nextTokenType, mode, targetTokenIdx)
+            # if nextTokenIdx == self.primitiveToIdx["LAMBDA_INPUT"] or nextTokenIdx == self.primitiveToIdx["INPUT"]:
+                # print("nextToken", self.idxToPrimitive[nextTokenIdx.item()])
+                # print("lambdaVars", lambdaVars)
+                # print("lambdaVarsTypeStack", lambdaVarsTypeStack)
+
             totalScore += score
             
             programTokenSeq.append(nextTokenIdx)
@@ -134,8 +144,9 @@ class Decoder(nn.Module):
                 programStringsSeq.append("${}".format(len(lambdaVarsTypeStack)))
                 pass
             elif nextToken == "LAMBDA_INPUT":
-                programStringsSeq.append("${}".format(len(lambdaVarsTypeStack) - 1))
-                lambdaVarsTypeStack.pop()
+                # TODO: fix so that we don't deterministically choose the first one
+                programStringsSeq.append("${}".format(lambdaVars[0]))
+                # lambdaVarsTypeStack.pop()
             elif nextToken == "LAMBDA":
                 # assume lambdas are used only with one argument
                 assert len(nextTokenType.functionArguments()) == 1
@@ -145,7 +156,8 @@ class Decoder(nn.Module):
                 # once the stack is this length again it means the lambda function has been synthesized LAMBDA_INPUT
                 # can no longer be used
                 lambdaIndexInStack = len(parentTokenStack)
-                openParenthesisStack.push(len(parentTokenStack))
+                # boolean stores whether this parenthesis corresponds to a lambda which is needed to manage LAMBDA_INPUT score
+                openParenthesisStack.push((len(parentTokenStack), True))
                 # technically the parent token is LAMBDA but that carries no information so we use the grandparent
                 parentTokenStack.push(torch.tensor([self.primitiveToIdx["LAMBDA"]], device=self.device))
                 programStringsSeq.append("(lambda")
@@ -155,7 +167,8 @@ class Decoder(nn.Module):
                     # print("sampled function when desired type is constant -> add function arguments to type stack")
                     programStringsSeq.append("(")
                     # keep track of how many open left parenthesis they are by storing length of the parent token stack when its created
-                    openParenthesisStack.push(len(parentTokenStack))
+                    # boolean stores whether this parenthesis corresponds to a lambda which is needed to manage LAMBDA_INPUT score
+                    openParenthesisStack.push((len(parentTokenStack), False))
                     for arg in sampledToken.tp.functionArguments()[::-1]:
                         nextTokenTypeStack.push(arg)
                         # keep track of parent function for which existing one is an argument
@@ -166,15 +179,20 @@ class Decoder(nn.Module):
             if len(parentTokenStack) <= lambdaIndexInStack:
                 lambdaIndexInStack = float("inf")
 
+
             # the openParenthesisStack will always contain numbers in ascending order
-            while len(openParenthesisStack) > 0 and len(parentTokenStack) <= openParenthesisStack.toPop():
+            while len(openParenthesisStack) > 0 and len(parentTokenStack) <= openParenthesisStack.toPop()[0]:
                 programStringsSeq.append(")")
-                openParenthesisStack.pop()
+                _, isLambda = openParenthesisStack.pop()
+                # if we are closing the scope of a lambda, we want to remove the LAMBDA_INPUT from the scope
+                # poppedLambda ensures we only do this once
+                if parentTokenIdx == self.primitiveToIdx["LAMBDA"] and isLambda:
+                    lambdaVarsTypeStack.pop()
+                    poppedLambda = True
 
             # print("--------------------------------------------------------------------------------")            
             # print("programTokenSeq", [str(self.idxToPrimitive[idx.item()]) for idx in programTokenSeq])
             # print("openParenthesisStack", openParenthesisStack)
-            # print("programStringsSeq", programStringsSeq)
             # print("TypeStack: {}".format(nextTokenTypeStack))
             # print("parentTokenStack: {}".format([self.idxToPrimitive[idx.item()] for idx in parentTokenStack]))
             # print("lambdaIndexInStack: {}\n len(parentTokenStack): {}".format(lambdaIndexInStack, len(parentTokenStack)))
@@ -194,7 +212,7 @@ class Decoder(nn.Module):
 
 def sample_decode(model, tasks, batch_size, n=1000):
 
-    data_loader = DataLoader(tasks, batch_size=batch_size, drop_last=True)
+    data_loader = DataLoader(tasks, batch_size=batch_size, collate_fn =lambda x: collate(x, False), drop_last=True)
     task_to_program_strings = {}
 
     for batch in data_loader:
@@ -205,8 +223,9 @@ def sample_decode(model, tasks, batch_size, n=1000):
         for i in range(batch_size):
             
             task = batch["name"][i]
+            print("------   ----------------------------- task ------------------------------------------------------")
             task_to_program_strings[task] = []
-            print("Decoding task {}".format(task))
+            print("Decoding task {} {}".format(task, i))
 
             # sample n times for each task
             for k in range(n):
@@ -216,6 +235,7 @@ def sample_decode(model, tasks, batch_size, n=1000):
                     continue
                 else:
                     program_string = output[1]
+                    print(program_string)
                     task_to_program_strings[task].append(program_string)
 
     return task_to_program_strings

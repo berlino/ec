@@ -12,6 +12,27 @@ from larc.decoderUtils import program_to_token_sequence
 PAD_VAL = 10
 TOKEN_PAD_VALUE = -1
 MAX_DESC_SEQ_LENGTH = 70
+MAX_NUM_IOS = 3
+
+def collate(x, inlcude_ground_truth_programs):
+
+    def stack_entry(x, name):
+        return torch.stack([x[i][name] for i in range(len(x))])
+
+    # stack all tensors of the same input/output type and the same example index to form batch
+    io_grids_batched = [(torch.stack([x[i]["io_grids"][ex_idx][0] for i in range(len(x))]), torch.stack([x[i]["io_grids"][ex_idx][1] for i in range(len(x))])) 
+        for ex_idx in range(MAX_NUM_IOS)]
+
+    batch_data = {
+                "name": [x[i]["name"] for i in range(len(x))],
+                "io_grids": io_grids_batched,
+                "test_in": stack_entry(x, "test_in"), 
+                "desc_tokens": {key: torch.stack([x[i]["desc_tokens"][key] for i in range(len(x))]) for key in x[0]["desc_tokens"].keys()}}
+
+    if inlcude_ground_truth_programs:
+        batch_data["programs"] = stack_entry(x, "programs")
+
+    return batch_data
 
 def onehot_initialization(a, num_cats):
     """https://stackoverflow.com/questions/36960320/convert-a-2d-matrix-to-a-3d-one-hot-matrix-numpy"""
@@ -166,7 +187,10 @@ class LARC_Cell_Dataset(Dataset):
 
             else:
                 # TODO: Fix to use all programs
-                new_task["programs"] = torch.tensor(new_task["programs"][0], device=device)
+                if len(new_task["programs"]) > 0:
+                    new_task["programs"] = torch.tensor(new_task["programs"][0], device=device)
+                else:
+                    new_task["programs"] = None
 
             # for key, value in new_task.items():
             #    print_device(value)            
@@ -200,10 +224,10 @@ class LARC_Cell_Dataset(Dataset):
         for base_task in self.gen_larc_tasks(tasks_json_path, tasks_subset=tasks_subset):  # {'io_grids': [(input1, output1), (input2, output2)...], 'test': (test_input, test output), 'desc': NL description}
             for task in self.augment_larc_task(base_task):
                 test_in, test_out = task['test']
-                if len(task_to_programs[task['name']]) == 0:
-                    continue
-                else:
-                    yield {'io_grids': task['io_grids'], 'test_in': test_in, 'desc': task['desc'], 'num': task['num'], 'name': task['name'], 'programs': task_to_programs[task['name']]}
+                # if len(task_to_programs[task['name']]) == 0:
+                #     continue
+                # else:
+                yield {'io_grids': task['io_grids'], 'test_in': test_in, 'desc': task['desc'], 'num': task['num'], 'name': task['name'], 'programs': task_to_programs[task['name']]}
 
 
     def gen_larc_pred_tasks(self, tasks_json_path, tasks_subset):

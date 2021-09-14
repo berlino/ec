@@ -8,6 +8,9 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from torchviz import make_dot
 
+import torch
+torch.manual_seed(2)
+
 from dreamcoder.domains.arc.main import retrieveARCJSONTasks
 from dreamcoder.domains.arc.arcPrimitives import basePrimitives, leafPrimitives, moreSpecificPrimitives, tgridin, tgridout
 from dreamcoder.domains.arc.utilsPostProcessing import resume_from_path
@@ -21,8 +24,6 @@ from larc.decoder import *
 from larc.decoderUtils import *
 from larc.encoder import LARCEncoder
 from larc.larcDataset import *
-
-MAX_NUM_IOS = 3
 
 class EncoderDecoder(nn.Module):
     """
@@ -63,20 +64,6 @@ class EncoderDecoder(nn.Module):
             scores[i] = score
         return token_sequences, program_string, scores
 
-def collate(x):
-
-    def stack_entry(x, name):
-        return torch.stack([x[i][name] for i in range(len(x))])
-
-    # stack all tensors of the same input/output type and the same example index to form batch
-    io_grids_batched = [(torch.stack([x[i]["io_grids"][ex_idx][0] for i in range(len(x))]), torch.stack([x[i]["io_grids"][ex_idx][1] for i in range(len(x))])) 
-        for ex_idx in range(MAX_NUM_IOS)]
-
-    return {"io_grids": io_grids_batched,
-            "test_in": stack_entry(x, "test_in"), 
-            "desc_tokens": {key: torch.stack([x[i]["desc_tokens"][key] for i in range(len(x))]) for key in x[0]["desc_tokens"].keys()},
-            "programs": stack_entry(x, "programs")}
-
 def train_imitiation_learning(model, tasks, batch_size, lr, weight_decay, num_epochs):
 
     model.train()
@@ -84,7 +71,7 @@ def train_imitiation_learning(model, tasks, batch_size, lr, weight_decay, num_ep
                                  lr=lr,
                                  weight_decay=weight_decay)
 
-    train_loader = DataLoader(tasks, batch_size=batch_size, collate_fn=collate, drop_last=True)
+    train_loader = DataLoader(tasks, batch_size=batch_size, collate_fn=lambda x: collate(x, True), drop_last=True)
 
     epoch_scores = []
     
@@ -120,7 +107,7 @@ def train_imitiation_learning(model, tasks, batch_size, lr, weight_decay, num_ep
 def main():
 
     use_cuda = False
-    batch_size = 2
+    batch_size = 1
 
     if use_cuda: 
         assert torch.cuda.is_available()
@@ -155,7 +142,12 @@ def main():
  
     # model = train_imitiation_learning(model, dataset, batch_size=batch_size, lr=1e-3, weight_decay=0.0, num_epochs=100)
     model.load_state_dict(torch.load("model.pt")["model_state_dict"])
-    task_to_programs = {task_name : [Program.parse(p) for p in program_strings] for task_name,program_strings in sample_decode(model, dataset, batch_size, n=10).items()}
+    task_to_programs = {task_name : [p for p in program_strings] for task_name,program_strings in sample_decode(model, dataset, batch_size, n=1).items()}
+
+    # for task, programs in task_to_programs.items():
+    #     print(task)
+    #     for p in programs:
+    #         print(p)
     
     # run sampled programs with ocaml
     homeDirectory = "/".join(os.path.abspath(__file__).split("/")[:-4])
@@ -164,7 +156,7 @@ def main():
     # getting actual Task objects instead of just task_name (string)
     train_tasks = [t for t in tasks if t.name in task_to_programs]
     task_to_log_likelihoods = execute_programs(train_tasks, grammar, task_to_programs)
-    for t,log_likelihoods in task_to_log_likelihoods.items():
+    for item in task_to_log_likelihoods:
         print(t, log_likelihoods)
         print("----------------------------------------------------------")
 

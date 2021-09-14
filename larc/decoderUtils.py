@@ -36,7 +36,7 @@ class Stack:
         return self.stack.__str__()
 
     def __iter__(self):
-        for x in self.stack:
+        for x in self.stack[::-1]:
             yield x
 
 def taskMessage(t, task_to_programs):
