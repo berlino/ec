@@ -102,8 +102,8 @@ class Decoder(nn.Module):
 
                 return targetTokenIdx, score, None
 
-            nextToken = self.idxToPrimitive[nextTokenIdx.item()]
-        def processNextToken(self):
+
+        def processNextToken():
             if nextToken == "START":
                 assert Exception("Should never sample START")
             elif nextToken == "INPUT":
@@ -172,7 +172,7 @@ class Decoder(nn.Module):
             # sample next token
             nextTokenIdx, score, lambdaVars = forwardNextToken(encoderOutput, parentTokenEmbedding, nextTokenType, mode, targetTokenIdx)
             nextToken = self.idxToPrimitive[nextTokenIdx.item()]
-            self.processNextToken()
+            processNextToken()
             totalScore += score 
             programTokenSeq.append(nextTokenIdx)
  
