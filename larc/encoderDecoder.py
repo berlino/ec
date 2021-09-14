@@ -104,8 +104,8 @@ def train_imitiation_learning(model, tasks, batch_size, lr, weight_decay, num_ep
 
 def main():
 
-    use_cuda = False
-    batch_size = 1
+    use_cuda = True
+    batch_size = 64
 
     if use_cuda: 
         assert torch.cuda.is_available()
@@ -134,24 +134,24 @@ def main():
     tasks_dir = "data/larc/tasks_json"
     json_file_name = "data/arc/prior_enumeration_frontiers_8hr.json"
     task_to_programs_json = json.load(open(json_file_name, 'r'))
-    task_to_programs_json = {t:programs for t,programs in task_to_programs_json.items() if len(programs) > 0}
     task_to_programs = load_task_to_programs_from_frontiers_json(grammar, token_to_idx, max_program_length=MAX_PROGRAM_LENGTH, task_to_programs_json=task_to_programs_json)
     larc_train_dataset = LARC_Cell_Dataset(tasks_dir, tasks_subset=None, num_ios=MAX_NUM_IOS, resize=(30, 30), task_to_programs=task_to_programs, device=device)
-    dataset = larc_train_dataset[0:4]
+    print("Total train samples: {}".format(len(larc_train_dataset)))
+    dataset = larc_train_dataset
  
     # model = train_imitiation_learning(model, dataset, batch_size=batch_size, lr=1e-3, weight_decay=0.0, num_epochs=100)
     model.load_state_dict(torch.load("model.pt")["model_state_dict"])
-    task_to_programs = {task_name : [p for p in program_strings] for task_name,program_strings in sample_decode(model, dataset, batch_size, n=1).items()}
     
     task_to_programs_sampled = sample_decode(model, dataset, batch_size, n=10)
-
+    print("\nFinished Decoding\n")
+    print("resulting data structure: ", task_to_programs_sampled)
     # run sampled programs with ocaml
     homeDirectory = "/".join(os.path.abspath(__file__).split("/")[:-4])
     dataDirectory = "arc_data/data/"
     tasks = retrieveARCJSONTasks(dataDirectory + 'training', useEvalExamplesForTraining=False, filenames=None)
     # getting actual Task objects instead of just task_name (string)
-    train_tasks = [t for t in tasks if t.name in task_to_programs]
-    task_to_log_likelihoods = execute_programs(train_tasks, grammar, task_to_programs_json)
+    train_tasks = [t for t in tasks if t.name in task_to_programs_sampled]
+    task_to_log_likelihoods = execute_programs(train_tasks, grammar, task_to_programs_sampled)
     for item in task_to_log_likelihoods:
         print(item["task"], item["log_likelihoods"])
         print("----------------------------------------------------------")

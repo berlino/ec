@@ -92,13 +92,18 @@ let load_problems channel =
 
       let task = arc_handler (j |> member "extras") ~timeout:timeout name task_type examples
       in
-      let programs = j |> member "programs" |> to_list |> List.map ~f:(fun p_json -> p_json |> to_string |> parse_program |> get_some) in
+      let programs = j |> member "programs" |> to_list |> List.map ~f:(fun p_json -> 
+         let p = p_json |> to_string in 
+         Printf.eprintf "\n%s" p; flush_everything();
+         let parsed_p = p |> parse_program |> get_some in 
+         parsed_p) in
       (* List.iter ~f:(fun p -> Printf.eprintf "%s " (string_of_program p)) programs; *)
+      Printf.eprintf "\nFinished parsing all programs for task %s" name; flush_everything();
       let log_likelihoods = programs |> List.map ~f:(fun p ->
         try
           task.log_likelihood p
         with
-          | e -> Printf.eprintf "error"; -1.0
+          | _ -> Printf.eprintf "error"; flush_everything(); -1.0
       ) in
       (* List.iter ~f:(fun ll -> Printf.eprintf "%f " ll) log_likelihoods; *)
       (task, programs, log_likelihoods))
@@ -117,10 +122,11 @@ let output_job result =
 
 load_problems Pervasives.stdin |> output_job |> to_channel Pervasives.stdout;;
 
-(*
-let parsing_test_cases() =
-  parsing_test_case "(lambda (blocks_to_min_grid (filter_blocks (find_same_color_blocks $0 true false) (lambda (is_tile $0))) false false))";
-  parsing_test_case "(lambda (to_min_grid (grow (merge_blocks (find_blocks_by_black_b $0 true false) true) 1) false))"
+
+(* let parsing_test_cases() =
+  parsing_test_case "(lambda $0)";
+  parsing_test_case "(lambda (to_original_grid_overlay (grid_to_block $0) true))";
+  parsing_test_case "(lambda ( to_original_grid_overlay ( reflect ( reflect ( grid_to_block $0 ) false ) true ) ( negate_boolean ( negate_boolean ( negate_boolean true ) ) ) ) ";
  in 
 parsing_test_cases();;
 *)

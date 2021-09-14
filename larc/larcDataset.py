@@ -11,7 +11,7 @@ from larc.decoderUtils import program_to_token_sequence
 
 PAD_VAL = 10
 TOKEN_PAD_VALUE = -1
-MAX_DESC_SEQ_LENGTH = 70
+MAX_DESC_SEQ_LENGTH = 300
 MAX_NUM_IOS = 3
 
 def collate(x, inlcude_ground_truth_programs):
@@ -31,7 +31,7 @@ def collate(x, inlcude_ground_truth_programs):
 
     if inlcude_ground_truth_programs:
         batch_data["programs"] = stack_entry(x, "programs")
-
+    
     return batch_data
 
 def onehot_initialization(a, num_cats):
@@ -173,7 +173,7 @@ class LARC_Cell_Dataset(Dataset):
             # tokenize description
             # padding all sequences to max length of MAX_DESC_SEQ_LENGTH tokens to make batching easier
             new_task['desc_tokens'] = {k: torch.tensor(v, device=device) for k, v in tokenizer.encode_plus(larc_pred_task['desc'], 
-                padding='max_length', max_length=MAX_DESC_SEQ_LENGTH ,pad_to_max_length=True).items()}
+                padding='max_length', max_length=MAX_DESC_SEQ_LENGTH, pad_to_max_length=True).items()}
 
             # if we are generating tasks for synthesis model then we don't need x and y positions as input
             if task_to_programs is None:

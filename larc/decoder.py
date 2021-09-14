@@ -186,9 +186,8 @@ class Decoder(nn.Module):
                 _, isLambda = openParenthesisStack.pop()
                 # if we are closing the scope of a lambda, we want to remove the LAMBDA_INPUT from the scope
                 # poppedLambda ensures we only do this once
-                if parentTokenIdx == self.primitiveToIdx["LAMBDA"] and isLambda:
+                if isLambda:
                     lambdaVarsTypeStack.pop()
-                    poppedLambda = True
 
             # print("--------------------------------------------------------------------------------")            
             # print("programTokenSeq", [str(self.idxToPrimitive[idx.item()]) for idx in programTokenSeq])
@@ -223,9 +222,7 @@ def sample_decode(model, tasks, batch_size, n=1000):
         for i in range(batch_size):
             
             task = batch["name"][i]
-            print("------   ----------------------------- task ------------------------------------------------------")
             task_to_program_strings[task] = []
-            print("Decoding task {} {}".format(task, i))
 
             # sample n times for each task
             for k in range(n):
@@ -234,8 +231,8 @@ def sample_decode(model, tasks, batch_size, n=1000):
                 if output is None:
                     continue
                 else:
-                    program_string = output[1]
-                    print(program_string)
+                    # TODO: fix; currently have hack to properly remove space where uncessary (python parser is more flexible than ocaml parser)
+                    program_string = str(Program.parse(output[0]))
                     task_to_program_strings[task].append(program_string)
 
     return task_to_program_strings
