@@ -200,7 +200,7 @@ class LARC_Cell_Dataset(Dataset):
         for base_task in self.gen_larc_tasks(tasks_json_path, tasks_subset=tasks_subset):  # {'io_grids': [(input1, output1), (input2, output2)...], 'test': (test_input, test output), 'desc': NL description}
             for task in self.augment_larc_task(base_task):
                 test_in, test_out = task['test']
-                if len(task_to_programs[task['name']]) == 0:
+                if len(task_to_programs.get(task['name'], [])) == 0:
                     continue
                 else:
                     yield {'io_grids': task['io_grids'], 'test_in': test_in, 'desc': task['desc'], 'num': task['num'], 'name': task['name'], 'programs': task_to_programs[task['name']]}

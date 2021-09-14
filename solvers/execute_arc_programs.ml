@@ -92,7 +92,6 @@ let load_problems channel =
 
       let task = arc_handler (j |> member "extras") ~timeout:timeout name task_type examples
       in
-      (* let log_likelihoods = j |> member "programs" |> to_list |> List.map ~f:(fun p_string -> p_string |> to_string |> parse_program |> get_some |> task.log_likelihood) in *)
       let programs = j |> member "programs" |> to_list |> List.map ~f:(fun p_json -> p_json |> to_string |> parse_program |> get_some) in
       (* List.iter ~f:(fun p -> Printf.eprintf "%s " (string_of_program p)) programs; *)
       let log_likelihoods = programs |> List.map ~f:(fun p ->

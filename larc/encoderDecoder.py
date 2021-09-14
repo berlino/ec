@@ -55,13 +55,11 @@ class EncoderDecoder(nn.Module):
 
         encoderOutputs = self.encoder(io_grids, test_in, desc_tokens)
 
-        token_sequences = []
         scores = torch.empty(self.batch_size, device=self.device)
         for i in range(self.batch_size):
-            token_sequence, program_string, score = self.decoder(encoderOutputs[:, i], mode, targets[i, :])
-            token_sequences.append(token_sequences)
+            program_string, score = self.decoder(encoderOutputs[:, i], mode, targets[i, :])
             scores[i] = score
-        return token_sequences, program_string, scores
+        return program_string, scores
 
 def collate(x):
 
@@ -149,23 +147,25 @@ def main():
     tasks_dir = "data/larc/tasks_json"
     json_file_name = "data/arc/prior_enumeration_frontiers_8hr.json"
     task_to_programs_json = json.load(open(json_file_name, 'r'))
+    task_to_programs_json = {t:programs for t,programs in task_to_programs_json.items() if len(programs) > 0}
     task_to_programs = load_task_to_programs_from_frontiers_json(grammar, token_to_idx, max_program_length=MAX_PROGRAM_LENGTH, task_to_programs_json=task_to_programs_json)
     larc_train_dataset = LARC_Cell_Dataset(tasks_dir, tasks_subset=None, num_ios=MAX_NUM_IOS, resize=(30, 30), task_to_programs=task_to_programs, device=device)
-    dataset = larc_train_dataset[0:8]
+    dataset = larc_train_dataset[0:4]
  
-    # model = train_imitiation_learning(model, dataset, batch_size=batch_size, lr=1e-3, weight_decay=0.0, num_epochs=100)
-    model.load_state_dict(torch.load("model.pt")["model_state_dict"])
-    task_to_programs = {task_name : [Program.parse(p) for p in program_strings] for task_name,program_strings in sample_decode(model, dataset, batch_size, n=10).items()}
+    model = train_imitiation_learning(model, dataset, batch_size=batch_size, lr=1e-3, weight_decay=0.0, num_epochs=2)
+    # model.load_state_dict(torch.load("model.pt")["model_state_dict"])
     
+    task_to_programs_sampled = sample_decode(model, dataset, batch_size, n=10)
+
     # run sampled programs with ocaml
     homeDirectory = "/".join(os.path.abspath(__file__).split("/")[:-4])
     dataDirectory = "arc_data/data/"
     tasks = retrieveARCJSONTasks(dataDirectory + 'training', useEvalExamplesForTraining=False, filenames=None)
     # getting actual Task objects instead of just task_name (string)
     train_tasks = [t for t in tasks if t.name in task_to_programs]
-    task_to_log_likelihoods = execute_programs(train_tasks, grammar, task_to_programs)
-    for t,log_likelihoods in task_to_log_likelihoods.items():
-        print(t, log_likelihoods)
+    task_to_log_likelihoods = execute_programs(train_tasks, grammar, task_to_programs_json)
+    for item in task_to_log_likelihoods:
+        print(item["task"], item["log_likelihoods"])
         print("----------------------------------------------------------")
 
 

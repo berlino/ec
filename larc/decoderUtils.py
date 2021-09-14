@@ -3,6 +3,7 @@ from dreamcoder.program import Program
 from dreamcoder.type import Context
 from dreamcoder.utilities import get_root_dir
 
+import json
 import subprocess
 
 class Stack:
@@ -51,17 +52,20 @@ def taskMessage(t, task_to_programs):
 def execute_programs(tasks, grammar, task_to_programs_json):
 
     message = {
-        "DSL": grammar.json(),
         "tasks": [taskMessage(t, task_to_programs_json) for t in tasks],
-        "programTimeout": 0.001,
+        "programTimeout": 0.1,
     }
+    dumped_message = json.dumps(message)
+    with open('message', 'w') as outfile:
+        json.dump(message, outfile) 
 
     try:
-        solver_file = os.path.join(get_root_dir(), "/solvers/exec_arc_p")
+        solver_file = os.path.join(get_root_dir(), "solvers/exec_arc_p")
+        print("solver_file", solver_file)
         process = subprocess.Popen(
             solver_file, stdin=subprocess.PIPE, stdout=subprocess.PIPE
         )
-        response, error = process.communicate(bytes(message, encoding="utf-8"))
+        response, error = process.communicate(bytes(dumped_message, encoding="utf-8"))
         response = json.loads(response.decode("utf-8"))
         return response
         

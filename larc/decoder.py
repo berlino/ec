@@ -189,7 +189,7 @@ class Decoder(nn.Module):
         # print('--------------------------------------------------------------------------------')
 
         programStringsSeq.append(")")
-        return programTokenSeq, " ".join(programStringsSeq), totalScore
+        return " ".join(programStringsSeq), totalScore
 
 
 def sample_decode(model, tasks, batch_size, n=1000):
@@ -215,8 +215,12 @@ def sample_decode(model, tasks, batch_size, n=1000):
                 if output is None:
                     continue
                 else:
-                    program_string = output[1]
-                    task_to_program_strings[task].append(program_string)
+                    program_string, score = output
+                    try:
+                        Program.parse(program_string)
+                        task_to_program_strings[task].append(program_string)
+                    except:
+                        print("failed to parse: {}".format(program_string))
 
     return task_to_program_strings
 
