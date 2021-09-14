@@ -31,7 +31,7 @@ class Decoder(nn.Module):
 
         if cuda: self.cuda()
         
-    def getKeysMask(self, nextTokenType, lambdaVarsTypeStack, lambdaVarInScope, request):
+    def getKeysMask(self, nextTokenType, lambdaVarsTypeStack, request):
         """
         Given the the type of the next token we want and the stack of variables returns a mask (where we attend over 0s and not over -INF)
         which enforces the type constraints for the next token. 
@@ -68,10 +68,7 @@ class Decoder(nn.Module):
         totalScore = 0.0
         nextTokenTypeStack = Stack()
         lambdaVarsTypeStack = Stack()
-        
         parentTokenStack = Stack()
-
-        lambdaIndexInStack = float("inf")
         
         openParenthesisStack = Stack()
         # openParenthesisStack.push(0)
@@ -86,7 +83,7 @@ class Decoder(nn.Module):
 
             # we only care about attnOutputWeights so values could be anything
             values = keys
-            keys_mask, lambdaVars = self.getKeysMask(nextTokenType, lambdaVarsTypeStack, lambdaIndexInStack <= len(parentTokenStack), self.request)
+            keys_mask, lambdaVars = self.getKeysMask(nextTokenType, lambdaVarsTypeStack, self.request)
             # print('keys mask shape: ', keys_mask.size())
             _, attnOutputWeights = self.token_attention(query, keys, values, key_padding_mask=None, need_weights=True, attn_mask=keys_mask)
             # print("attention_output weights: {}".format(attnOutputWeights))
@@ -105,39 +102,8 @@ class Decoder(nn.Module):
 
                 return targetTokenIdx, score, None
 
-        parentTokenIdx = torch.tensor([self.primitiveToIdx["START"]], device=self.device)
-        parentTokenEmbedding = self.output_token_embeddings(parentTokenIdx)[0, :]
-        nextTokenTypeStack.push(self.request.returns())
-        parentTokenStack.push(parentTokenIdx)
-
-        while len(nextTokenTypeStack) > 0:
-
-            # get type of next token
-            nextTokenType = nextTokenTypeStack.pop()
-            parentTokenIdx = parentTokenStack.pop()
-
-            # sample next token
-            partialProgramEmbedding = self.output_token_embeddings(torch.tensor([parentTokenIdx], device=self.device))
-
-            if mode == "score":
-                # TODO: Make compatible with batching
-                targetTokenIdx = targets[len(programTokenSeq)]
-            else:
-                targetTokenIdx = None
-
-            # TODO make compatible with batch
-            nextTokenIdx, score, lambdaVars = forwardNextToken(encoderOutput, parentTokenEmbedding, nextTokenType, mode, targetTokenIdx)
-            # if nextTokenIdx == self.primitiveToIdx["LAMBDA_INPUT"] or nextTokenIdx == self.primitiveToIdx["INPUT"]:
-                # print("nextToken", self.idxToPrimitive[nextTokenIdx.item()])
-                # print("lambdaVars", lambdaVars)
-                # print("lambdaVarsTypeStack", lambdaVarsTypeStack)
-
-            totalScore += score
-            
-            programTokenSeq.append(nextTokenIdx)
-
             nextToken = self.idxToPrimitive[nextTokenIdx.item()]
-
+        def processNextToken(self):
             if nextToken == "START":
                 assert Exception("Should never sample START")
             elif nextToken == "INPUT":
@@ -153,9 +119,6 @@ class Decoder(nn.Module):
                 for arg in nextTokenType.functionArguments():
                     lambdaVarsTypeStack.push(arg)
                 nextTokenTypeStack.push(nextTokenType.returns())
-                # once the stack is this length again it means the lambda function has been synthesized LAMBDA_INPUT
-                # can no longer be used
-                lambdaIndexInStack = len(parentTokenStack)
                 # boolean stores whether this parenthesis corresponds to a lambda which is needed to manage LAMBDA_INPUT score
                 openParenthesisStack.push((len(parentTokenStack), True))
                 # technically the parent token is LAMBDA but that carries no information so we use the grandparent
@@ -175,11 +138,6 @@ class Decoder(nn.Module):
                         parentTokenStack.push(nextTokenIdx)
                 programStringsSeq.append(str(sampledToken))
 
-            # lambda function was synthesised so can no longer use LAMBDA_INPUT
-            if len(parentTokenStack) <= lambdaIndexInStack:
-                lambdaIndexInStack = float("inf")
-
-
             # the openParenthesisStack will always contain numbers in ascending order
             while len(openParenthesisStack) > 0 and len(parentTokenStack) <= openParenthesisStack.toPop()[0]:
                 programStringsSeq.append(")")
@@ -189,21 +147,44 @@ class Decoder(nn.Module):
                 if isLambda:
                     lambdaVarsTypeStack.pop()
 
-            # print("--------------------------------------------------------------------------------")            
+            return None
+
+        parentTokenIdx = torch.tensor([self.primitiveToIdx["START"]], device=self.device)
+        parentTokenEmbedding = self.output_token_embeddings(parentTokenIdx)[0, :]
+        nextTokenTypeStack.push(self.request.returns())
+        parentTokenStack.push(parentTokenIdx)
+
+        while len(nextTokenTypeStack) > 0:
+
+            # get type of next token
+            nextTokenType = nextTokenTypeStack.pop()
+            # update parent token
+            parentTokenIdx = parentTokenStack.pop()
+            partialProgramEmbedding = self.output_token_embeddings(torch.tensor([parentTokenIdx], device=self.device))
+            
+            # get corresponding target token for scoring
+            if mode == "score":
+                # TODO: Make compatible with batching
+                targetTokenIdx = targets[len(programTokenSeq)]
+            else:
+                targetTokenIdx = None
+
+            # sample next token
+            nextTokenIdx, score, lambdaVars = forwardNextToken(encoderOutput, parentTokenEmbedding, nextTokenType, mode, targetTokenIdx)
+            nextToken = self.idxToPrimitive[nextTokenIdx.item()]
+            self.processNextToken()
+            totalScore += score 
+            programTokenSeq.append(nextTokenIdx)
+ 
             # print("programTokenSeq", [str(self.idxToPrimitive[idx.item()]) for idx in programTokenSeq])
             # print("openParenthesisStack", openParenthesisStack)
             # print("TypeStack: {}".format(nextTokenTypeStack))
             # print("parentTokenStack: {}".format([self.idxToPrimitive[idx.item()] for idx in parentTokenStack]))
-            # print("lambdaIndexInStack: {}\n len(parentTokenStack): {}".format(lambdaIndexInStack, len(parentTokenStack)))
 
-            # program did not terminate within 20 tokens
+            # program did not terminate within the allowed number of tokens
             if len(programTokenSeq) > MAX_PROGRAM_LENGTH:
                 print("---------------- Failed to find program < {} tokens ----------------------------".format(MAX_PROGRAM_LENGTH))
                 return None
-
-        # print('------------------------ Decoded below program ---------------------------------')
-        # print(" ".join([str(self.IdxToPrimitive[idx]) for idx in programTokenSeq]))
-        # print('--------------------------------------------------------------------------------')
 
         programStringsSeq.append(")")
         return " ".join(programStringsSeq), totalScore
