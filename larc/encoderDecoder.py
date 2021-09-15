@@ -106,7 +106,7 @@ def train_imitiation_learning(model, train_dataset, test_dataset, batch_size, lr
 
 
         # Get test set performance
-        if epoch % 1 == 0:
+        if epoch % 5 == 0:
 
             test_score = 0.0
             num_batches = 0
@@ -129,12 +129,6 @@ def train_imitiation_learning(model, train_dataset, test_dataset, batch_size, lr
                     print("Holdout loss stopped decreasing after {} epochs".format(n_epochs_stop))
                     return bestModel, epoch_train_scores, test_scores
 
-    torch.save({
-        'num_epochs': num_epochs,
-        'model_state_dict': model.state_dict(),
-        'optimizer_state_dict': optimizer.state_dict(),
-    }, 'model.pt')
-
     return model, epoch_train_scores, test_scores
 
 def getKfoldSplit(taskNames, trainRatio, k):
@@ -151,7 +145,7 @@ def getKfoldSplit(taskNames, trainRatio, k):
 
 def main():
 
-    use_cuda = False
+    use_cuda = True
     batch_size = 16
 
     if use_cuda: 
@@ -183,36 +177,52 @@ def main():
     task_to_programs_json = json.load(open(json_file_name, 'r'))
     task_to_programs = load_task_to_programs_from_frontiers_json(grammar, token_to_idx, max_program_length=MAX_PROGRAM_LENGTH, task_to_programs_json=task_to_programs_json)
     
-    tasksWithPrograms = [t for t,programs in task_to_programs.items() if len(programs) > 0]
-    trainTaskNames, testTaskNames = next(getKfoldSplit(tasksWithPrograms, 0.8, 5))
+    tasks_with_programs = [t for t,programs in task_to_programs.items() if len(programs) > 0]
+    train_task_names, test_task_names = next(getKfoldSplit(tasks_with_programs, 0.8, 5))
     
-    print(trainTaskNames, len(trainTaskNames))
-    print(testTaskNames, len(testTaskNames))
-
-    larc_train_dataset = LARC_Cell_Dataset(tasks_dir, tasks_subset=trainTaskNames, num_ios=MAX_NUM_IOS, resize=(30, 30), task_to_programs=task_to_programs, device=device)
-    larc_test_dataset = LARC_Cell_Dataset(tasks_dir, tasks_subset=testTaskNames, num_ios=MAX_NUM_IOS, resize=(30, 30), task_to_programs=task_to_programs, device=device)
+    print(train_task_names, len(train_task_names))
+    print(test_task_names, len(test_task_names))
+    """
+    larc_train_dataset = LARC_Cell_Dataset(tasks_dir, tasks_subset=train_task_names, num_ios=MAX_NUM_IOS, resize=(30, 30), for_synthesis=True, task_to_programs=task_to_programs, device=device)
+    larc_test_dataset = LARC_Cell_Dataset(tasks_dir, tasks_subset=test_task_names, num_ios=MAX_NUM_IOS, resize=(30, 30), for_synthesis=True, task_to_programs=task_to_programs, device=device)
 
     print("Total train samples: {}".format(len(larc_train_dataset)))
     print("Total test samples: {}".format(len(larc_test_dataset)))
+    num_epochs = 10000
+    model, train_scores, test_scores = train_imitiation_learning(model, larc_train_dataset, larc_test_dataset, batch_size=batch_size, lr=1e-3, weight_decay=0.0, num_epochs=num_epochs)
 
-    # test_dataset = larc_train_dataset[64:85]
- 
-    model = train_imitiation_learning(model, larc_train_dataset, larc_test_dataset, batch_size=batch_size, lr=1e-3, weight_decay=0.0, num_epochs=3)
-    # model.load_state_dict(torch.load("model.pt")["model_state_dict"])
+    torch.save({
+        'num_epochs': num_epochs,
+        'model_state_dict': model.state_dict(),
+        'train_scores': train_scores,
+        'test_scores': test_scores
+    }, 'model.pt')
+    """
+    saved = torch.load("model.pt")
+    model.load_state_dict(saved["model_state_dict"])
+    train_scores = saved["train_scores"]
+    print(train_scores)
+    test_scores = saved["test_scores"]
+    print(test_scores)
     
-    # task_to_programs_sampled = sample(model, dataset, batch_size, n=1)
-    # print("\nFinished Decoding\n")
-    # print("resulting data structure: ", task_to_programs_sampled)
-    # # run sampled programs with ocaml
-    # homeDirectory = "/".join(os.path.abspath(__file__).split("/")[:-4])
-    # dataDirectory = "arc_data/data/"
-    # tasks = retrieveARCJSONTasks(dataDirectory + 'training', useEvalExamplesForTraining=False, filenames=None)
-    # # getting actual Task objects instead of just task_name (string)
-    # train_tasks = [t for t in tasks if t.name in task_to_programs_sampled]
-    # task_to_log_likelihoods = execute_programs(train_tasks, grammar, task_to_programs_sampled)
-    # for item in task_to_log_likelihoods:
-    #     print(item["task"], item["log_likelihoods"])
-    #     print("----------------------------------------------------------")
+    eval_task_names = [t for t in task_to_programs.keys() if t not in train_task_names]
+    print("eval_task_names", len(eval_task_names))
+    larc_eval_dataset = LARC_Cell_Dataset(tasks_dir, tasks_subset=train_task_names, num_ios=MAX_NUM_IOS, resize=(30, 30), for_synthesis=True, task_to_programs=None, device=device)
+    task_to_programs_sampled = sample(model, larc_eval_dataset, batch_size, n=10)
+    print("\nFinished Decoding\n")
+    print("resulting data structure: ", task_to_programs_sampled)
 
+    """
+    # run sampled programs with ocaml
+    homeDirectory = "/".join(os.path.abspath(__file__).split("/")[:-4])
+    dataDirectory = "arc_data/data/"
+    tasks = retrieveARCJSONTasks(dataDirectory + 'training', useEvalExamplesForTraining=False, filenames=None)
+    # getting actual Task objects instead of just task_name (string)
+    train_tasks = [t for t in tasks if t.name in task_to_programs_sampled]
+    task_to_log_likelihoods = execute_programs(train_tasks, grammar, task_to_programs_sampled)
+    for item in task_to_log_likelihoods:
+        print(item["task"], item["log_likelihoods"])
+        print("----------------------------------------------------------")
+    """
 
 

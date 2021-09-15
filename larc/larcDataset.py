@@ -111,7 +111,7 @@ def load_task_to_programs_from_frontiers_pkl(grammar, request, token_to_idx, pkl
 class LARC_Cell_Dataset(Dataset):
     """dataset for predicting each cell color in LARC dataset."""
 
-    def __init__(self, tasks_json_path, resize=(30,30), num_ios=3, tasks_subset=None, max_tasks=float('inf'), task_to_programs=None, device=torch.device("cpu")):
+    def __init__(self, tasks_json_path, resize=(30,30), num_ios=3, tasks_subset=None, max_tasks=float('inf'), for_synthesis=False, task_to_programs=None, device=torch.device("cpu")):
         """
         Params:
             tasks_json_path: path to folder with task jsons in it
@@ -126,8 +126,8 @@ class LARC_Cell_Dataset(Dataset):
         tasks_subset = set(tasks_subset) if tasks_subset is not None else None    # for O(1) checks
         tokenizer = BertTokenizer.from_pretrained("bert-base-uncased", cache_dir=".cache/")
 
-        task_generator = self.gen_larc_pred_tasks(tasks_json_path, tasks_subset) if task_to_programs is None \
-        else self.gen_larc_synth_tasks(tasks_json_path, tasks_subset, self.task_to_programs)
+        task_generator = self.gen_larc_synth_tasks(tasks_json_path, tasks_subset, self.task_to_programs) if for_synthesis \
+        else self.gen_larc_pred_tasks(tasks_json_path, tasks_subset)
 
         # pad all grids with 0s to make same size
         for i, larc_pred_task in enumerate(task_generator):
@@ -139,21 +139,21 @@ class LARC_Cell_Dataset(Dataset):
             new_task = larc_pred_task.copy()
 
             # if we are generating tasks for synthesis model then we don't need x and y positions as input
-            if task_to_programs is None:
+            if for_synthesis:
+                if task_to_programs is not None:
+                    # TODO: Fix to use all programs
+                    if len(new_task["programs"]) > 0:
+                        new_task["programs"] = torch.tensor(new_task["programs"][0], device=device)
+                    else:
+                        continue
 
+            else:
                 # 1-hot x and y
                 max_x, max_y = 30, 30
                 new_task['x'] = torch.zeros(max_x, device=device)
                 new_task['x'][larc_pred_task['x']] = 1
                 new_task['y'] = torch.zeros(max_y, device=device)
                 new_task['y'][larc_pred_task['y']] = 1
-
-            else:
-                # TODO: Fix to use all programs
-                if len(new_task["programs"]) > 0:
-                    new_task["programs"] = torch.tensor(new_task["programs"][0], device=device)
-                else:
-                    continue
 
             # pad IOs
             new_ios = []
@@ -221,7 +221,10 @@ class LARC_Cell_Dataset(Dataset):
         for base_task in self.gen_larc_tasks(tasks_json_path, tasks_subset=tasks_subset):  # {'io_grids': [(input1, output1), (input2, output2)...], 'test': (test_input, test output), 'desc': NL description}
             for task in self.augment_larc_task(base_task):
                 test_in, test_out = task['test']
-                yield {'io_grids': task['io_grids'], 'test_in': test_in, 'desc': task['desc'], 'num': task['num'], 'name': task['name'], 'programs': task_to_programs[task['name']]}
+                task_dict = {'io_grids': task['io_grids'], 'test_in': test_in, 'desc': task['desc'], 'num': task['num'], 'name': task['name']}
+                if task_to_programs is not None:
+                    task_dict['programs'] = task_to_programs[task['name']]
+                yield task_dict
 
 
     def gen_larc_pred_tasks(self, tasks_json_path, tasks_subset):

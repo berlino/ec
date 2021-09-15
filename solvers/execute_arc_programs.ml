@@ -94,11 +94,11 @@ let load_problems channel =
       in
       let programs = j |> member "programs" |> to_list |> List.map ~f:(fun p_json -> 
          let p = p_json |> to_string in 
-         Printf.eprintf "\n%s" p; flush_everything();
+         (* Printf.eprintf "\n%s" p; flush_everything(); *)
          let parsed_p = p |> parse_program |> get_some in 
          parsed_p) in
       (* List.iter ~f:(fun p -> Printf.eprintf "%s " (string_of_program p)) programs; *)
-      Printf.eprintf "\nFinished parsing all programs for task %s" name; flush_everything();
+      (* Printf.eprintf "\nFinished parsing all programs for task %s" name; flush_everything(); *)
       let log_likelihoods = programs |> List.map ~f:(fun p ->
         try
           task.log_likelihood p
