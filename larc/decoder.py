@@ -61,17 +61,7 @@ class Decoder(nn.Module):
 
         return keys_mask, lambdaVars
 
-    def forward(self, encoderOutput, mode, targets):
-
-        programTokenSeq = [torch.tensor([self.primitiveToIdx["START"]], device=self.device)]
-        programStringsSeq = ["(lambda"]
-        totalScore = 0.0
-        nextTokenTypeStack = Stack()
-        lambdaVarsTypeStack = Stack()
-        parentTokenStack = Stack()
-        
-        openParenthesisStack = Stack()
-        # openParenthesisStack.push(0)
+    def forward(self, mode, targets, programTokenSeq, programStringsSeq, totalScore, nextTokenTypeStack, lambdaVarsTypeStack, parentTokenStack, openParenthesisStack, encoderOutput=None):
 
         def forwardNextToken(encoderOutput, ppEncoding, nextTokenType, mode, targetTokenIdx):
 
@@ -138,6 +128,8 @@ class Decoder(nn.Module):
                         parentTokenStack.push(nextTokenIdx)
                 programStringsSeq.append(str(sampledToken))
 
+            programTokenSeq.append(nextTokenIdx)
+
             # the openParenthesisStack will always contain numbers in ascending order
             while len(openParenthesisStack) > 0 and len(parentTokenStack) <= openParenthesisStack.toPop()[0]:
                 programStringsSeq.append(")")
@@ -149,48 +141,60 @@ class Decoder(nn.Module):
 
             return None
 
-        parentTokenIdx = torch.tensor([self.primitiveToIdx["START"]], device=self.device)
-        parentTokenEmbedding = self.output_token_embeddings(parentTokenIdx)[0, :]
-        nextTokenTypeStack.push(self.request.returns())
-        parentTokenStack.push(parentTokenIdx)
+        # get type of next token
+        nextTokenType = nextTokenTypeStack.pop()
+        # update parent token
+        parentTokenIdx = parentTokenStack.pop()
+        # assumes batch size of 1
+        parentTokenEmbedding = self.output_token_embeddings(torch.tensor([parentTokenIdx], device=self.device))[0, :]
+        # get target token
+        targetTokenIdx = None if mode != "score" else targets[len(programTokenSeq)]
 
-        while len(nextTokenTypeStack) > 0:
+        # sample next token
+        nextTokenIdx, score, lambdaVars = forwardNextToken(encoderOutput, parentTokenEmbedding, nextTokenType, mode, targetTokenIdx)
+        nextToken = self.idxToPrimitive[nextTokenIdx.item()]
+        # update stacks
+        processNextToken()
 
-            # get type of next token
-            nextTokenType = nextTokenTypeStack.pop()
-            # update parent token
-            parentTokenIdx = parentTokenStack.pop()
-            partialProgramEmbedding = self.output_token_embeddings(torch.tensor([parentTokenIdx], device=self.device))
-            
-            # get corresponding target token for scoring
-            if mode == "score":
-                # TODO: Make compatible with batching
-                targetTokenIdx = targets[len(programTokenSeq)]
-            else:
-                targetTokenIdx = None
+        totalScore += score 
 
-            # sample next token
-            nextTokenIdx, score, lambdaVars = forwardNextToken(encoderOutput, parentTokenEmbedding, nextTokenType, mode, targetTokenIdx)
-            nextToken = self.idxToPrimitive[nextTokenIdx.item()]
-            processNextToken()
-            totalScore += score 
-            programTokenSeq.append(nextTokenIdx)
- 
-            # print("programTokenSeq", [str(self.idxToPrimitive[idx.item()]) for idx in programTokenSeq])
-            # print("openParenthesisStack", openParenthesisStack)
-            # print("TypeStack: {}".format(nextTokenTypeStack))
-            # print("parentTokenStack: {}".format([self.idxToPrimitive[idx.item()] for idx in parentTokenStack]))
+        # print("programTokenSeq", [str(self.idxToPrimitive[idx.item()]) for idx in programTokenSeq])
+        # print("openParenthesisStack", openParenthesisStack)
+        # print("TypeStack: {}".format(nextTokenTypeStack))
+        # print("parentTokenStack: {}".format([self.idxToPrimitive[idx.item()] for idx in parentTokenStack]))
 
-            # program did not terminate within the allowed number of tokens
-            if len(programTokenSeq) > MAX_PROGRAM_LENGTH:
-                print("---------------- Failed to find program < {} tokens ----------------------------".format(MAX_PROGRAM_LENGTH))
-                return None
-
-        programStringsSeq.append(")")
-        return " ".join(programStringsSeq), totalScore
+        return programTokenSeq, programStringsSeq, totalScore, nextTokenTypeStack, lambdaVarsTypeStack, parentTokenStack, openParenthesisStack
 
 
-def sample_decode(model, tasks, batch_size, n=1000):
+def sample_decode(decoder, encoderOutputs, mode, targets):
+
+    programTokenSeq = [torch.tensor([decoder.primitiveToIdx["START"]], device=decoder.device)]
+    programStringsSeq = ["(lambda"]
+    parentTokenIdx = torch.tensor([decoder.primitiveToIdx["START"]], device=decoder.device)
+    totalScore = 0.0
+
+    nextTokenTypeStack = Stack()
+    nextTokenTypeStack.push(decoder.request.returns())
+    lambdaVarsTypeStack = Stack()
+    parentTokenStack = Stack()
+    parentTokenStack.push(parentTokenIdx)
+    openParenthesisStack = Stack()
+
+    while len(nextTokenTypeStack) > 0:
+
+        res = decoder.forward(mode, targets, programTokenSeq, programStringsSeq, totalScore, nextTokenTypeStack, lambdaVarsTypeStack, parentTokenStack, openParenthesisStack, encoderOutput=encoderOutputs)
+        programTokenSeq, programStringsSeq, totalScore, nextTokenTypeStack, lambdaVarsTypeStack, parentTokenStack, openParenthesisStack = res
+
+        # program did not terminate within the allowed number of tokens
+        if len(programTokenSeq) > MAX_PROGRAM_LENGTH:
+            print("---------------- Failed to find program < {} tokens ----------------------------".format(MAX_PROGRAM_LENGTH))
+            return None
+
+    programStringsSeq.append(")")
+    return " ".join(programStringsSeq), totalScore
+
+
+def sample(model, tasks, batch_size, n=1000):
 
     data_loader = DataLoader(tasks, batch_size=batch_size, collate_fn =lambda x: collate(x, False), drop_last=True)
     task_to_program_strings = {}
@@ -207,7 +211,7 @@ def sample_decode(model, tasks, batch_size, n=1000):
 
             # sample n times for each task
             for k in range(n):
-                output = model.decoder(encoderOutputs[:, i], "sample", None)
+                output = sample_decode(model.decoder, encoderOutputs[:, i], "sample", None)
                 # if the we reach the MAX_PROGRAM_LENGTH and the program tree still has holes continue
                 if output is None:
                     continue
@@ -218,7 +222,10 @@ def sample_decode(model, tasks, batch_size, n=1000):
 
     return task_to_program_strings
 
-# def beam_search_decode(model, tasks, ba)
+def randomized_beam_search_decode(model, tasks, batch_size, beam_size, random_ratio):
+    """
+    At each step of 
+    """
 
 
     #     task_to_samples[task["name"][0]] = []

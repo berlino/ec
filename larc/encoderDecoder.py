@@ -104,8 +104,8 @@ def train_imitiation_learning(model, tasks, batch_size, lr, weight_decay, num_ep
 
 def main():
 
-    use_cuda = True
-    batch_size = 64
+    use_cuda = False
+    batch_size = 1
 
     if use_cuda: 
         assert torch.cuda.is_available()
@@ -137,12 +137,12 @@ def main():
     task_to_programs = load_task_to_programs_from_frontiers_json(grammar, token_to_idx, max_program_length=MAX_PROGRAM_LENGTH, task_to_programs_json=task_to_programs_json)
     larc_train_dataset = LARC_Cell_Dataset(tasks_dir, tasks_subset=None, num_ios=MAX_NUM_IOS, resize=(30, 30), task_to_programs=task_to_programs, device=device)
     print("Total train samples: {}".format(len(larc_train_dataset)))
-    dataset = larc_train_dataset
+    dataset = larc_train_dataset[0:8]
  
     # model = train_imitiation_learning(model, dataset, batch_size=batch_size, lr=1e-3, weight_decay=0.0, num_epochs=100)
     model.load_state_dict(torch.load("model.pt")["model_state_dict"])
     
-    task_to_programs_sampled = sample_decode(model, dataset, batch_size, n=10)
+    task_to_programs_sampled = sample(model, dataset, batch_size, n=1)
     print("\nFinished Decoding\n")
     print("resulting data structure: ", task_to_programs_sampled)
     # run sampled programs with ocaml
