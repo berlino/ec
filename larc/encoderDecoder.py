@@ -208,10 +208,10 @@ def main():
     eval_task_names = [t for t in task_to_programs.keys() if t not in train_task_names]
     print("eval_task_names", len(eval_task_names))
     larc_eval_dataset = LARC_Cell_Dataset(tasks_dir, tasks_subset=train_task_names, num_ios=MAX_NUM_IOS, resize=(30, 30), for_synthesis=True, task_to_programs=None, device=device)
-    task_to_programs_sampled = sample(model, larc_eval_dataset, batch_size, n=10)
+    task_to_programs_sampled = sample(model, larc_train_dataset, batch_size, n=10)
     print("\nFinished Decoding\n")
     print("resulting data structure: ", task_to_programs_sampled)
-
+    
     """
     # run sampled programs with ocaml
     homeDirectory = "/".join(os.path.abspath(__file__).split("/")[:-4])
