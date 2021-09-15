@@ -7,6 +7,89 @@ from larc.larcDataset import collate
 
 MAX_PROGRAM_LENGTH = 30
 
+class PartialProgram:
+    def __init__(self, 
+        primitiveToIdx,
+        requestReturnType,
+        device, 
+        programTokenSeq=None, 
+        programStringsSeq=None, 
+        nextTokenTypeStack=None, 
+        lambdaVarsTypeStack=None, 
+        openParenthesisStack=None,
+        parentTokenStack=None,
+        totalScore=None):
+
+        if programTokenSeq is None:
+            self.programTokenSeq = [torch.tensor([primitiveToIdx["START"]], device=device)]
+        if programStringsSeq is None: 
+            self.programStringsSeq = ["(lambda"]
+        if totalScore is None:
+            self.totalScore = 0.0
+
+        if nextTokenTypeStack is None:
+            self.nextTokenTypeStack = Stack()
+            self.nextTokenTypeStack.push(requestReturnType)
+        if lambdaVarsTypeStack is None:
+            self.lambdaVarsTypeStack = Stack()
+        if openParenthesisStack is None:
+            self.openParenthesisStack = Stack()
+        if parentTokenStack is None:
+            self.parentTokenStack = Stack()
+            parentTokenIdx = torch.tensor([primitiveToIdx["START"]], device=device)
+            self.parentTokenStack.push(parentTokenIdx)
+
+    def processNextToken(self, nextToken, score, primitiveToIdx, device):
+
+        if nextToken == "START":
+            assert Exception("Should never sample START")
+        elif nextToken == "INPUT":
+            self.programStringsSeq.append("${}".format(len(self.lambdaVarsTypeStack)))
+            pass
+        elif nextToken == "LAMBDA_INPUT":
+            # TODO: fix so that we don't deterministically choose the first one
+            self.programStringsSeq.append("${}".format(self.lambdaVars[0]))
+            # lambdaVarsTypeStack.pop()
+        elif nextToken == "LAMBDA":
+            # assume lambdas are used only with one argument
+            assert len(self.nextTokenType.functionArguments()) == 1
+            for arg in self.nextTokenType.functionArguments():
+                self.lambdaVarsTypeStack.push(arg)
+            self.nextTokenTypeStack.push(self.nextTokenType.returns())
+            # boolean stores whether this parenthesis corresponds to a lambda which is needed to manage LAMBDA_INPUT score
+            self.openParenthesisStack.push((len(self.parentTokenStack), True))
+            # technically the parent token is LAMBDA but that carries no information so we use the grandparent
+            self.parentTokenStack.push(torch.tensor([primitiveToIdx["LAMBDA"]], device=device))
+            self.programStringsSeq.append("(lambda")
+        else:
+            sampledToken = Program.parse(nextToken)
+            if sampledToken.tp.isArrow() and not(self.nextTokenType.isArrow()):
+                # print("sampled function when desired type is constant -> add function arguments to type stack")
+                self.programStringsSeq.append("(")
+                # keep track of how many open left parenthesis they are by storing length of the parent token stack when its created
+                # boolean stores whether this parenthesis corresponds to a lambda which is needed to manage LAMBDA_INPUT score
+                self.openParenthesisStack.push((len(self.parentTokenStack), False))
+                for arg in sampledToken.tp.functionArguments()[::-1]:
+                    self.nextTokenTypeStack.push(arg)
+                    # keep track of parent function for which existing one is an argument
+                    self.parentTokenStack.push(primitiveToIdx[nextToken])
+            self.programStringsSeq.append(str(sampledToken))
+
+        self.programTokenSeq.append(primitiveToIdx[nextToken])
+
+        # the openParenthesisStack will always contain numbers in ascending order
+        while len(self.openParenthesisStack) > 0 and len(self.parentTokenStack) <= self.openParenthesisStack.toPop()[0]:
+            self.programStringsSeq.append(")")
+            _, isLambda = self.openParenthesisStack.pop()
+            # if we are closing the scope of a lambda, we want to remove the LAMBDA_INPUT from the scope
+            # poppedLambda ensures we only do this once
+            if isLambda:
+                self.lambdaVarsTypeStack.pop()
+
+        self.totalScore += score
+
+        return self
+
 class Decoder(nn.Module):
     def __init__(self, embedding_size, batch_size, grammar, request, cuda, device, max_program_length, encoderOutputSize, primitive_to_idx):
         super().__init__()
@@ -61,137 +144,58 @@ class Decoder(nn.Module):
 
         return keys_mask, lambdaVars
 
-    def forward(self, mode, targets, programTokenSeq, programStringsSeq, totalScore, nextTokenTypeStack, lambdaVarsTypeStack, parentTokenStack, openParenthesisStack, encoderOutput=None):
+    # def forward(self, mode, targets, programTokenSeq, programStringsSeq, totalScore, nextTokenTypeStack, lambdaVarsTypeStack, parentTokenStack, openParenthesisStack, encoderOutput=None):
 
-        def forwardNextToken(encoderOutput, ppEncoding, nextTokenType, mode, targetTokenIdx):
-
-            query = torch.cat((encoderOutput,ppEncoding)).reshape(1,1,-1)
-            query = self.linearly_transform_query(query)
-
-            # unsqueeze in 1th dimension corresponds to batch_size=1
-            keys = self.output_token_embeddings.weight.unsqueeze(1)
-
-            # we only care about attnOutputWeights so values could be anything
-            values = keys
-            keys_mask, lambdaVars = self.getKeysMask(nextTokenType, lambdaVarsTypeStack, self.request)
-            # print('keys mask shape: ', keys_mask.size())
-            _, attnOutputWeights = self.token_attention(query, keys, values, key_padding_mask=None, need_weights=True, attn_mask=keys_mask)
-            # print("attention_output weights: {}".format(attnOutputWeights))
-
-            # sample from attention weight distribution enforcing type constraints 
-            nextTokenDist = Categorical(probs=attnOutputWeights)
-            
-            if mode == "sample":
-                # get primitives of correct type
-                nextTokenIdx = nextTokenDist.sample()
-                return nextTokenIdx, 0.0, lambdaVars
-
-            elif mode == "score":
-                score = nextTokenDist.log_prob(targetTokenIdx)
-                # print("targetTokenIdx: {} () -> {}".format(targetTokenIdx, self.idxToPrimitive[targetTokenIdx.item()], score))
-
-                return targetTokenIdx, score, lambdaVars
-
-
-        def processNextToken():
-            if nextToken == "START":
-                assert Exception("Should never sample START")
-            elif nextToken == "INPUT":
-                programStringsSeq.append("${}".format(len(lambdaVarsTypeStack)))
-                pass
-            elif nextToken == "LAMBDA_INPUT":
-                # TODO: fix so that we don't deterministically choose the first one
-                programStringsSeq.append("${}".format(lambdaVars[0]))
-                # lambdaVarsTypeStack.pop()
-            elif nextToken == "LAMBDA":
-                # assume lambdas are used only with one argument
-                assert len(nextTokenType.functionArguments()) == 1
-                for arg in nextTokenType.functionArguments():
-                    lambdaVarsTypeStack.push(arg)
-                nextTokenTypeStack.push(nextTokenType.returns())
-                # boolean stores whether this parenthesis corresponds to a lambda which is needed to manage LAMBDA_INPUT score
-                openParenthesisStack.push((len(parentTokenStack), True))
-                # technically the parent token is LAMBDA but that carries no information so we use the grandparent
-                parentTokenStack.push(torch.tensor([self.primitiveToIdx["LAMBDA"]], device=self.device))
-                programStringsSeq.append("(lambda")
-            else:
-                sampledToken = Program.parse(nextToken)
-                if sampledToken.tp.isArrow() and not(nextTokenType.isArrow()):
-                    # print("sampled function when desired type is constant -> add function arguments to type stack")
-                    programStringsSeq.append("(")
-                    # keep track of how many open left parenthesis they are by storing length of the parent token stack when its created
-                    # boolean stores whether this parenthesis corresponds to a lambda which is needed to manage LAMBDA_INPUT score
-                    openParenthesisStack.push((len(parentTokenStack), False))
-                    for arg in sampledToken.tp.functionArguments()[::-1]:
-                        nextTokenTypeStack.push(arg)
-                        # keep track of parent function for which existing one is an argument
-                        parentTokenStack.push(nextTokenIdx)
-                programStringsSeq.append(str(sampledToken))
-
-            programTokenSeq.append(nextTokenIdx)
-
-            # the openParenthesisStack will always contain numbers in ascending order
-            while len(openParenthesisStack) > 0 and len(parentTokenStack) <= openParenthesisStack.toPop()[0]:
-                programStringsSeq.append(")")
-                _, isLambda = openParenthesisStack.pop()
-                # if we are closing the scope of a lambda, we want to remove the LAMBDA_INPUT from the scope
-                # poppedLambda ensures we only do this once
-                if isLambda:
-                    lambdaVarsTypeStack.pop()
-
-            return None
+    def forward(self, encoderOutput, pp):
 
         # get type of next token
-        nextTokenType = nextTokenTypeStack.pop()
-        # update parent token
-        parentTokenIdx = parentTokenStack.pop()
+        nextTokenType = pp.nextTokenTypeStack.pop()
+
         # assumes batch size of 1
-        parentTokenEmbedding = self.output_token_embeddings(torch.tensor([parentTokenIdx], device=self.device))[0, :]
-        # get target token
-        targetTokenIdx = None if mode != "score" else targets[len(programTokenSeq)]
+        parentTokenEmbedding = self.output_token_embeddings(torch.tensor([pp.parentTokenStack.pop()], device=self.device))[0, :]
+
+        query = torch.cat((encoderOutput, parentTokenEmbedding)).reshape(1,1,-1)
+        query = self.linearly_transform_query(query)
+
+        # unsqueeze in 1th dimension corresponds to batch_size=1
+        keys = self.output_token_embeddings.weight.unsqueeze(1)
+
+        # we only care about attnOutputWeights so values could be anything
+        values = keys
+        keys_mask, lambdaVars = self.getKeysMask(nextTokenType, pp.lambdaVarsTypeStack, self.request)
+        # print('keys mask shape: ', keys_mask.size())
+        _, attnOutputWeights = self.token_attention(query, keys, values, key_padding_mask=None, need_weights=True, attn_mask=keys_mask)
+        # print("attention_output weights: {}".format(attnOutputWeights))
+
+        # update partial program information (now that we know what type next token is)
+        pp.nextTokenType = nextTokenType
+        pp.lambdaVars = lambdaVars
+
+        return attnOutputWeights, pp
+
+
+def sample_decode(decoder, encoderOutput):
+
+    pp = PartialProgram(decoder.primitiveToIdx, decoder.request.returns(), decoder.device)
+
+    while len(pp.nextTokenTypeStack) > 0:
 
         # sample next token
-        nextTokenIdx, score, lambdaVars = forwardNextToken(encoderOutput, parentTokenEmbedding, nextTokenType, mode, targetTokenIdx)
-        nextToken = self.idxToPrimitive[nextTokenIdx.item()]
+        attnOutputWeights, pp = decoder.forward(encoderOutput, pp)
+
+        nextTokenDist = Categorical(probs=attnOutputWeights)
+        nextTokenIdx = nextTokenDist.sample()
+        score = nextTokenDist.log_prob(nextTokenIdx)
+
+        nextToken = decoder.idxToPrimitive[nextTokenIdx.item()]
         # update stacks
-        processNextToken()
-
-        totalScore += score 
-
-        # print("programTokenSeq", [str(self.idxToPrimitive[idx.item()]) for idx in programTokenSeq])
-        # print("openParenthesisStack", openParenthesisStack)
-        # print("TypeStack: {}".format(nextTokenTypeStack))
-        # print("parentTokenStack: {}".format([self.idxToPrimitive[idx.item()] for idx in parentTokenStack]))
-
-        return programTokenSeq, programStringsSeq, totalScore, nextTokenTypeStack, lambdaVarsTypeStack, parentTokenStack, openParenthesisStack
-
-
-def sample_decode(decoder, encoderOutputs, mode, targets):
-
-    programTokenSeq = [torch.tensor([decoder.primitiveToIdx["START"]], device=decoder.device)]
-    programStringsSeq = ["(lambda"]
-    parentTokenIdx = torch.tensor([decoder.primitiveToIdx["START"]], device=decoder.device)
-    totalScore = 0.0
-
-    nextTokenTypeStack = Stack()
-    nextTokenTypeStack.push(decoder.request.returns())
-    lambdaVarsTypeStack = Stack()
-    parentTokenStack = Stack()
-    parentTokenStack.push(parentTokenIdx)
-    openParenthesisStack = Stack()
-
-    while len(nextTokenTypeStack) > 0:
-
-        res = decoder.forward(mode, targets, programTokenSeq, programStringsSeq, totalScore, nextTokenTypeStack, lambdaVarsTypeStack, parentTokenStack, openParenthesisStack, encoderOutput=encoderOutputs)
-        programTokenSeq, programStringsSeq, totalScore, nextTokenTypeStack, lambdaVarsTypeStack, parentTokenStack, openParenthesisStack = res
+        pp.processNextToken(nextToken, score, decoder.primitiveToIdx, decoder.device)
 
         # program did not terminate within the allowed number of tokens
-        if len(programTokenSeq) > MAX_PROGRAM_LENGTH:
+        if len(pp.programTokenSeq) > MAX_PROGRAM_LENGTH:
             print("---------------- Failed to find program < {} tokens ----------------------------".format(MAX_PROGRAM_LENGTH))
             return None
-
-    programStringsSeq.append(")")
-    return " ".join(programStringsSeq), totalScore
+    return pp
 
 
 def sample(model, tasks, batch_size, n=1000):
@@ -211,21 +215,17 @@ def sample(model, tasks, batch_size, n=1000):
 
             # sample n times for each task
             for k in range(n):
-                output = sample_decode(model.decoder, encoderOutputs[:, i], "sample", None)
+                output = sample_decode(model.decoder, encoderOutputs[:, i])
                 # if the we reach the MAX_PROGRAM_LENGTH and the program tree still has holes continue
                 if output is None:
                     continue
                 else:
                     # TODO: fix; currently have hack to properly remove space where uncessary (python parser is more flexible than ocaml parser)
-                    program_string = str(Program.parse(output[0]))
+                    program_string = " ".join(output.programStringsSeq + [")"])
+                    program_string = str(Program.parse(program_string))
                     task_to_program_strings[task].append(program_string)
 
     return task_to_program_strings
-
-def randomized_beam_search_decode(model, tasks, batch_size, beam_size, random_ratio):
-    """
-    At each step of 
-    """
 
 
     #     task_to_samples[task["name"][0]] = []

@@ -197,12 +197,12 @@ def main():
 
     # test_dataset = larc_train_dataset[64:85]
  
-    model = train_imitiation_learning(model, larc_train_dataset, larc_test_dataset, batch_size=batch_size, lr=1e-3, weight_decay=0.0, num_epochs=3)
-    # model.load_state_dict(torch.load("model.pt")["model_state_dict"])
+    # model = train_imitiation_learning(model, larc_train_dataset, larc_test_dataset, batch_size=batch_size, lr=1e-3, weight_decay=0.0, num_epochs=3)
+    model.load_state_dict(torch.load("model.pt")["model_state_dict"])
     
-    # task_to_programs_sampled = sample(model, dataset, batch_size, n=1)
-    # print("\nFinished Decoding\n")
-    # print("resulting data structure: ", task_to_programs_sampled)
+    task_to_programs_sampled = sample(model, larc_train_dataset, batch_size, n=10)
+    print("\nFinished Decoding\n")
+    print("resulting data structure: ", task_to_programs_sampled)
     # # run sampled programs with ocaml
     # homeDirectory = "/".join(os.path.abspath(__file__).split("/")[:-4])
     # dataDirectory = "arc_data/data/"
