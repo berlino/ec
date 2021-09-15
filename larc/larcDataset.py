@@ -138,6 +138,23 @@ class LARC_Cell_Dataset(Dataset):
 
             new_task = larc_pred_task.copy()
 
+            # if we are generating tasks for synthesis model then we don't need x and y positions as input
+            if task_to_programs is None:
+
+                # 1-hot x and y
+                max_x, max_y = 30, 30
+                new_task['x'] = torch.zeros(max_x, device=device)
+                new_task['x'][larc_pred_task['x']] = 1
+                new_task['y'] = torch.zeros(max_y, device=device)
+                new_task['y'][larc_pred_task['y']] = 1
+
+            else:
+                # TODO: Fix to use all programs
+                if len(new_task["programs"]) > 0:
+                    new_task["programs"] = torch.tensor(new_task["programs"][0], device=device)
+                else:
+                    continue
+
             # pad IOs
             new_ios = []
             io_exs = larc_pred_task['io_grids'][:num_ios] if num_ios is not None else larc_pred_task['io_grids']
@@ -174,26 +191,6 @@ class LARC_Cell_Dataset(Dataset):
             # padding all sequences to max length of MAX_DESC_SEQ_LENGTH tokens to make batching easier
             new_task['desc_tokens'] = {k: torch.tensor(v, device=device) for k, v in tokenizer.encode_plus(larc_pred_task['desc'], 
                 padding='max_length', max_length=MAX_DESC_SEQ_LENGTH, pad_to_max_length=True).items()}
-
-            # if we are generating tasks for synthesis model then we don't need x and y positions as input
-            if task_to_programs is None:
-
-                # 1-hot x and y
-                max_x, max_y = 30, 30
-                new_task['x'] = torch.zeros(max_x, device=device)
-                new_task['x'][larc_pred_task['x']] = 1
-                new_task['y'] = torch.zeros(max_y, device=device)
-                new_task['y'][larc_pred_task['y']] = 1
-
-            else:
-                # TODO: Fix to use all programs
-                if len(new_task["programs"]) > 0:
-                    new_task["programs"] = torch.tensor(new_task["programs"][0], device=device)
-                else:
-                    new_task["programs"] = None
-
-            # for key, value in new_task.items():
-            #    print_device(value)            
 
             self.tasks.append(new_task)
 
@@ -257,13 +254,14 @@ class LARC_Cell_Dataset(Dataset):
 
             task_num = int(fname.split('.')[0])
 
-            # if subset specified, ignore tasks not in subset
-            if tasks_subset is not None and task_num not in tasks_subset:
-                continue
-
             with open(os.path.join(task_json_path, fname), 'r') as f:
                 task = json.load(f)
                 io_exs = []
+
+            # if subset specified, ignore tasks not in subset
+            if tasks_subset is not None and not(task["name"] in tasks_subset):
+                continue
+            else:
 
                 # get examples IOs
                 for t in task['train']:

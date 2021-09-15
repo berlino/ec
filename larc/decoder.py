@@ -90,7 +90,7 @@ class Decoder(nn.Module):
                 score = nextTokenDist.log_prob(targetTokenIdx)
                 # print("targetTokenIdx: {} () -> {}".format(targetTokenIdx, self.idxToPrimitive[targetTokenIdx.item()], score))
 
-                return targetTokenIdx, score, None
+                return targetTokenIdx, score, lambdaVars
 
 
         def processNextToken():
