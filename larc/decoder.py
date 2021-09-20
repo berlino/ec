@@ -100,7 +100,7 @@ def sample_decode(decoder, encoderOutput):
 
         nextTokenDist = Categorical(probs=attnOutputWeights)
         nextTokenIdx = nextTokenDist.sample()
-        score = nextTokenDist.log_prob(nextTokenIdx)
+        score = -nextTokenDist.log_prob(nextTokenIdx)
 
         nextToken = decoder.idxToPrimitive[nextTokenIdx.item()]
         # update stacks
@@ -143,7 +143,7 @@ def decode(model, data_loader, batch_size, how="sample", n=10):
                         task_to_program_strings[task].append(program_string)
 # 
             elif how == "randomized_beam_search":
-                beam_search_result = randomized_beam_search_decode(model.decoder, encoderOutputs[:, i], beam_width=10, epsilon=0.3, num_end_nodes=n)
+                beam_search_result = randomized_beam_search_decode(model.decoder, encoderOutputs[:, i], beam_width=10, epsilon=0.1, num_end_nodes=n)
                 for (score, node) in beam_search_result:
                     program_string = " ".join(node.programStringsSeq + [")"])
                     program_string = str(Program.parse(program_string))

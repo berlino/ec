@@ -146,7 +146,7 @@ def getKfoldSplit(taskNames, trainRatio, k):
 def main():
 
     use_cuda = True
-    batch_size = 16
+    batch_size = 1
 
     if use_cuda: 
         assert torch.cuda.is_available()
@@ -180,11 +180,11 @@ def main():
     tasks_with_programs = [t for t,programs in task_to_programs.items() if len(programs) > 0]
     train_task_names, test_task_names = next(getKfoldSplit(tasks_with_programs, 0.8, 5))
     
-    print(trainTaskNames, len(trainTaskNames))
-    print(testTaskNames, len(testTaskNames))
+    print(train_task_names, len(train_task_names))
+    print(test_task_names, len(test_task_names))
 
-    larc_train_dataset = LARC_Cell_Dataset(tasks_dir, tasks_subset=trainTaskNames, num_ios=MAX_NUM_IOS, resize=(30, 30), task_to_programs=task_to_programs, device=device)
-    # larc_test_dataset = LARC_Cell_Dataset(tasks_dir, tasks_subset=testTaskNames, num_ios=MAX_NUM_IOS, resize=(30, 30), task_to_programs=task_to_programs, device=device)
+    larc_train_dataset = LARC_Cell_Dataset(tasks_dir, tasks_subset=train_task_names, num_ios=MAX_NUM_IOS, resize=(30, 30), for_synthesis=True, task_to_programs=task_to_programs, device=device)
+    # larc_test_dataset = LARC_Cell_Dataset(tasks_dir, tasks_subset=test_task_names, num_ios=MAX_NUM_IOS, resize=(30, 30), task_to_programs=task_to_programs, device=device)
 
     print("Total train samples: {}".format(len(larc_train_dataset)))
     # print("Total test samples: {}".format(len(larc_test_dataset)))
@@ -192,8 +192,8 @@ def main():
     # model = train_imitiation_learning(model, larc_train_dataset, larc_test_dataset, batch_size=batch_size, lr=1e-3, weight_decay=0.0, num_epochs=3)
     model.load_state_dict(torch.load("model.pt")["model_state_dict"])
     
-    data_loader = DataLoader(larc_train_dataset, batch_size=batch_size, collate_fn =lambda x: collate(x, False), drop_last=True)
-    task_to_programs_sampled = decode(model, data_loader, batch_size, how="randomized_beam_search", n=2)
+    data_loader = DataLoader(larc_train_dataset[0:5], batch_size=batch_size, collate_fn =lambda x: collate(x, False), drop_last=True)
+    task_to_programs_sampled = decode(model, data_loader, batch_size, how="randomized_beam_search", n=20)
     print("\nFinished Decoding\n")
     print("resulting data structure: ", task_to_programs_sampled)
     
