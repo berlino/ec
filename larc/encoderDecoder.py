@@ -190,29 +190,29 @@ def main():
     print(testTaskNames, len(testTaskNames))
 
     larc_train_dataset = LARC_Cell_Dataset(tasks_dir, tasks_subset=trainTaskNames, num_ios=MAX_NUM_IOS, resize=(30, 30), task_to_programs=task_to_programs, device=device)
-    larc_test_dataset = LARC_Cell_Dataset(tasks_dir, tasks_subset=testTaskNames, num_ios=MAX_NUM_IOS, resize=(30, 30), task_to_programs=task_to_programs, device=device)
+    # larc_test_dataset = LARC_Cell_Dataset(tasks_dir, tasks_subset=testTaskNames, num_ios=MAX_NUM_IOS, resize=(30, 30), task_to_programs=task_to_programs, device=device)
 
     print("Total train samples: {}".format(len(larc_train_dataset)))
-    print("Total test samples: {}".format(len(larc_test_dataset)))
-
-    # test_dataset = larc_train_dataset[64:85]
+    # print("Total test samples: {}".format(len(larc_test_dataset)))
  
     # model = train_imitiation_learning(model, larc_train_dataset, larc_test_dataset, batch_size=batch_size, lr=1e-3, weight_decay=0.0, num_epochs=3)
     model.load_state_dict(torch.load("model.pt")["model_state_dict"])
     
-    task_to_programs_sampled = sample(model, larc_train_dataset, batch_size, n=10)
+    data_loader = DataLoader(larc_train_dataset, batch_size=batch_size, collate_fn =lambda x: collate(x, False), drop_last=True)
+    task_to_programs_sampled = decode(model, data_loader, batch_size, how="randomized_beam_search", n=2)
     print("\nFinished Decoding\n")
     print("resulting data structure: ", task_to_programs_sampled)
-    # # run sampled programs with ocaml
-    # homeDirectory = "/".join(os.path.abspath(__file__).split("/")[:-4])
-    # dataDirectory = "arc_data/data/"
-    # tasks = retrieveARCJSONTasks(dataDirectory + 'training', useEvalExamplesForTraining=False, filenames=None)
-    # # getting actual Task objects instead of just task_name (string)
-    # train_tasks = [t for t in tasks if t.name in task_to_programs_sampled]
-    # task_to_log_likelihoods = execute_programs(train_tasks, grammar, task_to_programs_sampled)
-    # for item in task_to_log_likelihoods:
-    #     print(item["task"], item["log_likelihoods"])
-    #     print("----------------------------------------------------------")
+    
+    # run sampled programs with ocaml
+    homeDirectory = "/".join(os.path.abspath(__file__).split("/")[:-4])
+    dataDirectory = "arc_data/data/"
+    tasks = retrieveARCJSONTasks(dataDirectory + 'training', useEvalExamplesForTraining=False, filenames=None)
+    # getting actual Task objects instead of just task_name (string)
+    train_tasks = [t for t in tasks if t.name in task_to_programs_sampled]
+    task_to_log_likelihoods = execute_programs(train_tasks, grammar, task_to_programs_sampled)
+    for item in task_to_log_likelihoods:
+        print(item["task"], item["log_likelihoods"])
+        print("----------------------------------------------------------")
 
 
 

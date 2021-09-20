@@ -1,3 +1,4 @@
+import copy
 from dreamcoder.domains.arc.utilsPostProcessing import *
 from dreamcoder.program import Program
 from dreamcoder.type import Context
@@ -6,14 +7,115 @@ from dreamcoder.utilities import get_root_dir
 import json
 import subprocess
 
+class PartialProgram:
+    def __init__(self, 
+        primitiveToIdx,
+        requestReturnType,
+        device,
+        programTokenSeq=None, 
+        programStringsSeq=None, 
+        nextTokenTypeStack=None, 
+        lambdaVarsTypeStack=None, 
+        openParenthesisStack=None,
+        parentTokenStack=None,
+        totalScore=None):
+
+        self.primitiveToIdx = primitiveToIdx
+        self.requestReturnType = requestReturnType
+        self.device = device
+
+        if programTokenSeq is None:
+            self.programTokenSeq = [torch.tensor([primitiveToIdx["START"]], device=device)]
+        else:
+            self.programTokenSeq = programTokenSeq
+
+        self.programStringsSeq = ["(lambda"] if programStringsSeq is None else programStringsSeq
+        
+        self.totalScore = 0.0 if totalScore is None else totalScore
+
+        self.nextTokenTypeStack = Stack([requestReturnType]) if nextTokenTypeStack is None else nextTokenTypeStack
+        self.lambdaVarsTypeStack = Stack() if lambdaVarsTypeStack is None else lambdaVarsTypeStack
+        self.openParenthesisStack = Stack() if openParenthesisStack is None else openParenthesisStack
+        if parentTokenStack is None:
+            self.parentTokenStack = Stack([torch.tensor([primitiveToIdx["START"]], device=device)])
+        else:
+            self.parentTokenStack = parentTokenStack
+
+    def __lt__(self, other):
+        return (self.totalScore / len(self.programTokenSeq)) < (other.totalScore / len(other.programTokenSeq))
+
+    def processNextToken(self, nextToken, nextTokenType, score, lambdaVars, primitiveToIdx, device):
+
+        if nextToken == "START":
+            assert Exception("Should never sample START")
+        elif nextToken == "INPUT":
+            self.programStringsSeq.append("${}".format(len(self.lambdaVarsTypeStack)))
+            pass
+        elif nextToken == "LAMBDA_INPUT":
+            # TODO: fix so that we don't deterministically choose the first one
+            self.programStringsSeq.append("${}".format(lambdaVars[0]))
+            # lambdaVarsTypeStack.pop()
+        elif nextToken == "LAMBDA":
+            # assume lambdas are used only with one argument
+            assert len(nextTokenType.functionArguments()) == 1
+            for arg in nextTokenType.functionArguments():
+                self.lambdaVarsTypeStack.push(arg)
+            self.nextTokenTypeStack.push(nextTokenType.returns())
+            # boolean stores whether this parenthesis corresponds to a lambda which is needed to manage LAMBDA_INPUT score
+            self.openParenthesisStack.push((len(self.parentTokenStack), True))
+            # technically the parent token is LAMBDA but that carries no information so we use the grandparent
+            self.parentTokenStack.push(torch.tensor([primitiveToIdx["LAMBDA"]], device=device))
+            self.programStringsSeq.append("(lambda")
+        else:
+            sampledToken = Program.parse(nextToken)
+            if sampledToken.tp.isArrow() and not(nextTokenType.isArrow()):
+                # print("sampled function when desired type is constant -> add function arguments to type stack")
+                self.programStringsSeq.append("(")
+                # keep track of how many open left parenthesis they are by storing length of the parent token stack when its created
+                # boolean stores whether this parenthesis corresponds to a lambda which is needed to manage LAMBDA_INPUT score
+                self.openParenthesisStack.push((len(self.parentTokenStack), False))
+                for arg in sampledToken.tp.functionArguments()[::-1]:
+                    self.nextTokenTypeStack.push(arg)
+                    # keep track of parent function for which existing one is an argument
+                    self.parentTokenStack.push(primitiveToIdx[nextToken])
+            self.programStringsSeq.append(str(sampledToken))
+
+        self.programTokenSeq.append(primitiveToIdx[nextToken])
+
+        # the openParenthesisStack will always contain numbers in ascending order
+        while len(self.openParenthesisStack) > 0 and len(self.parentTokenStack) <= self.openParenthesisStack.toPop()[0]:
+            self.programStringsSeq.append(")")
+            _, isLambda = self.openParenthesisStack.pop()
+            # if we are closing the scope of a lambda, we want to remove the LAMBDA_INPUT from the scope
+            # poppedLambda ensures we only do this once
+            if isLambda:
+                self.lambdaVarsTypeStack.pop()
+
+        self.totalScore += score
+
+        return self
+
+    def copy(self):
+        return PartialProgram( 
+            primitiveToIdx = self.primitiveToIdx,
+            requestReturnType = self.requestReturnType,
+            device = self.device,
+            programTokenSeq = self.programTokenSeq.copy(), 
+            programStringsSeq = self.programStringsSeq.copy(), 
+            nextTokenTypeStack = self.nextTokenTypeStack.copy(), 
+            lambdaVarsTypeStack = self.lambdaVarsTypeStack.copy(), 
+            openParenthesisStack = self.openParenthesisStack.copy(),
+            parentTokenStack = self.parentTokenStack.copy(),
+            totalScore = self.totalScore)
+
 class Stack:
     """
     Stack data structure to enforce type constraints when decoding a program by sequentially sampling
     its primitives
     """
 
-    def __init__(self):
-        self.stack = []
+    def __init__(self, stack=None):
+        self.stack = [] if stack is None else stack
 
     def pop(self):
         return self.stack.pop(-1)
@@ -26,6 +128,10 @@ class Stack:
         if len(self.stack) > 0:
             return self.stack[-1]
         return None
+
+    def copy(self):
+        copiedList = self.stack.copy()
+        return Stack(stack=copiedList)
 
     def __contains__(self, x):
         return x in self.stack
