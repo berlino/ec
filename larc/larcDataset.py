@@ -14,6 +14,15 @@ TOKEN_PAD_VALUE = -1
 MAX_DESC_SEQ_LENGTH = 300
 MAX_NUM_IOS = 3
 
+def normalize_weights(weights, beta):
+    """
+    :param weights: assume each weight is the probability of each program (and not the log probability)
+    :param beta: controls how much to rely on weights, with beta=0 corresponding to uniform distribution and beta=1 corresponding to leaving as is
+    """
+
+    denominator = sum([w**beta for w in weights])
+    return [w / denominator for w in weights]
+
 def collate(x, inlcude_ground_truth_programs):
 
     def stack_entry(x, name):
@@ -30,7 +39,8 @@ def collate(x, inlcude_ground_truth_programs):
                 "desc_tokens": {key: torch.stack([x[i]["desc_tokens"][key] for i in range(len(x))]) for key in x[0]["desc_tokens"].keys()}}
 
     if inlcude_ground_truth_programs:
-        batch_data["programs"] = stack_entry(x, "programs")
+        batch_data["program"] = stack_entry(x, "program")
+        batch_data["program_weight"] = stack_entry(x, "program_weight")
     
     return batch_data
 
@@ -74,13 +84,13 @@ def load_task_to_programs_from_frontiers_json(grammar, token_to_idx, max_program
                 program = Program.parse(program_string)
             except:
                 continue
-
+            # seq
             token_sequence = [token_to_idx[token] for token in program_to_token_sequence(program, grammar)]
             # pad on the right so that all token sequences are the same length
             while len(token_sequence) < max_program_length:
                 token_sequence.append(TOKEN_PAD_VALUE)
-            
-            task_to_programs[task].append(token_sequence)
+            # append token sequence and the score of the program. Default to 1.0 since we want to equallly weight all frontier entries
+            task_to_programs[task].append((token_sequence, 1.0))
     return task_to_programs
 
 
@@ -111,7 +121,7 @@ def load_task_to_programs_from_frontiers_pkl(grammar, request, token_to_idx, pkl
 class LARC_Cell_Dataset(Dataset):
     """dataset for predicting each cell color in LARC dataset."""
 
-    def __init__(self, tasks_json_path, resize=(30,30), num_ios=3, tasks_subset=None, max_tasks=float('inf'), for_synthesis=False, task_to_programs=None, device=torch.device("cpu")):
+    def __init__(self, tasks_json_path, resize=(30,30), num_ios=3, tasks_subset=None, max_tasks=float('inf'), for_synthesis=False, beta=0.0, task_to_programs=None, device=torch.device("cpu")):
         """
         Params:
             tasks_json_path: path to folder with task jsons in it
@@ -126,7 +136,7 @@ class LARC_Cell_Dataset(Dataset):
         tasks_subset = set(tasks_subset) if tasks_subset is not None else None    # for O(1) checks
         tokenizer = BertTokenizer.from_pretrained("bert-base-uncased", cache_dir=".cache/")
 
-        task_generator = self.gen_larc_synth_tasks(tasks_json_path, tasks_subset, self.task_to_programs) if for_synthesis \
+        task_generator = self.gen_larc_synth_tasks(tasks_json_path, tasks_subset, self.task_to_programs, beta=beta) if for_synthesis \
         else self.gen_larc_pred_tasks(tasks_json_path, tasks_subset)
 
         # pad all grids with 0s to make same size
@@ -141,11 +151,8 @@ class LARC_Cell_Dataset(Dataset):
             # if we are generating tasks for synthesis model then we don't need x and y positions as input
             if for_synthesis:
                 if task_to_programs is not None:
-                    # TODO: Fix to use all programs
-                    if len(new_task["programs"]) > 0:
-                        new_task["programs"] = torch.tensor(new_task["programs"][0], device=device)
-                    else:
-                        continue
+                    new_task["program"] = torch.tensor(new_task["program"], device=device)
+                    new_task["program_weight"] = torch.tensor(new_task["program_weight"], device=device)
 
             else:
                 # 1-hot x and y
@@ -211,7 +218,7 @@ class LARC_Cell_Dataset(Dataset):
         """
         yield task
 
-    def gen_larc_synth_tasks(self, tasks_json_path, tasks_subset, task_to_programs):
+    def gen_larc_synth_tasks(self, tasks_json_path, tasks_subset, task_to_programs, beta):
         """
         generate larc tasks to train synthesis model with
         :param tasks_json_path: path to folder with LARC tasks
@@ -223,8 +230,14 @@ class LARC_Cell_Dataset(Dataset):
                 test_in, test_out = task['test']
                 task_dict = {'io_grids': task['io_grids'], 'test_in': test_in, 'desc': task['desc'], 'num': task['num'], 'name': task['name']}
                 if task_to_programs is not None:
-                    task_dict['programs'] = task_to_programs[task['name']]
-                yield task_dict
+                    programs = task_to_programs[task['name']]
+                    weights = normalize_weights([w for program,w in programs], beta)
+                    for i in range(len(programs)):
+                        task_dict['program'] = programs[i][0]
+                        task_dict['program_weight'] = weights[i]
+                        yield task_dict
+                else:
+                    yield task_dict
 
 
     def gen_larc_pred_tasks(self, tasks_json_path, tasks_subset):

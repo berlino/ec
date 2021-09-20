@@ -26,6 +26,7 @@ from larc.decoder import *
 from larc.decoderUtils import *
 from larc.encoder import LARCEncoder
 from larc.larcDataset import *
+from larc.train import getKfoldSplit
 
 class EncoderDecoder(nn.Module):
     """
@@ -64,89 +65,14 @@ class EncoderDecoder(nn.Module):
             scores[i] = score
         return program_string, scores
 
-def train_imitiation_learning(model, train_dataset, test_dataset, batch_size, lr, weight_decay, num_epochs, earlyStopping=True):
-
-    model.train()
-    optimizer = torch.optim.Adam(model.parameters(),
-                                 lr=lr,
-                                 weight_decay=weight_decay)
-
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, collate_fn=lambda x: collate(x, True), drop_last=True)
-    # we use a batch size equal to the test dataset so as not to drop any samples
-    test_batch_size = len(test_dataset)
-    test_loader = DataLoader(test_dataset, batch_size=test_batch_size, collate_fn=lambda x: collate(x, True), drop_last=True)
-
-    epoch_train_scores = []
-    test_scores = []
-
-    n_epochs_stop = 10
-    if earlyStopping:
-        ep = EarlyStopping(patience=10, n_epochs_stop=n_epochs_stop, init_best_val_loss=float('INF'))
-        assert len(test_dataset) > 0
-    
-    # Imitation learning training
-    for epoch in range(num_epochs):
-        
-        epoch_score = 0.0
-
-        for batch in train_loader:
-            # the sequence will always be the ground truth since we run forward in "score" mode
-            token_sequences, scores = model(io_grids=batch["io_grids"], test_in=batch["test_in"], desc_tokens=batch["desc_tokens"], mode="score", targets=batch['programs'])
-            
-            batch_score = - (torch.sum(scores) / batch_size)
-            epoch_score += batch_score
-
-            batch_score.backward()
-            optimizer.step()
-            optimizer.zero_grad()
-
-        epoch_score = epoch_score / len(train_loader)
-        epoch_train_scores.append(epoch_score)
-        print("Training score at epoch {}: {}".format(epoch, epoch_score))
-
-
-        # Get test set performance
-        if epoch % 5 == 0:
-
-            test_score = 0.0
-            num_batches = 0
-            for batch in test_loader:
-                # the sequence will always be the ground truth since we run forward in "score" mode
-                token_sequences, scores = model(io_grids=batch["io_grids"], test_in=batch["test_in"], desc_tokens=batch["desc_tokens"], mode="score", targets=batch['programs'])
-                
-                batch_score = - (torch.sum(scores) / test_batch_size)
-                test_score += batch_score
-                num_batches += 1
-
-            epoch_test_score = test_score / num_batches
-            print("Test score at epoch {}: {}".format(epoch, epoch_test_score))
-            
-            test_scores.append(test_score / num_batches)
-
-            if earlyStopping:
-                shouldStop, bestModel = ep.should_stop(epoch, epoch_test_score, model)
-                if shouldStop:
-                    print("Holdout loss stopped decreasing after {} epochs".format(n_epochs_stop))
-                    return bestModel, epoch_train_scores, test_scores
-
-    return model, epoch_train_scores, test_scores
-
-def getKfoldSplit(taskNames, trainRatio, k):
-    
-    totalNumTasks = len(set(taskNames))
-    numTrain = int(trainRatio * totalNumTasks)
-
-    for i in range(k):
-        trainTaskNames = random.sample(taskNames, numTrain)
-        testTaskNames = list(set(taskNames).difference(trainTaskNames))
-
-        yield trainTaskNames, testTaskNames
-
-
 def main():
 
-    use_cuda = True
+    use_cuda = False
     batch_size = 1
+    lr = 0.001
+    weight_decay = 0.0
+    beta = 0.0
+    epochs_per_experience_replay = 10
 
     if use_cuda: 
         assert torch.cuda.is_available()
@@ -168,45 +94,57 @@ def main():
     token_to_idx.update({str(token):i+num_special_tokens for i,token in enumerate(grammar.primitives)})
     idx_to_token = {idx: token for token,idx in token_to_idx.items()}
 
+    # load model
     request = arrow(tgridin, tgridout)
     model = EncoderDecoder(batch_size=batch_size, grammar=grammar, request=request, cuda=use_cuda, device=device, program_embedding_size=128, program_size=128, primitive_to_idx=token_to_idx)
-
-    # # load dataset
-    tasks_dir = "data/larc/tasks_json"
-    json_file_name = "data/arc/prior_enumeration_frontiers_8hr.json"
-    task_to_programs_json = json.load(open(json_file_name, 'r'))
-    task_to_programs = load_task_to_programs_from_frontiers_json(grammar, token_to_idx, max_program_length=MAX_PROGRAM_LENGTH, task_to_programs_json=task_to_programs_json)
-    
-    tasks_with_programs = [t for t,programs in task_to_programs.items() if len(programs) > 0]
-    train_task_names, test_task_names = next(getKfoldSplit(tasks_with_programs, 0.8, 5))
-    
-    print(train_task_names, len(train_task_names))
-    print(test_task_names, len(test_task_names))
-
-    larc_train_dataset = LARC_Cell_Dataset(tasks_dir, tasks_subset=train_task_names, num_ios=MAX_NUM_IOS, resize=(30, 30), for_synthesis=True, task_to_programs=task_to_programs, device=device)
-    # larc_test_dataset = LARC_Cell_Dataset(tasks_dir, tasks_subset=test_task_names, num_ios=MAX_NUM_IOS, resize=(30, 30), task_to_programs=task_to_programs, device=device)
-
-    print("Total train samples: {}".format(len(larc_train_dataset)))
-    # print("Total test samples: {}".format(len(larc_test_dataset)))
- 
-    # model = train_imitiation_learning(model, larc_train_dataset, larc_test_dataset, batch_size=batch_size, lr=1e-3, weight_decay=0.0, num_epochs=3)
     model.load_state_dict(torch.load("model.pt")["model_state_dict"])
-    
-    data_loader = DataLoader(larc_train_dataset[0:5], batch_size=batch_size, collate_fn =lambda x: collate(x, False), drop_last=True)
-    task_to_programs_sampled = decode(model, data_loader, batch_size, how="randomized_beam_search", n=20)
-    print("\nFinished Decoding\n")
-    print("resulting data structure: ", task_to_programs_sampled)
-    
 
-    # run sampled programs with ocaml
+    # load tasks to check sampled programs against
     homeDirectory = "/".join(os.path.abspath(__file__).split("/")[:-4])
     dataDirectory = "arc_data/data/"
     tasks = retrieveARCJSONTasks(dataDirectory + 'training', useEvalExamplesForTraining=False, filenames=None)
-    # getting actual Task objects instead of just task_name (string)
-    train_tasks = [t for t in tasks if t.name in task_to_programs_sampled]
-    task_to_log_likelihoods = execute_programs(train_tasks, grammar, task_to_programs_sampled)
-    for item in task_to_log_likelihoods:
-        print(item["task"], item["log_likelihoods"])
-        print("----------------------------------------------------------")
+
+    # load already discovered programs
+    tasks_dir = "data/larc/tasks_json"
+    # json_file_name = "data/arc/prior_enumeration_frontiers_8hr.json"
+    # task_to_programs_json = json.load(open(json_file_name, 'r'))
+    # task_to_programs = load_task_to_programs_from_frontiers_json(grammar, token_to_idx, max_program_length=MAX_PROGRAM_LENGTH, task_to_programs_json=task_to_programs_json)
+    # tasks_with_programs = [t for t,programs in task_to_programs.items() if len(programs) > 0]
+    # train_task_names, test_task_names = next(getKfoldSplit(tasks_with_programs, 0.8, 5))
+
+    # load dataset for torch model
+    larc_train_dataset = LARC_Cell_Dataset(tasks_dir, tasks_subset=None, num_ios=MAX_NUM_IOS, resize=(30, 30), for_synthesis=True, 
+        beta=beta, task_to_programs=None, device=device)
+    data_loader = DataLoader(larc_train_dataset[0:1], batch_size=batch_size, collate_fn =lambda x: collate(x, False), drop_last=True)
+
+    for iteration in range(3):
+
+        # decode with randomized beam search
+        task_to_programs_sampled = decode(model, data_loader, batch_size, how="randomized_beam_search", n=20)
+        print("\nFinished Decoding\n")
+
+        # run sampled programs with ocaml
+        train_tasks = [t for t in tasks if t.name in task_to_programs_sampled]
+        task_to_log_likelihoods = execute_programs(train_tasks, grammar, task_to_programs_sampled)
+        for item in task_to_log_likelihoods:
+            print(item["task"], item["log_likelihoods"])
+            print("----------------------------------------------------------")
+
+        # experience replay train with discovered program
+        num_correct_programs = 0
+        task_to_correct_programs = {}
+        for task,nodes in tasks_to_programs_sampled.items():
+            for i,node in enumerate(nodes):
+                if task_to_log_likelihoods[task][i] == 0.0:
+                    res = task_to_correct_programs.get(task, [])
+                    res.append(node)
+                    task_to_correct_programs[task] = res
+                    num_correct_programs += 1
+        
+        if num_correct_programs > 0:
+            print("Found {} correct programs on iteration {}".format(num_correct_programs, iteration))
+            model = train_experience_replay(model, task_to_correct_programs, beta=beta, num_epochs=epochs_per_experience_replay, lr=lr, weight_decay=weight_decay)
+        else:
+            print("No correct programs found on iteration {}".format(iteration))
 
 
