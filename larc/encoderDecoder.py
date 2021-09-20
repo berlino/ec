@@ -106,7 +106,7 @@ def train_imitiation_learning(model, train_dataset, test_dataset, batch_size, lr
 
 
         # Get test set performance
-        if epoch % 1 == 0:
+        if epoch % 5 == 0:
 
             test_score = 0.0
             num_batches = 0
@@ -129,12 +129,6 @@ def train_imitiation_learning(model, train_dataset, test_dataset, batch_size, lr
                     print("Holdout loss stopped decreasing after {} epochs".format(n_epochs_stop))
                     return bestModel, epoch_train_scores, test_scores
 
-    torch.save({
-        'num_epochs': num_epochs,
-        'model_state_dict': model.state_dict(),
-        'optimizer_state_dict': optimizer.state_dict(),
-    }, 'model.pt')
-
     return model, epoch_train_scores, test_scores
 
 def getKfoldSplit(taskNames, trainRatio, k):
@@ -151,7 +145,7 @@ def getKfoldSplit(taskNames, trainRatio, k):
 
 def main():
 
-    use_cuda = False
+    use_cuda = True
     batch_size = 16
 
     if use_cuda: 
@@ -183,8 +177,8 @@ def main():
     task_to_programs_json = json.load(open(json_file_name, 'r'))
     task_to_programs = load_task_to_programs_from_frontiers_json(grammar, token_to_idx, max_program_length=MAX_PROGRAM_LENGTH, task_to_programs_json=task_to_programs_json)
     
-    tasksWithPrograms = [t for t,programs in task_to_programs.items() if len(programs) > 0]
-    trainTaskNames, testTaskNames = next(getKfoldSplit(tasksWithPrograms, 0.8, 5))
+    tasks_with_programs = [t for t,programs in task_to_programs.items() if len(programs) > 0]
+    train_task_names, test_task_names = next(getKfoldSplit(tasks_with_programs, 0.8, 5))
     
     print(trainTaskNames, len(trainTaskNames))
     print(testTaskNames, len(testTaskNames))
@@ -203,6 +197,7 @@ def main():
     print("\nFinished Decoding\n")
     print("resulting data structure: ", task_to_programs_sampled)
     
+
     # run sampled programs with ocaml
     homeDirectory = "/".join(os.path.abspath(__file__).split("/")[:-4])
     dataDirectory = "arc_data/data/"
@@ -213,6 +208,5 @@ def main():
     for item in task_to_log_likelihoods:
         print(item["task"], item["log_likelihoods"])
         print("----------------------------------------------------------")
-
 
 
