@@ -26,7 +26,7 @@ from larc.decoder import *
 from larc.decoderUtils import *
 from larc.encoder import LARCEncoder
 from larc.larcDataset import *
-from larc.train import getKfoldSplit
+from larc.train import *
 
 class EncoderDecoder(nn.Module):
     """
@@ -59,20 +59,25 @@ class EncoderDecoder(nn.Module):
 
         encoderOutputs = self.encoder(io_grids, test_in, desc_tokens)
 
-        scores = torch.empty(self.batch_size, device=self.device)
+        batch_scores = torch.empty(self.batch_size, requires_grad=False, device=self.device)
+        programs = []
         for i in range(self.batch_size):
-            program_string, score = sample_decode(self.decoder, encoderOutputs[:, i], mode, targets[i, :])
-            scores[i] = score
-        return program_string, scores
+            program = decode_single(self.decoder, encoderOutputs[:, i], targets[i, :], mode)
+            batch_scores[i] = program.totalScore
+            programs.append(program)
+        return programs, batch_scores
 
 def main():
 
-    use_cuda = False
+    use_cuda = True
     batch_size = 1
     lr = 0.001
     weight_decay = 0.0
     beta = 0.0
     epochs_per_experience_replay = 10
+    beam_width = 1
+    epsilon = 0.0
+    n = 10
 
     if use_cuda: 
         assert torch.cuda.is_available()
@@ -106,45 +111,50 @@ def main():
 
     # load already discovered programs
     tasks_dir = "data/larc/tasks_json"
-    # json_file_name = "data/arc/prior_enumeration_frontiers_8hr.json"
-    # task_to_programs_json = json.load(open(json_file_name, 'r'))
-    # task_to_programs = load_task_to_programs_from_frontiers_json(grammar, token_to_idx, max_program_length=MAX_PROGRAM_LENGTH, task_to_programs_json=task_to_programs_json)
-    # tasks_with_programs = [t for t,programs in task_to_programs.items() if len(programs) > 0]
-    # train_task_names, test_task_names = next(getKfoldSplit(tasks_with_programs, 0.8, 5))
+    json_file_name = "data/arc/prior_enumeration_frontiers_8hr.json"
+    task_to_programs_json = json.load(open(json_file_name, 'r'))
+    task_to_programs = load_task_to_programs_from_frontiers_json(grammar, token_to_idx, max_program_length=MAX_PROGRAM_LENGTH, task_to_programs_json=task_to_programs_json, device=device)
+    tasks_with_programs = [t for t,programs in task_to_programs.items() if len(programs) > 0]
+    train_task_names, test_task_names = next(getKfoldSplit(tasks_with_programs, 0.8, 5))
 
     # load dataset for torch model
     larc_train_dataset = LARC_Cell_Dataset(tasks_dir, tasks_subset=None, num_ios=MAX_NUM_IOS, resize=(30, 30), for_synthesis=True, 
-        beta=beta, task_to_programs=None, device=device)
-    data_loader = DataLoader(larc_train_dataset[0:1], batch_size=batch_size, collate_fn =lambda x: collate(x, False), drop_last=True)
+        beta=beta, task_to_programs=task_to_programs, device=device)
+    data_loader = DataLoader(larc_train_dataset[0:4], batch_size=batch_size, collate_fn =lambda x: collate(x, True), drop_last=True)
 
-    for iteration in range(3):
+    model, epoch_train_scores, test_scores = train_imitiation_learning(model, data_loader, test_loader=None, batch_size=1, 
+        lr=lr, weight_decay=weight_decay, num_epochs=10, earlyStopping=False)
+ 
+    for iteration in range(2):
 
         # decode with randomized beam search
-        task_to_programs_sampled = decode(model, data_loader, batch_size, how="randomized_beam_search", n=20)
+        task_to_programs_sampled = decode(model, data_loader, batch_size, how="randomized_beam_search", n=n, beam_width=beam_width, epsilon=epsilon)
         print("\nFinished Decoding\n")
 
         # run sampled programs with ocaml
         train_tasks = [t for t in tasks if t.name in task_to_programs_sampled]
         task_to_log_likelihoods = execute_programs(train_tasks, grammar, task_to_programs_sampled)
         for item in task_to_log_likelihoods:
+            print(task_to_programs_sampled[item["task"]])
             print(item["task"], item["log_likelihoods"])
             print("----------------------------------------------------------")
 
         # experience replay train with discovered program
         num_correct_programs = 0
         task_to_correct_programs = {}
-        for task,nodes in tasks_to_programs_sampled.items():
-            for i,node in enumerate(nodes):
-                if task_to_log_likelihoods[task][i] == 0.0:
+        for item in task_to_log_likelihoods:
+            task = item["task"]
+            for i,ll in enumerate(item["log_likelihoods"]):
+                if ll == 0.0:
                     res = task_to_correct_programs.get(task, [])
-                    res.append(node)
+                    programTokenSeq, programWeight = task_to_programs_sampled[task][i][1].programTokenSeq, task_to_programs_sampled[task][i][1].totalScore[0]
+                    res.append((programTokenSeq, programWeight))
                     task_to_correct_programs[task] = res
                     num_correct_programs += 1
         
         if num_correct_programs > 0:
             print("Found {} correct programs on iteration {}".format(num_correct_programs, iteration))
-            model = train_experience_replay(model, task_to_correct_programs, beta=beta, num_epochs=epochs_per_experience_replay, lr=lr, weight_decay=weight_decay)
+            model = train_experience_replay(model, task_to_correct_programs, tasks_dir=tasks_dir, beta=beta, num_epochs=epochs_per_experience_replay, lr=lr, weight_decay=weight_decay, device=device)
         else:
             print("No correct programs found on iteration {}".format(iteration))
-
 

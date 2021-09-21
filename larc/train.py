@@ -1,5 +1,7 @@
 import random
 import torch
+from torch.utils.data import DataLoader
+from larc.larcDataset import *
 
 def train_imitiation_learning(model, train_loader, test_loader, batch_size, lr, weight_decay, num_epochs, earlyStopping=True):
 
@@ -7,7 +9,6 @@ def train_imitiation_learning(model, train_loader, test_loader, batch_size, lr, 
     optimizer = torch.optim.Adam(model.parameters(),
                                  lr=lr,
                                  weight_decay=weight_decay)
-
     epoch_train_scores = []
     test_scores = []
 
@@ -23,15 +24,15 @@ def train_imitiation_learning(model, train_loader, test_loader, batch_size, lr, 
 
         for batch in train_loader:
             # the sequence will always be the ground truth since we run forward in "score" mode
-            token_sequences, scores = model(io_grids=batch["io_grids"], test_in=batch["test_in"], desc_tokens=batch["desc_tokens"], mode="score", targets=batch['program'])
-            
-            weighted_scores = torch.dot(scores, batch["program_weights"])
-            batch_score = - (weighted_scores / batch_size)
+            programs, scores = model(io_grids=batch["io_grids"], test_in=batch["test_in"], desc_tokens=batch["desc_tokens"], mode="score", targets=batch['program'])
+            weighted_scores = torch.dot(scores, batch["program_weight"])
+            batch_score = (weighted_scores / batch_size)
             epoch_score += batch_score
 
             batch_score.backward()
             optimizer.step()
             optimizer.zero_grad()
+            
 
         epoch_score = epoch_score / len(train_loader)
         epoch_train_scores.append(epoch_score)
@@ -47,8 +48,7 @@ def train_imitiation_learning(model, train_loader, test_loader, batch_size, lr, 
             for batch in test_loader:
                 # the sequence will always be the ground truth since we run forward in "score" mode
                 token_sequences, scores = model(io_grids=batch["io_grids"], test_in=batch["test_in"], desc_tokens=batch["desc_tokens"], mode="score", targets=batch['programs'])
-                
-                batch_score = - (torch.sum(scores) / test_batch_size)
+                batch_score = (torch.sum(scores) / test_batch_size)
                 test_score += batch_score
                 num_batches += 1
 
@@ -76,11 +76,11 @@ def getKfoldSplit(taskNames, trainRatio, k):
 
         yield trainTaskNames, testTaskNames
 
-def train_experience_replay(model, task_to_correct_programs, beta, num_epochs, lr, weight_decay):
+def train_experience_replay(model, task_to_correct_programs, tasks_dir, beta, num_epochs, lr, weight_decay, device):
 
     larc_train_dataset = LARC_Cell_Dataset(tasks_dir, tasks_subset=list(task_to_correct_programs.keys()), num_ios=MAX_NUM_IOS, resize=(30, 30), 
-        for_synthesis=True, beta=beta, task_to_programs=task_to_programs, device=device)
-    train_loader = DataLoader(train_dataset, batch_size=1, collate_fn=lambda x: collate(x, True), drop_last=False)
+        for_synthesis=True, beta=beta, task_to_programs=task_to_correct_programs, device=device)
+    train_loader = DataLoader(larc_train_dataset, batch_size=1, collate_fn=lambda x: collate(x, True), drop_last=False)
 
     model, epoch_train_scores, test_scores = train_imitiation_learning(model, train_loader, test_loader=None, batch_size=1, 
         lr=lr, weight_decay=weight_decay, num_epochs=num_epochs, earlyStopping=False)

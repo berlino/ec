@@ -89,7 +89,7 @@ class Decoder(nn.Module):
         return attnOutputWeights, nextTokenType, lambdaVars, pp
 
 
-def sample_decode(decoder, encoderOutput):
+def decode_single(decoder, encoderOutput, targetTokens=None, how="sample"):
 
     pp = PartialProgram(decoder.primitiveToIdx, decoder.request.returns(), decoder.device)
 
@@ -99,9 +99,13 @@ def sample_decode(decoder, encoderOutput):
         attnOutputWeights, nextTokenType, lambdaVars, pp = decoder.forward(encoderOutput, pp)
 
         nextTokenDist = Categorical(probs=attnOutputWeights)
-        nextTokenIdx = nextTokenDist.sample()
-        score = -nextTokenDist.log_prob(nextTokenIdx)
+        
+        if how == "sample":
+            nextTokenIdx = nextTokenDist.sample()
+        elif how == "score":
+            nextTokenIdx = targetTokens[len(pp.programTokenSeq)]
 
+        score = -nextTokenDist.log_prob(nextTokenIdx)
         nextToken = decoder.idxToPrimitive[nextTokenIdx.item()]
         # update stacks
         pp.processNextToken(nextToken, nextTokenType, score, lambdaVars, decoder.primitiveToIdx, decoder.device)
@@ -113,9 +117,9 @@ def sample_decode(decoder, encoderOutput):
     return pp
 
 
-def decode(model, data_loader, batch_size, how="sample", n=10):
+def decode(model, data_loader, batch_size, how="sample", n=10, beam_width=10, epsilon=0.1):
 
-    task_to_program_strings = {}
+    task_to_programs = {}
     for batch in data_loader:
 
         encoderOutputs = model.encoder(batch["io_grids"], batch["test_in"], batch["desc_tokens"])
@@ -124,7 +128,7 @@ def decode(model, data_loader, batch_size, how="sample", n=10):
         for i in range(batch_size):
             
             task = batch["name"][i]
-            task_to_program_strings[task] = []
+            task_to_programs[task] = []
 
             print("---------------------------------- {} ---------------------------------".format(task))
 
@@ -140,16 +144,16 @@ def decode(model, data_loader, batch_size, how="sample", n=10):
                         # TODO: fix; currently have hack to properly remove space where uncessary (python parser is more flexible than ocaml parser)
                         program_string = " ".join(output.programStringsSeq + [")"])
                         program_string = str(Program.parse(program_string))
-                        task_to_program_strings[task].append(program_string)
+                        task_to_programs[task].append((program_string, output))
 # 
             elif how == "randomized_beam_search":
-                beam_search_result = randomized_beam_search_decode(model.decoder, encoderOutputs[:, i], beam_width=10, epsilon=0.1, num_end_nodes=n)
+                beam_search_result = randomized_beam_search_decode(model.decoder, encoderOutputs[:, i], beam_width=beam_width, epsilon=epsilon, num_end_nodes=n)
                 for (score, node) in beam_search_result:
                     program_string = " ".join(node.programStringsSeq + [")"])
                     program_string = str(Program.parse(program_string))
-                    task_to_program_strings[task].append(program_string)
+                    task_to_programs[task].append((program_string, node))
 
-    return task_to_program_strings
+    return task_to_programs
 
 
     #     task_to_samples[task["name"][0]] = []

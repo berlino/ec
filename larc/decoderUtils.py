@@ -31,7 +31,7 @@ class PartialProgram:
 
         self.programStringsSeq = ["(lambda"] if programStringsSeq is None else programStringsSeq
         
-        self.totalScore = 0.0 if totalScore is None else totalScore
+        self.totalScore = 0.0
 
         self.nextTokenTypeStack = Stack([requestReturnType]) if nextTokenTypeStack is None else nextTokenTypeStack
         self.lambdaVarsTypeStack = Stack() if lambdaVarsTypeStack is None else lambdaVarsTypeStack
@@ -42,7 +42,7 @@ class PartialProgram:
             self.parentTokenStack = parentTokenStack
 
     def __lt__(self, other):
-        return (self.totalScore / len(self.programTokenSeq)) < (other.totalScore / len(other.programTokenSeq))
+        return (self.totalScore < other.totalScore)
 
     def processNextToken(self, nextToken, nextTokenType, score, lambdaVars, primitiveToIdx, device):
 
@@ -151,14 +151,14 @@ def taskMessage(t, task_to_programs):
         "examples": [{"inputs": [xs[0].toJson()], "output": y.toJson()} for xs, y in t.examples],
         "name": t.name,
         "request": t.request.json(),
-        "programs": task_to_programs[t.name]
+        "programs": [el[0] for el in task_to_programs[t.name]]
     }
     return m
 
-def execute_programs(tasks, grammar, task_to_programs_json):
+def execute_programs(tasks, grammar, task_to_programs):
 
     message = {
-        "tasks": [taskMessage(t, task_to_programs_json) for t in tasks],
+        "tasks": [taskMessage(t, task_to_programs) for t in tasks],
         "programTimeout": 0.1,
     }
     dumped_message = json.dumps(message)

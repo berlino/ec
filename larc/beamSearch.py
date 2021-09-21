@@ -24,8 +24,13 @@ def randomized_beam_search_decode(decoder, encoderOutput, beam_width, epsilon, n
                  heapq.heappop(nodes)
             else:
                  node = heapq.heappop(nodes)
+            
+            smallest = heapq.nsmallest(5, nodes)
+            #print("smallest")
+            #for n in smallest:
+            #    print("{} -> {}".format(n.programStringsSeq, n.totalScore))
 
-            # print("{} total nodes, Selected node has {} tokens, {} endNodes found".format(len(nodes), len(node.programTokenSeq), len(endNodes)))
+            # print("{} total nodes, Selected node has {} tokens, {} score, {} endNodes found".format(len(nodes), len(node.programTokenSeq), node.totalScore, len(endNodes)))
             # print("Selected node: {}".format(node.programStringsSeq))
             attnOutputWeights, nextTokenType, lambdaVars, node = decoder.forward(encoderOutput, node)
             # print('pp', node.programStringsSeq)
@@ -41,7 +46,8 @@ def randomized_beam_search_decode(decoder, encoderOutput, beam_width, epsilon, n
             for idx in indices:
                 nextToken = decoder.idxToPrimitive[idx.item()]
                 newNode = node.copy()
-                newNode.processNextToken(nextToken, nextTokenType, torch.log(attnOutputWeights[idx]), lambdaVars, decoder.primitiveToIdx, decoder.device)
+                nllScore = -torch.log(attnOutputWeights[idx])
+                newNode.processNextToken(nextToken, nextTokenType, nllScore, lambdaVars, decoder.primitiveToIdx, decoder.device)
 
                 if len(newNode.nextTokenTypeStack) == 0:
                     endNodes.append((newNode.totalScore, newNode))
