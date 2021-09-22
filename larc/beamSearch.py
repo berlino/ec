@@ -14,9 +14,13 @@ def randomized_beam_search_decode(decoder, encoderOutput, beam_width, epsilon, n
     nodes = [PartialProgram(decoder.primitiveToIdx, decoder.request.returns(), decoder.device)]
 
     while True:
-
+        newNodes = []
         for k in range(beam_width):
             # true with probability epsilon and false with probability (1-epsilon)
+            if len(nodes) == 0:
+                 if len(newNodes) == 0:
+                     return endNodes
+                 continue
             if random.random() < epsilon:
                  i = random.randint(0,len(nodes)-1)
                  node = nodes[i]
@@ -25,12 +29,8 @@ def randomized_beam_search_decode(decoder, encoderOutput, beam_width, epsilon, n
             else:
                  node = heapq.heappop(nodes)
             
-            smallest = heapq.nsmallest(5, nodes)
-            #print("smallest")
-            #for n in smallest:
-            #    print("{} -> {}".format(n.programStringsSeq, n.totalScore))
-
-            # print("{} total nodes, Selected node has {} tokens, {} score, {} endNodes found".format(len(nodes), len(node.programTokenSeq), node.totalScore, len(endNodes)))
+            
+            # print("{} total nodes, Selected node has {} tokens, {} score, {} endNodes found".format(len(newNodes), len(node.programTokenSeq), node.totalScore, len(endNodes)))
             # print("Selected node: {}".format(node.programStringsSeq))
             attnOutputWeights, nextTokenType, lambdaVars, node = decoder.forward(encoderOutput, node)
             # print('pp', node.programStringsSeq)
@@ -59,7 +59,8 @@ def randomized_beam_search_decode(decoder, encoderOutput, beam_width, epsilon, n
                 elif len(newNode.programTokenSeq) > MAX_PROGRAM_LENGTH:
                     continue
                 else:
-                    heapq.heappush(nodes, newNode)
+                    heapq.heappush(newNodes, newNode)
+        nodes = newNodes 
     return endNodes
 
 

@@ -130,7 +130,7 @@ def decode(model, data_loader, batch_size, how="sample", n=10, beam_width=10, ep
             task = batch["name"][i]
             task_to_programs[task] = []
 
-            print("---------------------------------- {} ---------------------------------".format(task))
+            print("Decoding task {}".format(task))
 
             if how == "sample":
 
@@ -148,10 +148,13 @@ def decode(model, data_loader, batch_size, how="sample", n=10, beam_width=10, ep
 # 
             elif how == "randomized_beam_search":
                 beam_search_result = randomized_beam_search_decode(model.decoder, encoderOutputs[:, i], beam_width=beam_width, epsilon=epsilon, num_end_nodes=n)
-                for (score, node) in beam_search_result:
-                    program_string = " ".join(node.programStringsSeq + [")"])
-                    program_string = str(Program.parse(program_string))
-                    task_to_programs[task].append((program_string, node))
+                if len(beam_search_result) == 0:
+                    continue
+                else:
+                    for (score, node) in beam_search_result:
+                        program_string = " ".join(node.programStringsSeq + [")"])
+                        program_string = str(Program.parse(program_string))
+                        task_to_programs[task].append((program_string, node))
 
     return task_to_programs
 
