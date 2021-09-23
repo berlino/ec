@@ -2,6 +2,8 @@ from torch.distributions.categorical import Categorical
 import torch.nn as nn
 from torch.utils.data import DataLoader
 
+from dreamcoder.utilities import parallelMap
+
 from larc.beamSearch import randomized_beam_search_decode
 from larc.decoderUtils import *
 from larc.larcDataset import collate
@@ -117,46 +119,75 @@ def decode_single(decoder, encoderOutput, targetTokens=None, how="sample"):
     return pp
 
 
-def decode(model, data_loader, batch_size, how="sample", n=10, beam_width=10, epsilon=0.1):
+def decode(model, dataset, batch_size, how="sample", n=10, beam_width=10, epsilon=0.1, i=None):
 
-    task_to_programs = {}
-    for batch in data_loader:
+    def decode_helper(i, model):
 
-        encoderOutputs = model.encoder(batch["io_grids"], batch["test_in"], batch["desc_tokens"])
+        data_loader = DataLoader(dataset[i:i+1], batch_size=batch_size, collate_fn =lambda x: collate(x, False), drop_last=True)
+        print("loaded data: {}".format(i))
 
-        # iterate through each task in the batch
-        for i in range(batch_size):
-            
-            task = batch["name"][i]
-            task_to_programs[task] = []
+        task_to_programs = {}
 
-            print("Decoding task {}".format(task))
+        for batch in data_loader:
 
-            if how == "sample":
+            encoderOutputs = model.encoder(batch["io_grids"], batch["test_in"], batch["desc_tokens"])
+            print("got encoderOutputs: {}".format(i))
+            # iterate through each task in the batch
+            for i in range(batch_size):
+                
+                task = batch["name"][i]
+                task_to_programs[task] = []
 
-                # sample n times for each task
-                for k in range(n):
-                    output = sample_decode(model.decoder, encoderOutputs[:, i])
-                    # if the we reach the MAX_PROGRAM_LENGTH and the program tree still has holes continue
-                    if output is None:
+                print("Decoding task {}".format(task))
+
+                if how == "sample":
+
+                    # sample n times for each task
+                    for k in range(n):
+                        output = sample_decode(model.decoder, encoderOutputs[:, i])
+                        # if the we reach the MAX_PROGRAM_LENGTH and the program tree still has holes continue
+                        if output is None:
+                            continue
+                        else:
+                            # TODO: fix; currently have hack to properly remove space where uncessary (python parser is more flexible than ocaml parser)
+                            program_string = " ".join(output.programStringsSeq + [")"])
+                            program_string = str(Program.parse(program_string))
+                            task_to_programs[task].append((program_string, output))
+    # 
+                elif how == "randomized_beam_search":
+                    beam_search_result = randomized_beam_search_decode(model.decoder, encoderOutputs[:, i], beam_width=beam_width, epsilon=epsilon, num_end_nodes=n)
+                    if len(beam_search_result) == 0:
                         continue
                     else:
-                        # TODO: fix; currently have hack to properly remove space where uncessary (python parser is more flexible than ocaml parser)
-                        program_string = " ".join(output.programStringsSeq + [")"])
-                        program_string = str(Program.parse(program_string))
-                        task_to_programs[task].append((program_string, output))
-# 
-            elif how == "randomized_beam_search":
-                beam_search_result = randomized_beam_search_decode(model.decoder, encoderOutputs[:, i], beam_width=beam_width, epsilon=epsilon, num_end_nodes=n)
-                if len(beam_search_result) == 0:
-                    continue
-                else:
-                    for (score, node) in beam_search_result:
-                        program_string = " ".join(node.programStringsSeq + [")"])
-                        program_string = str(Program.parse(program_string))
-                        task_to_programs[task].append((program_string, node))
+                        for (score, node) in beam_search_result:
+                            program_string = " ".join(node.programStringsSeq + [")"])
+                            program_string = str(Program.parse(program_string))
+                            task_to_programs[task].append((program_string, node))
+        return task_to_programs
 
-    return task_to_programs
+    import torch.multiprocessing as mp
+
+    processes = []
+    for rank in range(2):
+        p = mp.Process(target=decode_helper, args=(rank, model))
+        p.start()
+        processes.append(p)
+    for p in processes:
+        p.join()
+
+    print(p)
+
+    return
+
+    # task_to_programs_sampled_arr = parallelMap(
+    # 2, 
+    # lambda i: decode_helper(i=i),
+    # range(2))
+
+    # for task_to_programs_sampled in task_to_programs_sampled_arr:
+    #     print(task_to_programs_sampled)
+
+    # return task_to_programs_sampled_arr
 
 
     #     task_to_samples[task["name"][0]] = []

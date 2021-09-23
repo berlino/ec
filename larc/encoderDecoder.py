@@ -20,7 +20,7 @@ from dreamcoder.grammar import Grammar
 from dreamcoder.program import Program
 from dreamcoder.recognition import RecognitionModel
 from dreamcoder.type import arrow
-from dreamcoder.utilities import ParseFailure, EarlyStopping
+from dreamcoder.utilities import ParseFailure, EarlyStopping, parallelMap
 
 from larc.decoder import *
 from larc.decoderUtils import *
@@ -75,9 +75,9 @@ def main():
     weight_decay = 0.0
     beta = 0.0
     epochs_per_experience_replay = 10
-    beam_width = 128
-    epsilon = 0.3
-    n = 128
+    beam_width = 1
+    epsilon = 0.0
+    n = 1
 
     if use_cuda: 
         assert torch.cuda.is_available()
@@ -103,6 +103,8 @@ def main():
     # load model
     request = arrow(tgridin, tgridout)
     model = EncoderDecoder(batch_size=batch_size, grammar=grammar, request=request, cuda=use_cuda, device=device, program_embedding_size=128, program_size=128, primitive_to_idx=token_to_idx)
+    model.share_memory()
+    
     # model.load_state_dict(torch.load("model.pt")["model_state_dict"])
     print("Finished loading model")
 
@@ -121,46 +123,48 @@ def main():
     # load dataset for torch model
     larc_train_dataset = LARC_Cell_Dataset(tasks_dir, tasks_subset=None, num_ios=MAX_NUM_IOS, resize=(30, 30), for_synthesis=True, 
         beta=beta, task_to_programs=None, device=device)
-    print("Finished loading dataset")
-    data_loader = DataLoader(larc_train_dataset, batch_size=batch_size, collate_fn =lambda x: collate(x, False), drop_last=True)
-    print("Finished loading DataLoader")
+    print("Finished loading dataset ({} samples)".format(len(larc_train_dataset))) 
+
+    num_cpus = 2
+    # data_loader = DataLoader(larc_train_dataset[0:4], batch_size=batch_size, collate_fn =lambda x: collate(x, False), drop_last=True)
+    print("Finished loading DataLoaders")
     # imitation learning
     # model, epoch_train_scores, test_scores = train_imitiation_learning(model, data_loader, test_loader=None, batch_size=1, 
     #    lr=lr, weight_decay=weight_decay, num_epochs=10, earlyStopping=False)
  
-    for iteration in range(2):
+    for iteration in range(1):
 
         # decode with randomized beam search
-        task_to_programs_sampled = decode(model, data_loader, batch_size, how="randomized_beam_search", n=n, beam_width=beam_width, epsilon=epsilon)
+        task_to_programs_sampled = decode(model, larc_train_dataset[0:4], batch_size, how="randomized_beam_search", n=n, beam_width=beam_width, epsilon=epsilon)
         print("\nFinished Decoding\n")
 
-        # run sampled programs with ocaml
-        train_tasks = [t for t in tasks if t.name in task_to_programs_sampled]
-        task_to_log_likelihoods = execute_programs(train_tasks, grammar, task_to_programs_sampled)
-        for item in task_to_log_likelihoods:
-            print(task_to_programs_sampled[item["task"]])
-            print(item["task"], item["log_likelihoods"])
-            print("----------------------------------------------------------")
+        # # run sampled programs with ocaml
+        # train_tasks = [t for t in tasks if t.name in task_to_programs_sampled]
+        # task_to_log_likelihoods = execute_programs(train_tasks, grammar, task_to_programs_sampled)
+        # for item in task_to_log_likelihoods:
+        #     print(task_to_programs_sampled[item["task"]])
+        #     print(item["task"], item["log_likelihoods"])
+        #     print("----------------------------------------------------------")
 
-        # experience replay train with discovered program
-        task_to_correct_programs = {}
-        print("Reinforcing below programs:\n")
-        for item in task_to_log_likelihoods:
-            task = item["task"]
-            for i,ll in enumerate(item["log_likelihoods"]):
-                if ll == 0.0:
-                    res = task_to_correct_programs.get(task, [])
-                    program = task_to_programs_sampled[task][i][1]
-                    programTokenSeq, programWeight = program.programTokenSeq, program.totalScore[0]
-                    print("Task {}: {}".format(task, programStringsSeq))
-                    res.append((programTokenSeq, programWeight))
-                    task_to_correct_programs[task] = res
+        # # experience replay train with discovered program
+        # task_to_correct_programs = {}
+        # print("Reinforcing below programs:\n")
+        # for item in task_to_log_likelihoods:
+        #     task = item["task"]
+        #     for i,ll in enumerate(item["log_likelihoods"]):
+        #         if ll == 0.0:
+        #             res = task_to_correct_programs.get(task, [])
+        #             program = task_to_programs_sampled[task][i][1]
+        #             programTokenSeq, programWeight = program.programTokenSeq, program.totalScore[0]
+        #             print("Task {}: {}".format(task, programStringsSeq))
+        #             res.append((programTokenSeq, programWeight))
+        #             task_to_correct_programs[task] = res
         
-        if len(task_to_correct_programs) > 0:
-            model = train_experience_replay(model, task_to_correct_programs, tasks_dir=tasks_dir, beta=beta, num_epochs=epochs_per_experience_replay, lr=lr, weight_decay=weight_decay, device=device)
-            torch.save({
-                'model_state_dict': model.state_dict(),
-            }, 'data/larc/model_{}.pt'.format(iteration))
-        else:
-            print("No correct programs found on iteration {}".format(iteration))
+        # if len(task_to_correct_programs) > 0:
+        #     model = train_experience_replay(model, task_to_correct_programs, tasks_dir=tasks_dir, beta=beta, num_epochs=epochs_per_experience_replay, lr=lr, weight_decay=weight_decay, device=device)
+        #     torch.save({
+        #         'model_state_dict': model.state_dict(),
+        #     }, 'data/larc/model_{}.pt'.format(iteration))
+        # else:
+        #     print("No correct programs found on iteration {}".format(iteration))
 
