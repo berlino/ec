@@ -233,7 +233,7 @@ def parallelMap(numberOfCPUs, f, *xs, chunksize=None, maxtasksperchild=None, mem
     if seedRandom:
         PARALLELBASESEED = random.random()
 
-    from multiprocessing import Pool
+    from torch.multiprocessing import Pool
 
     # Randomize the order in case easier ones come earlier or later
     permutation = list(range(n))

@@ -54,6 +54,7 @@ class LARCEncoder(nn.Module):
 
         # natural language description encoding
         # nl --> 64
+
         self.bert = BertModel.from_pretrained("bert-base-uncased", cache_dir=".cache/")
         self.bert.requires_grad_(False)
         self.bert_resize = nn.Sequential(
@@ -67,6 +68,7 @@ class LARCEncoder(nn.Module):
         self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=6)
 
         if cuda: self.cuda()
+
 
     def forward(self, io_grids, test_in, desc_tokens):
         # run grids through encoders

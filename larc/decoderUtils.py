@@ -95,6 +95,9 @@ class PartialProgram:
 
         return self
 
+    def detach_tensors(self):
+            self.programTokenSeq = self.programTokenSeq.detach()
+
     def copy(self):
         return PartialProgram( 
             primitiveToIdx = self.primitiveToIdx,
