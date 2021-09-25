@@ -68,7 +68,7 @@ def print_device(el):
         print("type of el is: {}".format(type(el)))
     return
 
-def load_task_to_programs_from_frontiers_json(grammar, token_to_idx, max_program_length, task_to_programs_json, device):
+def load_task_to_programs_from_frontiers_json(grammar, token_to_idx, max_program_length, task_to_programs_json, device, token_pad_value):
     """
     Load prior enumeration frontiers and process into dictionary with task names as keys and lists of corresponding programs as values.
     Each program is represented as a list of indicies created used token_to_idx argument. Pads programs so they are all the same length.
@@ -88,7 +88,7 @@ def load_task_to_programs_from_frontiers_json(grammar, token_to_idx, max_program
             token_sequence = [token_to_idx[token] for token in program_to_token_sequence(program, grammar)]
             # pad on the right so that all token sequences are the same length
             while len(token_sequence) < max_program_length:
-                token_sequence.append(TOKEN_PAD_VALUE)
+                token_sequence.append(token_pad_value)
             # append token sequence and the score of the program. Default to 1.0 since we want to equallly weight all frontier entries
             task_to_programs[task].append((token_sequence, torch.tensor(1.0, device=device)))
     return task_to_programs

@@ -98,4 +98,5 @@ class LARCEncoder(nn.Module):
         # aggregate transformers vector outputs into a single vector by taking max operation
         t_out = torch.max(t_out, dim=2).values
 
-        return t_out
+        # new shape is: batch_size x embed_dim
+        return torch.transpose(t_out, 0, 1)

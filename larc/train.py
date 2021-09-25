@@ -7,7 +7,6 @@ def train_imitiation_learning(model, train_loader, test_loader, batch_size, lr, 
 
     print("Training for {} epochs on {} programs".format(num_epochs, len(train_loader)))
     model.train()
-    torch.set_num_threads(40)
     optimizer = torch.optim.Adam(model.parameters(),
                                  lr=lr,
                                  weight_decay=weight_decay)
@@ -28,7 +27,7 @@ def train_imitiation_learning(model, train_loader, test_loader, batch_size, lr, 
 
             print("Epoch: {}, Batch: {}".format(epoch, i))
             # the sequence will always be the ground truth since we run forward in "score" mode
-            programs, scores = model(io_grids=batch["io_grids"], test_in=batch["test_in"], desc_tokens=batch["desc_tokens"], mode="score", targets=batch['program'])
+            scores = model(io_grids=batch["io_grids"], test_in=batch["test_in"], desc_tokens=batch["desc_tokens"], mode="score", targets=batch['program'])
             weighted_scores = torch.dot(scores, batch["program_weight"])
             batch_score = (weighted_scores / batch_size)
             epoch_score += batch_score

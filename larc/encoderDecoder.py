@@ -64,18 +64,22 @@ class EncoderDecoder(nn.Module):
         encoderOutputs = self.encoder(io_grids, test_in, desc_tokens)
         print("encoder Outputs size: {}".format(encoderOutputs.size()))
 
-        batch_scores = torch.empty(encoderOutputs.size(1), requires_grad=False, device=self.device)
-        programs = []
-        for i in range(encoderOutputs.size(1)):
-            program = decode_single(self.decoder, encoderOutputs[:, i], targets[i, :], mode)
-            batch_scores[i] = program.totalScore
-            programs.append(program)
-        return programs, batch_scores
+        batch_scores = decode_score(self.decoder, encoderOutputs, targets, self.device)
+        return batch_scores
+
+
+        # batch_scores = torch.empty(encoderOutputs.size(1), requires_grad=False, device=self.device)
+        # programs = []
+        # for i in range(encoderOutputs.size(1)):
+        #     program = decode_single(self.decoder, encoderOutputs[:, i], targets[i, :], mode)
+        #     batch_scores[i] = program.totalScore
+        #     programs.append(program)
+        # return programs, batch_scores
 
 def main():
 
-    use_cuda = True
-    batch_size = 64
+    use_cuda = False
+    batch_size = 16
     lr = 0.001
     weight_decay = 0.0
     beta = 0.0
@@ -121,7 +125,8 @@ def main():
     tasks_dir = "data/larc/tasks_json"
     json_file_name = "data/arc/prior_enumeration_frontiers_8hr.json"
     task_to_programs_json = json.load(open(json_file_name, 'r'))
-    task_to_programs = load_task_to_programs_from_frontiers_json(grammar, token_to_idx, max_program_length=MAX_PROGRAM_LENGTH, task_to_programs_json=task_to_programs_json, device=device)
+    task_to_programs = load_task_to_programs_from_frontiers_json(grammar, token_to_idx, max_program_length=MAX_PROGRAM_LENGTH, 
+        task_to_programs_json=task_to_programs_json, device=device, token_pad_value=len(idx_to_token))
     print("Loaded task to programs")
 
     # tasks_with_programs = [t for t,programs in task_to_programs.items() if len(programs) > 0]

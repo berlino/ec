@@ -26,9 +26,10 @@ class Decoder(nn.Module):
         # we can't have lambdas within lambdas
         self.primitiveToIdx = primitive_to_idx
         self.idxToPrimitive = {idx: primitive for primitive,idx in self.primitiveToIdx.items()}
+        self.token_pad_value = len(self.idxToPrimitive)
 
-        self.token_attention = nn.MultiheadAttention(self.embedding_size, 1)
-        self.output_token_embeddings = nn.Embedding(len(self.primitiveToIdx), self.embedding_size)
+        self.token_attention = nn.MultiheadAttention(self.embedding_size, 1, batch_first=False)
+        self.output_token_embeddings = nn.Embedding(len(self.primitiveToIdx)+1, self.embedding_size)
 
         self.linearly_transform_query = nn.Linear(self.embedding_size + self.encoderOutputSize, self.embedding_size)
         
@@ -67,31 +68,44 @@ class Decoder(nn.Module):
 
     # def forward(self, mode, targets, programTokenSeq, programStringsSeq, totalScore, nextTokenTypeStack, lambdaVarsTypeStack, parentTokenStack, openParenthesisStack, encoderOutput=None):
 
-    def forward(self, encoderOutput, pp):
+    def forward(self, encoderOutput, pp, parentTokenIdx, restrictTypes=False):
 
-        # get type of next token
-        nextTokenType = pp.nextTokenTypeStack.pop()
+        if restrictTypes:
+            # assumes batch size of 1
+            parentTokenEmbedding = self.output_token_embeddings(torch.tensor([pp.parentTokenStack.pop()], device=self.device))[0, :]
 
-        # assumes batch size of 1
-        parentTokenEmbedding = self.output_token_embeddings(torch.tensor([pp.parentTokenStack.pop()], device=self.device))[0, :]
+            query = torch.cat((encoderOutput, parentTokenEmbedding)).reshape(1,1,-1)
+            query = self.linearly_transform_query(query)
 
-        query = torch.cat((encoderOutput, parentTokenEmbedding)).reshape(1,1,-1)
-        query = self.linearly_transform_query(query)
+            # unsqueeze in 1th dimension corresponds to batch_size=1
+            keys = self.output_token_embeddings.weight.unsqueeze(1)
 
-        # unsqueeze in 1th dimension corresponds to batch_size=1
-        keys = self.output_token_embeddings.weight.unsqueeze(1)
+            # we only care about attnOutputWeights so values could be anything
+            values = keys
+            
+            # get type of next token
+            nextTokenType = pp.nextTokenTypeStack.pop()
+            keys_mask, lambdaVars = self.getKeysMask(nextTokenType, pp.lambdaVarsTypeStack, self.request)
+            # print('keys mask shape: ', keys_mask.size())
+            _, attnOutputWeights = self.token_attention(query, keys, values, key_padding_mask=None, need_weights=True, attn_mask=keys_mask)
+            # print("attention_output weights: {}".format(attnOutputWeights))
 
-        # we only care about attnOutputWeights so values could be anything
-        values = keys
-        keys_mask, lambdaVars = self.getKeysMask(nextTokenType, pp.lambdaVarsTypeStack, self.request)
-        # print('keys mask shape: ', keys_mask.size())
-        _, attnOutputWeights = self.token_attention(query, keys, values, key_padding_mask=None, need_weights=True, attn_mask=keys_mask)
-        # print("attention_output weights: {}".format(attnOutputWeights))
+            return attnOutputWeights, nextTokenType, lambdaVars, pp
 
-        return attnOutputWeights, nextTokenType, lambdaVars, pp
+        else:
+            parentTokenEmbedding = self.output_token_embeddings(parentTokenIdx)
+            
+            query = torch.cat((encoderOutput, parentTokenEmbedding), 1)
+            query = self.linearly_transform_query(query).unsqueeze(0)
+            keys = self.output_token_embeddings.weight.unsqueeze(1).expand(-1, encoderOutput.size(0), -1)
+            values = keys
+
+            _, attnOutputWeights = self.token_attention(query, keys, values, key_padding_mask=None, need_weights=True, attn_mask=None)
+
+            return attnOutputWeights.squeeze()
 
 
-def decode_single(decoder, encoderOutput, targetTokens=None, how="sample"):
+def decode_single(decoder, encoderOutput, targetTokens=None):
 
     pp = PartialProgram(decoder.primitiveToIdx, decoder.request.returns(), decoder.device)
 
@@ -101,11 +115,6 @@ def decode_single(decoder, encoderOutput, targetTokens=None, how="sample"):
         attnOutputWeights, nextTokenType, lambdaVars, pp = decoder.forward(encoderOutput, pp)
 
         nextTokenDist = Categorical(probs=attnOutputWeights)
-        
-        if how == "sample":
-            nextTokenIdx = nextTokenDist.sample()
-        elif how == "score":
-            nextTokenIdx = targetTokens[len(pp.programTokenSeq)]
 
         score = -nextTokenDist.log_prob(nextTokenIdx)
         nextToken = decoder.idxToPrimitive[nextTokenIdx.item()]
@@ -119,7 +128,32 @@ def decode_single(decoder, encoderOutput, targetTokens=None, how="sample"):
     return pp
 
 
-def decode(model, grammar, dataset, tasks, batch_size, how="sample", n=10, beam_width=10, epsilon=0.1):
+def decode_score(decoder, encoderOutput, targetTokens, device):
+    """
+    Args:
+        decoder (torch.nn.Module): torch Decoder
+        encoderOutput (torch.tensor): batch_size x encoder_embed_dim
+        targetTokens (torch.tensor): batch_size x MAX_PROGRAM_SEQ_LENGTH
+    """
+    batch_size = encoderOutput.size(0)
+
+    scores = torch.empty(targetTokens.size(), device=device)
+
+    for i in range(MAX_PROGRAM_LENGTH):
+        # batch_size x num_tokens
+        attnOutputWeights = decoder.forward(encoderOutput, pp=None, parentTokenIdx=targetTokens[:, i], restrictTypes=False)
+        nextTokenDist = Categorical(probs=attnOutputWeights)
+        scores[:, i] = -nextTokenDist.log_prob(targetTokens[:, i])
+
+    # we don't want to take gradient steps on pad token after the program has already been sampled
+    scorePerTaskInBatch = torch.empty(batch_size, device=device)
+    for j in range(batch_size):
+        paddingMask = targetTokens[j, :] != decoder.token_pad_value
+        sampleScore = torch.sum(scores[j, :][paddingMask], axis=0)
+        scorePerTaskInBatch[j] = sampleScore
+    return scorePerTaskInBatch
+
+def decode(model, grammar, dataset, tasks, batch_size, how="sample", n=10, beam_width=10, epsilon=0.1, num_cpus=1):
     
     def decode_helper(core_idx, num_cpus, model):
 
@@ -179,9 +213,11 @@ def decode(model, grammar, dataset, tasks, batch_size, how="sample", n=10, beam_
                 task_to_ll[item["task"]] = item["log_likelihoods"]
                   
             return task_to_ll, task_to_programs
-    
-    num_cpus = 40
+
+
+    # required for torch.multiprocessing to work properly
     torch.set_num_threads(1)
+
     parallel_results = parallelMap(
     num_cpus, 
     lambda i: decode_helper(core_idx=i, num_cpus=num_cpus, model=model),
