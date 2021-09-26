@@ -12,7 +12,7 @@ class LARCEncoder(nn.Module):
         - make LM changeable at initialization
     """
     def __init__(self, cuda, device):
-        super().__init__()
+        super(LARCEncoder, self).__init__()
         
         self.device = device
 

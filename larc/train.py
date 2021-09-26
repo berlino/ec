@@ -5,7 +5,7 @@ from larc.larcDataset import *
 
 def train_imitiation_learning(model, train_loader, test_loader, batch_size, lr, weight_decay, num_epochs, earlyStopping=True):
 
-    print("Training for {} epochs on {} programs".format(num_epochs, len(train_loader)))
+    print("Training for {} epochs on {} batches of size {}".format(num_epochs, len(train_loader), batch_size))
     model.train()
     optimizer = torch.optim.Adam(model.parameters(),
                                  lr=lr,

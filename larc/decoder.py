@@ -13,7 +13,7 @@ MAX_PROGRAM_LENGTH = 30
 
 class Decoder(nn.Module):
     def __init__(self, embedding_size, grammar, request, cuda, device, max_program_length, encoderOutputSize, primitive_to_idx):
-        super().__init__()
+        super(Decoder, self).__init__()
         
         self.embedding_size = embedding_size
         self.grammar = grammar
@@ -29,21 +29,21 @@ class Decoder(nn.Module):
         self.token_pad_value = len(self.idxToPrimitive)
 
         self.token_attention = nn.MultiheadAttention(self.embedding_size, 1, batch_first=False)
-        self.output_token_embeddings = nn.Embedding(len(self.primitiveToIdx)+1, self.embedding_size)
+        self.output_token_embeddings = nn.Embedding(len(self.primitiveToIdx), self.embedding_size)
 
         self.linearly_transform_query = nn.Linear(self.embedding_size + self.encoderOutputSize, self.embedding_size)
         
         if cuda: self.cuda()
 
 
-    def getKeysMask(self, nextTokenType, lambdaVarsTypeStack, request):
+    def getKeysMask(self, nextTokenType, lambdaVarsTypeStack, request, device):
         """
         Given the the type of the next token we want and the stack of variables returns a mask (where we attend over 0s and not over -INF)
         which enforces the type constraints for the next token. 
         """
 
         possibleNextPrimitives = get_primitives_of_type(nextTokenType, self.grammar)
-        keys_mask = torch.full((1,len(self.primitiveToIdx)), -float("Inf"), device=self.device)
+        keys_mask = torch.full((1,len(self.primitiveToIdx)), -float("Inf"), device=device)
         keys_mask[:, [self.primitiveToIdx[p] for p in possibleNextPrimitives]] = 0
 
         # if the next token we need is a function then add creating a lambda abstraction as a possible action to sample.
@@ -66,16 +66,16 @@ class Decoder(nn.Module):
 
         return keys_mask, lambdaVars
 
-    # def forward(self, mode, targets, programTokenSeq, programStringsSeq, totalScore, nextTokenTypeStack, lambdaVarsTypeStack, parentTokenStack, openParenthesisStack, encoderOutput=None):
 
-    def forward(self, encoderOutput, pp, parentTokenIdx, restrictTypes=False):
+    def forward(self, encoderOutput, pp, parentTokenIdx, device, restrictTypes=True):
+        
 
         if restrictTypes:
             # assumes batch size of 1
-            parentTokenEmbedding = self.output_token_embeddings(torch.tensor([pp.parentTokenStack.pop()], device=self.device))[0, :]
-
-            query = torch.cat((encoderOutput, parentTokenEmbedding)).reshape(1,1,-1)
-            query = self.linearly_transform_query(query)
+            parentTokenEmbedding = self.output_token_embeddings(torch.tensor([parentTokenIdx], device=device))[0, :]
+            query = torch.cat((encoderOutput, parentTokenEmbedding), 0)
+            # seq_length x batch_size x embed_dim
+            query = self.linearly_transform_query(query).reshape(1,1,-1)
 
             # unsqueeze in 1th dimension corresponds to batch_size=1
             keys = self.output_token_embeddings.weight.unsqueeze(1)
@@ -85,7 +85,7 @@ class Decoder(nn.Module):
             
             # get type of next token
             nextTokenType = pp.nextTokenTypeStack.pop()
-            keys_mask, lambdaVars = self.getKeysMask(nextTokenType, pp.lambdaVarsTypeStack, self.request)
+            keys_mask, lambdaVars = self.getKeysMask(nextTokenType, pp.lambdaVarsTypeStack, self.request, device)
             # print('keys mask shape: ', keys_mask.size())
             _, attnOutputWeights = self.token_attention(query, keys, values, key_padding_mask=None, need_weights=True, attn_mask=keys_mask)
             # print("attention_output weights: {}".format(attnOutputWeights))
@@ -96,7 +96,9 @@ class Decoder(nn.Module):
             parentTokenEmbedding = self.output_token_embeddings(parentTokenIdx)
             
             query = torch.cat((encoderOutput, parentTokenEmbedding), 1)
+            # seq_length x batch_size x embed_dim
             query = self.linearly_transform_query(query).unsqueeze(0)
+            # seq_length x batch_size x embed dim (where keys are the same for all elements in batch
             keys = self.output_token_embeddings.weight.unsqueeze(1).expand(-1, encoderOutput.size(0), -1)
             values = keys
 
@@ -104,7 +106,7 @@ class Decoder(nn.Module):
 
             return attnOutputWeights.squeeze()
 
-
+# TODO: Delete or fix bugs
 def decode_single(decoder, encoderOutput, targetTokens=None):
 
     pp = PartialProgram(decoder.primitiveToIdx, decoder.request.returns(), decoder.device)
@@ -127,7 +129,6 @@ def decode_single(decoder, encoderOutput, targetTokens=None):
             return None
     return pp
 
-
 def decode_score(decoder, encoderOutput, targetTokens, device):
     """
     Args:
@@ -141,7 +142,7 @@ def decode_score(decoder, encoderOutput, targetTokens, device):
 
     for i in range(MAX_PROGRAM_LENGTH):
         # batch_size x num_tokens
-        attnOutputWeights = decoder.forward(encoderOutput, pp=None, parentTokenIdx=targetTokens[:, i], restrictTypes=False)
+        attnOutputWeights = decoder.forward(encoderOutput, pp=None, parentTokenIdx=targetTokens[:, i], restrictTypes=False, device=device)
         nextTokenDist = Categorical(probs=attnOutputWeights)
         scores[:, i] = -nextTokenDist.log_prob(targetTokens[:, i])
 
@@ -153,9 +154,15 @@ def decode_score(decoder, encoderOutput, targetTokens, device):
         scorePerTaskInBatch[j] = sampleScore
     return scorePerTaskInBatch
 
-def decode(model, grammar, dataset, tasks, batch_size, how="sample", n=10, beam_width=10, epsilon=0.1, num_cpus=1):
+def multicore_decode(model, grammar, dataset, tasks, batch_size, how="sample", n=10, beam_width=10, epsilon=0.1, num_cpus=1):
     
     def decode_helper(core_idx, num_cpus, model):
+        """
+        Returns:
+             task_to_ll (dict): dictionary with entries (task_name, list of log_likelihoods) e.g. ("3459335.json", [0.0, -float("inf")])
+             task_to_programs (dict): dictionary entries (task_name, list of program tuples) e.g. ("3459335.json", [("to_min_grid (...))", PartialProgram), ("to_original_grid_overlay(...)", PartialProgram)]
+             
+        """
 
         # required for torch.multiprocessing to work properly
         torch.set_num_threads(1)
@@ -170,7 +177,8 @@ def decode(model, grammar, dataset, tasks, batch_size, how="sample", n=10, beam_
             task_to_programs = {}
 
             for batch in data_loader:
-
+                
+                # batch_size x embed_dim
                 encoderOutputs = model.encoder(batch["io_grids"], batch["test_in"], batch["desc_tokens"])
                 print("got encoderOutputs (core idx {})".format(core_idx))
                 # iterate through each task in the batch
@@ -185,7 +193,7 @@ def decode(model, grammar, dataset, tasks, batch_size, how="sample", n=10, beam_
 
                         # sample n times for each task
                         for k in range(n):
-                            output = sample_decode(model.decoder, encoderOutputs[:, i])
+                            output = sample_decode(model.decoder, encoderOutputs[i, :])
                             # if the we reach the MAX_PROGRAM_LENGTH and the program tree still has holes continue
                             if output is None:
                                 continue
@@ -196,7 +204,7 @@ def decode(model, grammar, dataset, tasks, batch_size, how="sample", n=10, beam_
                                 task_to_programs[task].append((program_string, output))
     # 
                     elif how == "randomized_beam_search":
-                        beam_search_result = randomized_beam_search_decode(model.decoder, encoderOutputs[:, i], beam_width=beam_width, epsilon=epsilon, num_end_nodes=n)
+                        beam_search_result = randomized_beam_search_decode(model.decoder, encoderOutputs[i, :], beam_width=beam_width, epsilon=epsilon, num_end_nodes=n, device=torch.device("cpu"))
                         if len(beam_search_result) == 0:
                             continue
                         else:
@@ -210,8 +218,11 @@ def decode(model, grammar, dataset, tasks, batch_size, how="sample", n=10, beam_
             task_to_log_likelihoods = execute_programs(train_tasks, grammar, task_to_programs)
             task_to_ll = {}
             for item in task_to_log_likelihoods:
-                task_to_ll[item["task"]] = item["log_likelihoods"]
-                  
+                # if item["task"] not in task_to_ll:
+                #    task_to_ll[item["task"]] = []     
+                # task_to_ll[item["task"]].append(item["log_likelihoods"])
+                task_to_ll[item["task"]] = item["log_likelihoods"]    
+            print("task_to_programs ({}): {}".format(core_idx, task_to_programs))
             return task_to_ll, task_to_programs
 
 
@@ -225,9 +236,11 @@ def decode(model, grammar, dataset, tasks, batch_size, how="sample", n=10, beam_
     
     all_task_to_program, all_task_to_ll = {}, {}
     for task_to_ll, task_to_program in parallel_results:
-        all_task_to_program.update(task_to_ll)
-        all_task_to_ll.update(task_to_program)
-
+        all_task_to_ll.update(task_to_ll)
+        all_task_to_program.update(task_to_program)
+    
+    print("all_task_to_program", all_task_to_program)
+    print("all_task_to_ll", all_task_to_ll)
     return all_task_to_program, all_task_to_ll
 
 

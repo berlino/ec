@@ -66,6 +66,8 @@ class PartialProgram:
             # technically the parent token is LAMBDA but that carries no information so we use the grandparent
             self.parentTokenStack.push(torch.tensor([primitiveToIdx["LAMBDA"]], device=device))
             self.programStringsSeq.append("(lambda")
+        elif nextToken == "PAD":
+            raise Exception("Should never get here since we are tracking program types PAD should always be masked")     
         else:
             sampledToken = Program.parse(nextToken)
             if sampledToken.tp.isArrow() and not(nextTokenType.isArrow()):
@@ -176,6 +178,7 @@ def execute_programs(tasks, grammar, task_to_programs):
         )
         response, error = process.communicate(bytes(dumped_message, encoding="utf-8"))
         response = json.loads(response.decode("utf-8"))
+        print("response", response)
         return response
         
     except OSError as exc:

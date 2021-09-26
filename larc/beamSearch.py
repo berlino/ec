@@ -5,13 +5,13 @@ import heapq
 
 MAX_PROGRAM_LENGTH = 30
 
-def randomized_beam_search_decode(decoder, encoderOutput, beam_width, epsilon, num_end_nodes):
+def randomized_beam_search_decode(decoder, encoderOutput, beam_width, epsilon, num_end_nodes, device):
 
     # list of final programs
     endNodes = []
 
     # starting node
-    nodes = [PartialProgram(decoder.primitiveToIdx, decoder.request.returns(), decoder.device)]
+    nodes = [PartialProgram(decoder.primitiveToIdx, decoder.request.returns(), device)]
 
     while True:
         newNodes = []
@@ -32,7 +32,8 @@ def randomized_beam_search_decode(decoder, encoderOutput, beam_width, epsilon, n
             
             # print("{} total nodes, Selected node has {} tokens, {} score, {} endNodes found".format(len(newNodes), len(node.programTokenSeq), node.totalScore, len(endNodes)))
             # print("Selected node: {}".format(node.programStringsSeq))
-            attnOutputWeights, nextTokenType, lambdaVars, node = decoder.forward(encoderOutput, node)
+            attnOutputWeights, nextTokenType, lambdaVars, node = decoder.forward(encoderOutput, node, node.parentTokenStack.pop(),
+device=device, restrictTypes=True)
             # print('pp', node.programStringsSeq)
             # print("nextTokenType", nextTokenType)
             # print(attnOutputWeights)
@@ -47,7 +48,7 @@ def randomized_beam_search_decode(decoder, encoderOutput, beam_width, epsilon, n
                 nextToken = decoder.idxToPrimitive[idx.item()]
                 newNode = node.copy()
                 nllScore = -torch.log(attnOutputWeights[idx])
-                newNode.processNextToken(nextToken, nextTokenType, nllScore, lambdaVars, decoder.primitiveToIdx, decoder.device)
+                newNode.processNextToken(nextToken, nextTokenType, nllScore, lambdaVars, decoder.primitiveToIdx, device)
 
                 if len(newNode.nextTokenTypeStack) == 0:
                     endNodes.append((newNode.totalScore, newNode))

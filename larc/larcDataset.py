@@ -68,7 +68,13 @@ def print_device(el):
         print("type of el is: {}".format(type(el)))
     return
 
-def load_task_to_programs_from_frontiers_json(grammar, token_to_idx, max_program_length, task_to_programs_json, device, token_pad_value):
+def pad_token_seq(token_sequence, pad_token, max_program_length):
+    # pad on the right so that all token sequences are the same length
+    while len(token_sequence) < max_program_length:
+        token_sequence.append(pad_token)
+    return token_sequence
+
+def load_task_to_programs_from_frontiers_json(grammar, token_to_idx, max_program_length, task_to_programs_json, device):
     """
     Load prior enumeration frontiers and process into dictionary with task names as keys and lists of corresponding programs as values.
     Each program is represented as a list of indicies created used token_to_idx argument. Pads programs so they are all the same length.
@@ -86,11 +92,9 @@ def load_task_to_programs_from_frontiers_json(grammar, token_to_idx, max_program
                 continue
             # seq
             token_sequence = [token_to_idx[token] for token in program_to_token_sequence(program, grammar)]
-            # pad on the right so that all token sequences are the same length
-            while len(token_sequence) < max_program_length:
-                token_sequence.append(token_pad_value)
+            padded_token_sequence = pad_token_seq(token_sequence, token_to_idx["PAD"], max_program_length)
             # append token sequence and the score of the program. Default to 1.0 since we want to equallly weight all frontier entries
-            task_to_programs[task].append((token_sequence, torch.tensor(1.0, device=device)))
+            task_to_programs[task].append((padded_token_sequence, torch.tensor(1.0, device=device)))
     return task_to_programs
 
 
@@ -232,7 +236,7 @@ class LARC_Cell_Dataset(Dataset):
                 if task_to_programs is not None:
                     programs = task_to_programs[task['name']]
                     weights = normalize_weights([w for program,w in programs], beta)
-                    for i in range(len(programs)):
+                    for i in range(min(len(programs), 1)):
                         task_dict['program'] = programs[i][0]
                         task_dict['program_weight'] = weights[i].detach()
                         yield task_dict
