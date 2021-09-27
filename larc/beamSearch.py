@@ -5,7 +5,9 @@ import heapq
 
 MAX_PROGRAM_LENGTH = 20
 
-def randomized_beam_search_decode(decoder, encoderOutput, beam_width, epsilon, num_end_nodes, device):
+def randomized_beam_search_decode(decoder, encoderOutput, beam_width, epsilon, device):
+
+    num_end_nodes = beam_width
 
     # list of final programs
     endNodes = []

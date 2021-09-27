@@ -5,7 +5,6 @@ import time
 import torch
 from torch.autograd import Variable
 from torch.distributions.categorical import Categorical
-torch.set_num_threads(1)
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
@@ -74,20 +73,21 @@ class EncoderDecoder(nn.Module):
         #     programs.append(program)
         # return programs, batch_scores
 
-def main():
 
-    use_cuda = True
-    batch_size = 1
-    lr = 0.001
-    weight_decay = 0.0
-    beta = 0.0
-    epochs_per_experience_replay = 0
-    beam_width =128
-    epsilon = 0.3
-    n = beam_width
-    num_cpus = 1
+def main(args):
+
+    use_cuda = args.pop("use_cuda")
+    batch_size = args.pop("batch_size")
+    lr = args.pop("lr")
+    weight_decay = args.pop("weight_decay")
+    beta = args.pop("beta")
+    epochs_per_replay = args.pop("epochs_per_replay")
+    beam_width = args.pop("beam_width")
+    epsilon = args.pop("epsilon")
+    num_cpus = args.pop("num_cpus")
+    num_cycles = args.pop("num_cycles")
+
     tasks_subset = ["67a3c6ac.json"]
-    num_cycles = 10
 
     if use_cuda: 
         assert torch.cuda.is_available()
@@ -146,7 +146,7 @@ def main():
         
         if len(task_to_correct_programs) > 0:
             model_gpu = model_gpu.to(device=torch.device("cuda"))
-            model_gpu = train_experience_replay(model_gpu, task_to_correct_programs, tasks_dir=tasks_dir, beta=beta, num_epochs=epochs_per_experience_replay, lr=lr, weight_decay=weight_decay, batch_size=batch_size, device=device)
+            model_gpu = train_experience_replay(model_gpu, task_to_correct_programs, tasks_dir=tasks_dir, beta=beta, num_epochs=epochs_per_replay, lr=lr, weight_decay=weight_decay, batch_size=batch_size, device=device)
             
             start_time = time.time()
             model_cpu = model_gpu.to(device=torch.device("cpu"))
@@ -160,7 +160,7 @@ def main():
         
         start_time = time.time()
         # decode with randomized beam search
-        task_to_decoded_programs, task_to_lls = multicore_decode(model_cpu, grammar, larc_train_dataset_cpu, tasks, batch_size, how="randomized_beam_search", n=n, beam_width=beam_width, epsilon=epsilon, num_cpus=num_cpus)
+        task_to_decoded_programs, task_to_lls = multicore_decode(model_cpu, grammar, larc_train_dataset_cpu, tasks, batch_size, how="randomized_beam_search", beam_width=beam_width, epsilon=epsilon, num_cpus=num_cpus)
         print("\nFinished Decoding in {}s \n".format(time.time() - start_time))
         
         # experience replay train with discovered program
