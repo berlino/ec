@@ -83,7 +83,7 @@ def train_experience_replay(model, task_to_correct_programs, tasks_dir, beta, nu
 
     larc_train_dataset = LARC_Cell_Dataset(tasks_dir, tasks_subset=list(task_to_correct_programs.keys()), num_ios=MAX_NUM_IOS, resize=(30, 30), 
         for_synthesis=True, beta=beta, task_to_programs=task_to_correct_programs, device=device)
-    train_loader = DataLoader(larc_train_dataset, batch_size=batch_size, collate_fn=lambda x: collate(x, True), drop_last=False)
+    train_loader = DataLoader(larc_train_dataset, shuffle=True, batch_size=batch_size, collate_fn=lambda x: collate(x, True), drop_last=False)
 
     model, epoch_train_scores, test_scores = train_imitiation_learning(model, train_loader, test_loader=None, batch_size=batch_size, 
         lr=lr, weight_decay=weight_decay, num_epochs=num_epochs, earlyStopping=False)

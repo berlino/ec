@@ -163,15 +163,15 @@ def multicore_decode(model, grammar, dataset, tasks, batch_size, how="sample", n
              task_to_programs (dict): dictionary entries (task_name, list of program tuples) e.g. ("3459335.json", [("to_min_grid (...))", PartialProgram), ("to_original_grid_overlay(...)", PartialProgram)]
              
         """
-
-        # required for torch.multiprocessing to work properly
-        torch.set_num_threads(1)
+        if num_cpus > 1:
+            # required for torch.multiprocessing to work properly
+            torch.set_num_threads(1)
 
         model.eval()
         with torch.no_grad():
 
             offset = len(dataset) // num_cpus
-            data_loader = DataLoader(dataset[core_idx:core_idx+offset], batch_size=batch_size, collate_fn =lambda x: collate(x, False), drop_last=True)
+            data_loader = DataLoader(dataset[core_idx:core_idx+offset], batch_size=batch_size, collate_fn =lambda x: collate(x, False), drop_last=True, shuffle=True)
             print("loaded data: (core {})".format(core_idx))
 
             task_to_programs = {}
@@ -222,12 +222,11 @@ def multicore_decode(model, grammar, dataset, tasks, batch_size, how="sample", n
                 #    task_to_ll[item["task"]] = []     
                 # task_to_ll[item["task"]].append(item["log_likelihoods"])
                 task_to_ll[item["task"]] = item["log_likelihoods"]    
-            print("task_to_programs ({}): {}".format(core_idx, task_to_programs))
             return task_to_ll, task_to_programs
 
-
-    # required for torch.multiprocessing to work properly
-    torch.set_num_threads(1)
+    if num_cpus > 1:
+        # required for torch.multiprocessing to work properly
+        torch.set_num_threads(1)
 
     parallel_results = parallelMap(
     num_cpus, 
@@ -239,8 +238,11 @@ def multicore_decode(model, grammar, dataset, tasks, batch_size, how="sample", n
         all_task_to_ll.update(task_to_ll)
         all_task_to_program.update(task_to_program)
     
-    print("all_task_to_program", all_task_to_program)
-    print("all_task_to_ll", all_task_to_ll)
+    for task, programs in all_task_to_program.items():
+        print("\n{}: {} syntactically valid programs".format(task, len(programs)))
+        for p in programs:
+            print(p[0])
+    
     return all_task_to_program, all_task_to_ll
 
 

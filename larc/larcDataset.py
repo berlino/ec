@@ -236,7 +236,7 @@ class LARC_Cell_Dataset(Dataset):
                 if task_to_programs is not None:
                     programs = task_to_programs[task['name']]
                     weights = normalize_weights([w for program,w in programs], beta)
-                    for i in range(min(len(programs), 1)):
+                    for i in range(min(len(programs), 8)):
                         task_dict['program'] = programs[i][0]
                         task_dict['program_weight'] = weights[i].detach()
                         yield task_dict

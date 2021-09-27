@@ -178,7 +178,6 @@ def execute_programs(tasks, grammar, task_to_programs):
         )
         response, error = process.communicate(bytes(dumped_message, encoding="utf-8"))
         response = json.loads(response.decode("utf-8"))
-        print("response", response)
         return response
         
     except OSError as exc:

@@ -3,7 +3,7 @@ import torch
 from larc.decoderUtils import *
 import heapq
 
-MAX_PROGRAM_LENGTH = 30
+MAX_PROGRAM_LENGTH = 20
 
 def randomized_beam_search_decode(decoder, encoderOutput, beam_width, epsilon, num_end_nodes, device):
 
@@ -15,6 +15,7 @@ def randomized_beam_search_decode(decoder, encoderOutput, beam_width, epsilon, n
 
     while True:
         newNodes = []
+        # print("\nExpanding Beam")
         for k in range(beam_width):
             # true with probability epsilon and false with probability (1-epsilon)
             if len(nodes) == 0:
@@ -28,7 +29,8 @@ def randomized_beam_search_decode(decoder, encoderOutput, beam_width, epsilon, n
                  heapq.heappop(nodes)
             else:
                  node = heapq.heappop(nodes)
-            
+                 # print("Selected node has score: {}".format(node.totalScore))
+        
             
             # print("{} total nodes, Selected node has {} tokens, {} score, {} endNodes found".format(len(newNodes), len(node.programTokenSeq), node.totalScore, len(endNodes)))
             # print("Selected node: {}".format(node.programStringsSeq))
@@ -56,8 +58,9 @@ device=device, restrictTypes=True)
                     # print("Selected node: {}".format(newNode.programStringsSeq))
                     if len(endNodes) >= num_end_nodes:
                         return endNodes
-
-                elif len(newNode.programTokenSeq) > MAX_PROGRAM_LENGTH:
+                
+                # using the type system we can be intelligent about ruling out programs that don't satisfy
+                elif len(newNode.programTokenSeq) + len(newNode.nextTokenTypeStack) > MAX_PROGRAM_LENGTH:
                     continue
                 else:
                     heapq.heappush(newNodes, newNode)

@@ -81,12 +81,13 @@ def main():
     lr = 0.001
     weight_decay = 0.0
     beta = 0.0
-    epochs_per_experience_replay = 5
-    beam_width = 128
-    epsilon = 0.1
-    n = 128
+    epochs_per_experience_replay = 0
+    beam_width =128
+    epsilon = 0.3
+    n = beam_width
     num_cpus = 1
     tasks_subset = ["67a3c6ac.json"]
+    num_cycles = 10
 
     if use_cuda: 
         assert torch.cuda.is_available()
@@ -135,7 +136,7 @@ def main():
     larc_train_dataset_cpu = LARC_Cell_Dataset(tasks_dir, tasks_subset=tasks_subset, num_ios=MAX_NUM_IOS, resize=(30, 30), for_synthesis=True, beta=beta, task_to_programs=None, device=torch.device("cpu"))
     print("Finished loading dataset ({} samples)".format(len(larc_train_dataset_cpu))) 
 
-    for iteration in range(2):
+    for iteration in range(num_cycles):
 
         if iteration == 0:
             tasks_subset = [] if tasks_subset is None else tasks_subset
@@ -177,4 +178,3 @@ def main():
                     programScore = program.totalScore[0].to(device=torch.device("cuda"))
                     res.append((paddedProgramTokenSeq, programScore))
                     task_to_correct_programs[task] = res
-        print(task_to_correct_programs)
