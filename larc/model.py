@@ -38,6 +38,9 @@ def main(args):
     max_programs_per_task = args.pop("max_p_per_task") 
     num_cpus = args.pop("num_cpus")
     num_cycles = args.pop("num_cycles")
+    restrict_types = args.pop("restrict_types")
+    rnn_decode = args.pop("rnn_decode")
+    verbose = args.pop("verbose")
 
     tasks_subset = ["67a3c6ac.json"]
 
@@ -65,7 +68,8 @@ def main(args):
     # load model
     request = arrow(tgridin, tgridout)
     print("Startin to load model")
-    model = EncoderDecoder(grammar=grammar, request=request, cuda=use_cuda, device=device, program_embedding_size=128, program_size=128, primitive_to_idx=token_to_idx)
+    model = EncoderDecoder(grammar=grammar, request=request, cuda=use_cuda, device=device, rnn_decode=rnn_decode, 
+        program_embedding_size=128, primitive_to_idx=token_to_idx)
     model.share_memory()
     print("Finished loading model")
 
@@ -116,9 +120,9 @@ def main(args):
         
         start_time = time.time()
         # decode with randomized beam search
-        task_to_decoded_programs, task_to_lls = multicore_decode(model, grammar, larc_train_dataset_cpu, tasks, batch_size, how="randomized_beam_search", beam_width=beam_width, epsilon=epsilon, num_cpus=num_cpus)
+        task_to_decoded_programs, task_to_lls = multicore_decode(model, grammar, larc_train_dataset_cpu, tasks, batch_size, restrict_types=restrict_types, rnn_decode=rnn_decode, how="randomized_beam_search", 
+            beam_width=beam_width, epsilon=epsilon, num_cpus=num_cpus, verbose=verbose)
         print("\nFinished Decoding in {}s \n".format(time.time() - start_time))
-        
         # experience replay train with discovered program
         task_to_correct_programs = {}
         print("Discovered below programs:\n")

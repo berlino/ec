@@ -2,8 +2,20 @@ import argparse
 
 def commandLineArgs():
     parser = argparse.ArgumentParser(description='Process some integers.')
+    parser.add_argument("--restrict-types",
+                        dest="restrict_types",
+                        default=False,
+                        action="store_true")
     parser.add_argument("--use-cuda",
                         dest="use_cuda",
+                        default=False,
+                        action="store_true")
+    parser.add_argument("--verbose",
+                        dest="verbose",
+                        default=False,
+                        action="store_true")
+    parser.add_argument("--rnn-decode",
+                        dest="rnn_decode",
                         default=False,
                         action="store_true")
     parser.add_argument("--batch-size",

@@ -1,6 +1,6 @@
 import torch.nn as nn
 
-from larc.decode import score_decode
+from larc.decode import score_decode, score_decode_rnn
 from larc.decoder import Decoder, MAX_PROGRAM_LENGTH
 from larc.encoder import LARCEncoder
 
@@ -19,15 +19,16 @@ class EncoderDecoder(nn.Module):
         3. Use output from 2 as query and token embeddings as keys to get attention vector
     """
 
-    def __init__(self, grammar, request, cuda, device, program_embedding_size=128, program_size=128, primitive_to_idx=None):
+    def __init__(self, grammar, request, cuda, device, rnn_decode, program_embedding_size=128, primitive_to_idx=None):
         super(EncoderDecoder, self).__init__()
         
         self.device = device
+        self.decode_func = score_decode_rnn if rnn_decode else score_decode
         # there are three additional tokens, one for the start token input grid (tgridin) variable and the other for input 
         # variable of lambda expression (assumes no nested lambdas)
         print("Starting to load decoder")
         self.decoder = Decoder(embedding_size=program_embedding_size, grammar=grammar, request=request, cuda=cuda, device=device, max_program_length=MAX_PROGRAM_LENGTH, 
-            encoderOutputSize=64, primitive_to_idx=primitive_to_idx)
+            encoderOutputSize=64, primitive_to_idx=primitive_to_idx, use_rnn=rnn_decode)
         print("Finished loading Decoder, starting to load Encoder")
         self.encoder = LARCEncoder(cuda=cuda, device=device)
         print("Finished loading Encoder")
@@ -37,5 +38,5 @@ class EncoderDecoder(nn.Module):
     def forward(self, io_grids, test_in, desc_tokens, mode, targets=None):
         
         encoderOutputs = self.encoder(io_grids, test_in, desc_tokens)
-        batch_scores = score_decode(self.decoder, encoderOutputs, targets, self.device)
+        batch_scores = self.decode_func(self.decoder, encoderOutputs, targets, self.device)
         return batch_scores

@@ -1,5 +1,6 @@
 from torch.distributions.categorical import Categorical
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
 from dreamcoder.utilities import parallelMap
@@ -10,9 +11,9 @@ from larc.larcDataset import collate
 
 MAX_PROGRAM_LENGTH = 30
 
-
 class Decoder(nn.Module):
-    def __init__(self, embedding_size, grammar, request, cuda, device, max_program_length, encoderOutputSize, primitive_to_idx):
+    def __init__(self, embedding_size, grammar, request, cuda, device, max_program_length, encoderOutputSize,
+        primitive_to_idx, use_rnn, hidden_size=64, num_layers=1, dropout=0.0):
         super(Decoder, self).__init__()
         
         self.embedding_size = embedding_size
@@ -27,11 +28,15 @@ class Decoder(nn.Module):
         self.primitiveToIdx = primitive_to_idx
         self.idxToPrimitive = {idx: primitive for primitive,idx in self.primitiveToIdx.items()}
         self.token_pad_value = len(self.idxToPrimitive)
-
-        self.token_attention = nn.MultiheadAttention(self.embedding_size, 1, batch_first=False)
         self.output_token_embeddings = nn.Embedding(len(self.primitiveToIdx), self.embedding_size)
 
-        self.linearly_transform_query = nn.Linear(self.embedding_size + self.encoderOutputSize, self.embedding_size)
+        if use_rnn:
+            self.gru = nn.GRU(input_size=self.embedding_size + self.encoderOutputSize, hidden_size=hidden_size,
+                              num_layers=num_layers, dropout=dropout, batch_first=False, bias=True, bidirectional=False)
+            self.out = nn.Linear(hidden_size + encoderOutputSize, len(self.primitiveToIdx))
+        else:
+            self.linearly_transform_query = nn.Linear(self.embedding_size + self.encoderOutputSize, self.embedding_size)
+            self.token_attention = nn.MultiheadAttention(self.embedding_size, 1, batch_first=False)
         
         if cuda: self.cuda()
 
@@ -66,42 +71,39 @@ class Decoder(nn.Module):
 
         return keys_mask, lambdaVars
 
+    def forward_rnn(self, encoderOutput, pp, parentTokenIdx, last_hidden, device, restrictTypes=True):
 
-    def forward(self, encoderOutput, pp, parentTokenIdx, device, restrictTypes=True):
-        
+        parentTokenEmbedding = self.output_token_embeddings(parentTokenIdx)
+        # 1 x batch_size x embed_dim
+        rnn_input = torch.cat((encoderOutput, parentTokenEmbedding), 1).unsqueeze(0)
+        output, hidden = self.gru(rnn_input, last_hidden)
+        # batch_size x embed_dim
+        output = output.squeeze()
+        pre_logits = self.out(torch.cat([output, encoderOutput], 1))
 
         if restrictTypes:
-            # assumes batch size of 1
-            parentTokenEmbedding = self.output_token_embeddings(torch.tensor([parentTokenIdx], device=device))[0, :]
-            query = torch.cat((encoderOutput, parentTokenEmbedding), 0)
-            # seq_length x batch_size x embed_dim
-            query = self.linearly_transform_query(query).reshape(1,1,-1)
+            raise Exception("Not Implemented yet")
+        else:
+            logits = F.log_softmax(output, dim=1)
+            return logits, hidden
 
-            # unsqueeze in 1th dimension corresponds to batch_size=1
-            keys = self.output_token_embeddings.weight.unsqueeze(1)
 
-            # we only care about attnOutputWeights so values could be anything
-            values = keys
-            
-            # get type of next token
+    def forward(self, encoderOutput, pp, parentTokenIdx, device, restrictTypes=True):
+
+        parentTokenEmbedding = self.output_token_embeddings(parentTokenIdx)
+        
+        query = torch.cat((encoderOutput, parentTokenEmbedding), 1)
+        # seq_length x batch_size x embed_dim
+        query = self.linearly_transform_query(query).unsqueeze(0)
+        # seq_length x batch_size x embed dim (where keys are the same for all elements in batch
+        keys = self.output_token_embeddings.weight.unsqueeze(1).expand(-1, encoderOutput.size(0), -1)
+        values = keys
+
+        if restrictTypes:
             nextTokenType = pp.nextTokenTypeStack.pop()
             keys_mask, lambdaVars = self.getKeysMask(nextTokenType, pp.lambdaVarsTypeStack, self.request, device)
-            # print('keys mask shape: ', keys_mask.size())
             _, attnOutputWeights = self.token_attention(query, keys, values, key_padding_mask=None, need_weights=True, attn_mask=keys_mask)
-            # print("attention_output weights: {}".format(attnOutputWeights))
-
             return attnOutputWeights, nextTokenType, lambdaVars, pp
-
         else:
-            parentTokenEmbedding = self.output_token_embeddings(parentTokenIdx)
-            
-            query = torch.cat((encoderOutput, parentTokenEmbedding), 1)
-            # seq_length x batch_size x embed_dim
-            query = self.linearly_transform_query(query).unsqueeze(0)
-            # seq_length x batch_size x embed dim (where keys are the same for all elements in batch
-            keys = self.output_token_embeddings.weight.unsqueeze(1).expand(-1, encoderOutput.size(0), -1)
-            values = keys
-
             _, attnOutputWeights = self.token_attention(query, keys, values, key_padding_mask=None, need_weights=True, attn_mask=None)
-
             return attnOutputWeights.squeeze()

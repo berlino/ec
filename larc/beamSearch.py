@@ -5,7 +5,10 @@ import heapq
 
 MAX_PROGRAM_LENGTH = 20
 
-def randomized_beam_search_decode(decoder, encoderOutput, beam_width, epsilon, device):
+def randomized_beam_search_decode(decoder, encoderOutput, rnn_decode, restrict_types, beam_width, epsilon, device):
+
+    if not restrict_types:
+        raise Exception("Not Implemented")
 
     num_end_nodes = beam_width
 
@@ -31,21 +34,17 @@ def randomized_beam_search_decode(decoder, encoderOutput, beam_width, epsilon, d
                  heapq.heappop(nodes)
             else:
                  node = heapq.heappop(nodes)
-                 # print("Selected node has score: {}".format(node.totalScore))
-        
-            
-            # print("{} total nodes, Selected node has {} tokens, {} score, {} endNodes found".format(len(newNodes), len(node.programTokenSeq), node.totalScore, len(endNodes)))
+    
             # print("Selected node: {}".format(node.programStringsSeq))
-            attnOutputWeights, nextTokenType, lambdaVars, node = decoder.forward(encoderOutput, node, node.parentTokenStack.pop(),
-device=device, restrictTypes=True)
-            # print('pp', node.programStringsSeq)
-            # print("nextTokenType", nextTokenType)
-            # print(attnOutputWeights)
-            attnOutputWeights = attnOutputWeights[0, 0, :]
-
-            weights, indices = attnOutputWeights[attnOutputWeights > 0], attnOutputWeights.nonzero()
-            # print(indices)
-            # print([decoder.idxToPrimitive[idx.item()] for idx in indices])
+            if rnn_decode:
+                raise Exception("Not Implemented")
+            else:
+                # batch_size (1) x embed_dim
+                parenTokenIdx = torch.tensor([node.parentTokenStack.pop()], device=device)
+                attnOutputWeights, nextTokenType, lambdaVars, node = decoder.forward(encoderOutput, node, parenTokenIdx,
+    device=device, restrictTypes=True)
+                attnOutputWeights = attnOutputWeights[0, 0, :]
+                weights, indices = attnOutputWeights[attnOutputWeights > 0], attnOutputWeights.nonzero()
 
             # add to queue
             for idx in indices:
