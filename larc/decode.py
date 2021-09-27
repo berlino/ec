@@ -106,7 +106,6 @@ def multicore_decode(model, grammar, dataset, tasks, batch_size, how="sample", n
                             for (score, node) in beam_search_result:
                                 program_string = " ".join(node.programStringsSeq + [")"])
                                 program_string = str(Program.parse(program_string))
-                                print("program: ", program_string)
                                 task_to_programs[task].append((program_string, node))
 
             # run sampled programs with ocaml
