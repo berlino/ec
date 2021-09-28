@@ -1,6 +1,6 @@
 import torch.nn as nn
 
-from larc.decode import score_decode, score_decode_rnn
+from larc.decode import score_decode
 from larc.decoder import Decoder, MAX_PROGRAM_LENGTH
 from larc.encoder import LARCEncoder
 

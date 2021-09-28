@@ -28,12 +28,18 @@ class Decoder(nn.Module):
         # we can't have lambdas within lambdas
         self.primitiveToIdx = primitive_to_idx
         self.idxToPrimitive = {idx: primitive for primitive,idx in self.primitiveToIdx.items()}
-        self.token_pad_value = len(self.idxToPrimitive)
         self.output_token_embeddings = nn.Embedding(len(self.primitiveToIdx), self.embedding_size)
 
         if use_rnn:
+            self.bridge = nn.Sequential(
+                nn.Linear(self.encoderOutputSize, hidden_size),
+                nn.Tanh()
+            )
+
             self.gru = nn.GRU(input_size=self.embedding_size + self.encoderOutputSize, hidden_size=hidden_size,
                               num_layers=num_layers, dropout=dropout, batch_first=False, bias=True, bidirectional=False)
+            self.fc = nn.Linear(hidden_size + encoderOutputSize,  hidden_size + encoderOutputSize)
+            self.relu = nn.Tanh()
             self.out = nn.Linear(hidden_size + encoderOutputSize, len(self.primitiveToIdx))
         else:
             self.linearly_transform_query = nn.Linear(self.embedding_size + self.encoderOutputSize, self.embedding_size)
@@ -71,7 +77,7 @@ class Decoder(nn.Module):
                 lambdaVars.append(i)
 
         if bool_mask:
-            return keys_mask > 0, lambdaVars
+            return keys_mask == -float("Inf"), lambdaVars
         else:
             return keys_mask, lambdaVars
 
@@ -81,24 +87,24 @@ class Decoder(nn.Module):
         # 1 x batch_size x embed_dim
         rnn_input = torch.cat((encoderOutput, parentTokenEmbedding), 1).unsqueeze(0)
         # seq_length x batch_size x embed_dim, seq_length x batch_size x embed_dim
-        output, hidden = self.gru(rnn_input, last_hidden)
+        output, hidden = self.gru(rnn_input.contiguous(), last_hidden.contiguous())
         # batch_size x embed_dim
         output = output.squeeze(0)
-        logits = self.out(torch.cat([output, encoderOutput], 1))
+        x = self.relu(self.fc(torch.cat([output, encoderOutput], 1)))
+        logits = self.out(x)
 
         if restrictTypes:
             nextTokenType = pp.nextTokenTypeStack.pop()
             keys_mask, lambdaVars = self.getKeysMask(nextTokenType, pp.lambdaVarsTypeStack, self.request, device, bool_mask=True)
 
-            print("keys mask size", keys_mask.size())
-            print("logits size", logits.size())
-
-            masked_logits_batch = []
             for i in range(logits.size(0)):
-                masked_logits = logits[i, :][keys_mask[i, :]]
-                masked_logits_batch.append(masked_logits)
-
-            probs = F.softmax(torch.stack(masked_logits_batch), dim=1)
+                logits[i, :][keys_mask[i, :]] = -float("inf")
+                
+            probs = F.softmax(logits, dim=1)
+            temp = probs.squeeze()
+            for i,token in sorted(list(self.idxToPrimitive.items()), key=lambda x: temp[x[0]]):
+                if temp[i] > 0.0:
+                   print("{}: {}".format(token, temp[i]))
             return probs, hidden, nextTokenType, lambdaVars, pp
 
         else:

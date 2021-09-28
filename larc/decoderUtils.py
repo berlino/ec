@@ -177,7 +177,6 @@ def execute_programs(tasks, grammar, task_to_programs):
 
     try:
         solver_file = os.path.join(get_root_dir(), "solvers/exec_arc_p")
-        print("solver_file", solver_file)
         process = subprocess.Popen(
             solver_file, stdin=subprocess.PIPE, stdout=subprocess.PIPE
         )

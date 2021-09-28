@@ -34,35 +34,6 @@ def decode_single(decoder, encoderOutput, targetTokens=None):
             return None
     return pp
 
-def score_decode_rnn(decoder, encoderOutput, targetTokens, device):
-    """
-    Args:
-        decoder (torch.nn.Module): torch Decoder
-        encoderOutput (torch.tensor): batch_size x encoder_embed_dim
-        targetTokens (torch.tensor): batch_size x MAX_PROGRAM_SEQ_LENGTH
-    """
-    batch_size = encoderOutput.size(0)
-
-    scores = torch.empty(targetTokens.size(), device=device)
-    # 1 x batch_size x embed_dim
-    hidden = encoderOutput.unsqueeze(0)
-
-    for i in range(MAX_PROGRAM_LENGTH):
-        # batch_size x num_tokens
-        output, hidden = decoder.forward_rnn(encoderOutput, pp=None, parentTokenIdx=targetTokens[:, i], 
-            last_hidden=hidden, restrictTypes=False, device=device)
-        
-        nextTokenDist = Categorical(probs=output)
-        scores[:, i] = -nextTokenDist.log_prob(targetTokens[:, i])
-
-    # we don't want to take gradient steps on pad token after the program has already been sampled
-    scorePerTaskInBatch = torch.empty(batch_size, device=device)
-    for j in range(batch_size):
-        paddingMask = targetTokens[j, :] != decoder.token_pad_value
-        sampleScore = torch.sum(scores[j, :][paddingMask], axis=0)
-        scorePerTaskInBatch[j] = sampleScore
-    return scorePerTaskInBatch
-
 def score_decode(decoder, encoderOutput, targetTokens, rnn_decode, device):
     """
     Args:
@@ -94,12 +65,13 @@ def score_decode(decoder, encoderOutput, targetTokens, rnn_decode, device):
     # we don't want to take gradient steps on pad token after the program has already been sampled
     scorePerTaskInBatch = torch.empty(batch_size, device=device)
     for j in range(batch_size):
-        paddingMask = targetTokens[j, :] != decoder.token_pad_value
-        sampleScore = torch.sum(scores[j, :][paddingMask], axis=0)
+        paddingMask = targetTokens[j, :] != decoder.primitiveToIdx["PAD"]
+        programTokenScores = scores[j, :][paddingMask]
+        sampleScore = torch.sum(programTokenScores, axis=0)
         scorePerTaskInBatch[j] = sampleScore
     return scorePerTaskInBatch
 
-def multicore_decode(model, grammar, dataset, tasks, batch_size, restrict_types, rnn_decode, how="sample", n=10, beam_width=10, epsilon=0.1, num_cpus=1, verbose=False):
+def multicore_decode(model, grammar, dataset, tasks, restrict_types, rnn_decode, how="sample", n=10, beam_width=10, epsilon=0.1, num_cpus=1, verbose=False):
     
     def decode_helper(core_idx, num_cpus, model):
         """
@@ -115,25 +87,27 @@ def multicore_decode(model, grammar, dataset, tasks, batch_size, restrict_types,
         model.eval()
         with torch.no_grad():
 
-            offset = len(dataset) // num_cpus
-            data_loader = DataLoader(dataset[core_idx:core_idx+offset], batch_size=batch_size, collate_fn =lambda x: collate(x, False), drop_last=True, shuffle=True)
-            print("loaded data: (core {})".format(core_idx))
+            # split dataset assigning subset to each core
+            num_samples_per_core = len(dataset) // num_cpus
+            end_index = min(num_samples_per_core * (core_idx+1), len(dataset))
+            core_dataset = dataset[num_samples_per_core * core_idx : end_index]
+
+            data_loader = DataLoader(core_dataset, batch_size=1, collate_fn =lambda x: collate(x, False), drop_last=True, shuffle=True)
 
             task_to_programs = {}
 
             for batch in data_loader:
                 
-                # batch_size x embed_dim
+                # batch_size (1) x embed_dim
                 encoderOutputs = model.encoder(batch["io_grids"], batch["test_in"], batch["desc_tokens"])
-                print("got encoderOutputs (core idx {})".format(core_idx))
                 
                 # iterate through each task in the batch
-                for i in range(batch_size):
+                for i in range(encoderOutputs.size(0)):
                 
                     task = batch["name"][i]
                     task_to_programs[task] = []
 
-                    print("Decoding task {} (core_idx {})".format(task, core_idx))
+                    # print("Decoding task {} (core_idx {})".format(task, core_idx))
 
                     if how == "sample":
                         raise Exception("Not imlemented yet")
@@ -149,9 +123,9 @@ def multicore_decode(model, grammar, dataset, tasks, batch_size, restrict_types,
                                 program_string = str(Program.parse(program_string))
                                 task_to_programs[task].append((program_string, node))
 
-            if verbose:
-                print("\nNumber of programs decoded per task")
-                print({t:len(programs) for t,programs in task_to_programs.items()})
+            # if verbose and len(task_to_programs) > 0:
+                # print("\nNumber of programs decoded per task")
+                # print({t:len(programs) for t,programs in task_to_programs.items()})
 
             # run sampled programs with ocaml
             train_tasks = [t for t in tasks if t.name in task_to_programs]
@@ -167,7 +141,8 @@ def multicore_decode(model, grammar, dataset, tasks, batch_size, restrict_types,
     if num_cpus > 1:
         # required for torch.multiprocessing to work properly
         torch.set_num_threads(1)
-
+        torch.multiprocessing.set_sharing_strategy('file_system')
+    
     parallel_results = parallelMap(
     num_cpus, 
     lambda i: decode_helper(core_idx=i, num_cpus=num_cpus, model=model),
@@ -177,10 +152,12 @@ def multicore_decode(model, grammar, dataset, tasks, batch_size, restrict_types,
     for task_to_ll, task_to_program in parallel_results:
         all_task_to_ll.update(task_to_ll)
         all_task_to_program.update(task_to_program)
-    
-    for task, programs in all_task_to_program.items():
-        print("\n{}: {} syntactically valid programs".format(task, len(programs)))
-        for p in programs:
-            print(p[0])
+   
+    if verbose:
+        if len(all_task_to_program) > 0:
+            print("\nNumber of programs decoded per task")
+            print({t:len(programs) for t,programs in all_task_to_program.items()})
+        else:
+            print("No programs discovered") 
     
     return all_task_to_program, all_task_to_ll

@@ -22,7 +22,7 @@ def train_imitiation_learning(model, train_loader, test_loader, batch_size, lr, 
     for epoch in range(num_epochs):
         
         epoch_score = 0.0
-
+        
         for i,batch in enumerate(train_loader):
 
             print("Epoch: {}, Batch: {}".format(epoch, i))

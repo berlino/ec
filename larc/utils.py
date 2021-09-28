@@ -59,5 +59,15 @@ def commandLineArgs():
                         # something >> number of distinct programs per tasks
                         default=1000000,
                         type=int)
+    parser.add_argument("--seed",
+                        dest="seed",
+                        default=0,
+                        type=int)
+    parser.add_argument("--jumpstart",
+                        dest="jumpstart",
+                        default=False,
+                        help="Whether to jumpstart by training on set of ground truth programs first",
+                        action="store_true")
+
     args = vars(parser.parse_args())
     return args

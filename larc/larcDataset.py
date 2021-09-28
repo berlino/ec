@@ -94,7 +94,7 @@ def load_task_to_programs_from_frontiers_json(grammar, token_to_idx, max_program
             token_sequence = [token_to_idx[token] for token in program_to_token_sequence(program, grammar)]
             padded_token_sequence = pad_token_seq(token_sequence, token_to_idx["PAD"], max_program_length)
             # append token sequence and the score of the program. Default to 1.0 since we want to equallly weight all frontier entries
-            task_to_programs[task].append((padded_token_sequence, torch.tensor(1.0, device=device)))
+            task_to_programs[task].append((padded_token_sequence, torch.tensor(1.0, device=device, requires_grad=False)))
     return task_to_programs
 
 

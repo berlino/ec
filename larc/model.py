@@ -6,8 +6,6 @@ import torch
 from torchviz import make_dot
 
 import torch
-torch.manual_seed(2)
-random.seed(0)
 
 from dreamcoder.domains.arc.main import retrieveARCJSONTasks
 from dreamcoder.domains.arc.arcPrimitives import basePrimitives, leafPrimitives, moreSpecificPrimitives, tgridin, tgridout
@@ -41,8 +39,14 @@ def main(args):
     restrict_types = args.pop("restrict_types")
     rnn_decode = args.pop("rnn_decode")
     verbose = args.pop("verbose")
+    seed = args.pop("seed")
+    jumpstart = args.pop("jumpstart")
 
-    tasks_subset = ["67a3c6ac.json"]
+    # tasks_subset = ["67a3c6ac.json", "aabf363d.json"]
+    tasks_subset = None
+
+    torch.manual_seed(seed)
+    random.seed(seed)
 
     if use_cuda: 
         assert torch.cuda.is_available()
@@ -90,42 +94,39 @@ def main(args):
 
     # load dataset for torch model
     larc_train_dataset_cpu = LARC_Cell_Dataset(tasks_dir, tasks_subset=tasks_subset, num_ios=MAX_NUM_IOS, resize=(30, 30), for_synthesis=True, beta=beta, task_to_programs=None, device=torch.device("cpu"))
-    print("Finished loading dataset ({} samples)".format(len(larc_train_dataset_cpu))) 
-
+    print("Finished loading dataset ({} samples)".format(len(larc_train_dataset_cpu)))
+    
+    task_to_correct_programs = {}
     for iteration in range(num_cycles):
 
-        if iteration == 0:
+        if iteration == 0 and jumpstart:
             tasks_subset = [] if tasks_subset is None else tasks_subset
-            task_to_programs = {k:v[:min(max_programs_per_task, len(v))] for k,v in task_to_programs.items() if ((len(v) > 0) and (k in tasks_subset))}
+            task_to_programs = {k:v for k,v in task_to_programs.items() if ((len(v) > 0) and (k in tasks_subset))}
+            task_to_programs = {k:v[:(min(max_programs_per_task, len(v)))] for k,v in task_to_programs.items()}
             task_to_correct_programs = task_to_programs
             print("{} initial tasks to learn from".format(len(task_to_programs)))
-        
+            if verbose:
+                for task, programs in task_to_correct_programs.items():
+                    print("\n\n{}: {}".format(task, "\n".join([" ".join([idx_to_token[i] for i in p[0]]) for p in programs]))) 
+
         if len(task_to_correct_programs) > 0:
-            if use_cuda:
-                model = model.to(device=torch.device("cuda"))
+            model = model.to(device=torch.device("gpu"))
             model = train_experience_replay(model, task_to_correct_programs, tasks_dir=tasks_dir, beta=beta,
                 num_epochs=epochs_per_replay, lr=lr, weight_decay=weight_decay, batch_size=batch_size, device=device)
-            
-            if use_cuda:
-                start_time = time.time()
-                model = model.to(device=torch.device("cpu"))
-                print("{}s to transfer model to CPU".format(time.time() - start_time))
             
             torch.save({
                'model_state_dict': model.state_dict(),
             }, 'data/larc/model_{}.pt'.format(iteration))
-        else:
-            print("No correct programs found on iteration {}".format(iteration))
-
         
         start_time = time.time()
         # decode with randomized beam search
-        task_to_decoded_programs, task_to_lls = multicore_decode(model, grammar, larc_train_dataset_cpu, tasks, batch_size, restrict_types=restrict_types, rnn_decode=rnn_decode, how="randomized_beam_search", 
+        model = model.to(device=torch.device("cpu"))
+        task_to_decoded_programs, task_to_lls = multicore_decode(model, grammar, larc_train_dataset_cpu, tasks, restrict_types=restrict_types, rnn_decode=rnn_decode, how="randomized_beam_search", 
             beam_width=beam_width, epsilon=epsilon, num_cpus=num_cpus, verbose=verbose)
         print("\nFinished Decoding in {}s \n".format(time.time() - start_time))
+
         # experience replay train with discovered program
         task_to_correct_programs = {}
-        print("Discovered below programs:\n")
         for task,log_likelihoods in task_to_lls.items():
             for i,ll in enumerate(log_likelihoods):
                 if ll == 0.0:
