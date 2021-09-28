@@ -22,6 +22,7 @@ class Decoder(nn.Module):
         self.device = device
         self.max_program_length = max_program_length
         self.encoderOutputSize = encoderOutputSize
+        self.num_layers = num_layers
 
         # theoretically there could be infinitely nested lambda functions but we assume that
         # we can't have lambdas within lambdas
@@ -41,7 +42,7 @@ class Decoder(nn.Module):
         if cuda: self.cuda()
 
 
-    def getKeysMask(self, nextTokenType, lambdaVarsTypeStack, request, device):
+    def getKeysMask(self, nextTokenType, lambdaVarsTypeStack, request, device, bool_mask=False):
         """
         Given the the type of the next token we want and the stack of variables returns a mask (where we attend over 0s and not over -INF)
         which enforces the type constraints for the next token. 
@@ -69,23 +70,40 @@ class Decoder(nn.Module):
                 keys_mask[:, self.primitiveToIdx["LAMBDA_INPUT"]] = 0
                 lambdaVars.append(i)
 
-        return keys_mask, lambdaVars
+        if bool_mask:
+            return keys_mask > 0, lambdaVars
+        else:
+            return keys_mask, lambdaVars
 
     def forward_rnn(self, encoderOutput, pp, parentTokenIdx, last_hidden, device, restrictTypes=True):
 
         parentTokenEmbedding = self.output_token_embeddings(parentTokenIdx)
         # 1 x batch_size x embed_dim
         rnn_input = torch.cat((encoderOutput, parentTokenEmbedding), 1).unsqueeze(0)
+        # seq_length x batch_size x embed_dim, seq_length x batch_size x embed_dim
         output, hidden = self.gru(rnn_input, last_hidden)
         # batch_size x embed_dim
-        output = output.squeeze()
-        pre_logits = self.out(torch.cat([output, encoderOutput], 1))
+        output = output.squeeze(0)
+        logits = self.out(torch.cat([output, encoderOutput], 1))
 
         if restrictTypes:
-            raise Exception("Not Implemented yet")
+            nextTokenType = pp.nextTokenTypeStack.pop()
+            keys_mask, lambdaVars = self.getKeysMask(nextTokenType, pp.lambdaVarsTypeStack, self.request, device, bool_mask=True)
+
+            print("keys mask size", keys_mask.size())
+            print("logits size", logits.size())
+
+            masked_logits_batch = []
+            for i in range(logits.size(0)):
+                masked_logits = logits[i, :][keys_mask[i, :]]
+                masked_logits_batch.append(masked_logits)
+
+            probs = F.softmax(torch.stack(masked_logits_batch), dim=1)
+            return probs, hidden, nextTokenType, lambdaVars, pp
+
         else:
-            logits = F.log_softmax(output, dim=1)
-            return logits, hidden
+            probs = F.softmax(logits, dim=1)
+            return probs, hidden
 
 
     def forward(self, encoderOutput, pp, parentTokenIdx, device, restrictTypes=True):

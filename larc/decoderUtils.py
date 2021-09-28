@@ -18,7 +18,8 @@ class PartialProgram:
         lambdaVarsTypeStack=None, 
         openParenthesisStack=None,
         parentTokenStack=None,
-        totalScore=None):
+        totalScore=None,
+        hidden=None):
 
         self.primitiveToIdx = primitiveToIdx
         self.requestReturnType = requestReturnType
@@ -41,10 +42,12 @@ class PartialProgram:
         else:
             self.parentTokenStack = parentTokenStack
 
+        self.hidden = hidden
+
     def __lt__(self, other):
         return (self.totalScore < other.totalScore)
 
-    def processNextToken(self, nextToken, nextTokenType, score, lambdaVars, primitiveToIdx, device):
+    def processNextToken(self, nextToken, nextTokenType, score, lambdaVars, primitiveToIdx, hidden, device):
 
         if nextToken == "START":
             assert Exception("Should never sample START")
@@ -93,6 +96,7 @@ class PartialProgram:
             if isLambda:
                 self.lambdaVarsTypeStack.pop()
 
+        self.hidden = hidden
         self.totalScore += score
 
         return self
@@ -111,7 +115,8 @@ class PartialProgram:
             lambdaVarsTypeStack = self.lambdaVarsTypeStack.copy(), 
             openParenthesisStack = self.openParenthesisStack.copy(),
             parentTokenStack = self.parentTokenStack.copy(),
-            totalScore = self.totalScore)
+            totalScore = self.totalScore,
+            hidden = self.hidden)
 
 class Stack:
     """

@@ -5,6 +5,18 @@ import heapq
 
 MAX_PROGRAM_LENGTH = 20
 
+def pop_node_to_expand(nodes, epsilon):
+
+    if random.random() < epsilon:
+        i = random.randint(0,len(nodes)-1)
+        node = nodes[i]
+        nodes[i] = nodes[0]
+        heapq.heappop(nodes)
+    else:
+        node = heapq.heappop(nodes)
+    return node
+
+
 def randomized_beam_search_decode(decoder, encoderOutput, rnn_decode, restrict_types, beam_width, epsilon, device):
 
     if not restrict_types:
@@ -15,43 +27,43 @@ def randomized_beam_search_decode(decoder, encoderOutput, rnn_decode, restrict_t
     # list of final programs
     endNodes = []
 
+    # we assume num_layers=1 and batch_size=1
+    assert decoder.num_layers == 1 and encoderOutput.size(0) == 1
+    # num_layers x batch_size x embed_dim
+    init_hidden = encoderOutput.reshape(1,1,-1) if rnn_decode else None
     # starting node
-    nodes = [PartialProgram(decoder.primitiveToIdx, decoder.request.returns(), device)]
+    nodes = [PartialProgram(decoder.primitiveToIdx, decoder.request.returns(), device, hidden=init_hidden)]
 
     while True:
         newNodes = []
         # print("\nExpanding Beam")
         for k in range(beam_width):
-            # true with probability epsilon and false with probability (1-epsilon)
-            if len(nodes) == 0:
-                 if len(newNodes) == 0:
-                     return endNodes
-                 continue
-            if random.random() < epsilon:
-                 i = random.randint(0,len(nodes)-1)
-                 node = nodes[i]
-                 nodes[i] = nodes[0]
-                 heapq.heappop(nodes)
-            else:
-                 node = heapq.heappop(nodes)
+
+            node = pop_node_to_expand(nodes, epsilon)
     
             # print("Selected node: {}".format(node.programStringsSeq))
             if rnn_decode:
-                raise Exception("Not Implemented")
+                parenTokenIdx = torch.tensor([node.parentTokenStack.pop()], device=device)
+                probs, hidden, nextTokenType, lambdaVars, node = decoder.forward_rnn(encoderOutput, node, parenTokenIdx,
+                last_hidden=node.hidden, device=device, restrictTypes=True)
+
             else:
                 # batch_size (1) x embed_dim
                 parenTokenIdx = torch.tensor([node.parentTokenStack.pop()], device=device)
-                attnOutputWeights, nextTokenType, lambdaVars, node = decoder.forward(encoderOutput, node, parenTokenIdx,
-    device=device, restrictTypes=True)
-                attnOutputWeights = attnOutputWeights[0, 0, :]
-                weights, indices = attnOutputWeights[attnOutputWeights > 0], attnOutputWeights.nonzero()
+                probs, nextTokenType, lambdaVars, node = decoder.forward(encoderOutput, node, parenTokenIdx,
+                device=device, restrictTypes=True)
+                hidden = None
 
-            # add to queue
+            # assumes batch_size of 1
+            probs = probs[0, :]
+            indices = probs.nonzero()
+
+            # expand node adding all possible next partial programs to queue (newNodes)
             for idx in indices:
                 nextToken = decoder.idxToPrimitive[idx.item()]
                 newNode = node.copy()
-                nllScore = -torch.log(attnOutputWeights[idx])
-                newNode.processNextToken(nextToken, nextTokenType, nllScore, lambdaVars, decoder.primitiveToIdx, device)
+                nllScore = -torch.log(probs[idx])
+                newNode.processNextToken(nextToken, nextTokenType, nllScore, lambdaVars, decoder.primitiveToIdx, hidden, device)
 
                 if len(newNode.nextTokenTypeStack) == 0:
                     endNodes.append((newNode.totalScore, newNode))
@@ -65,7 +77,13 @@ def randomized_beam_search_decode(decoder, encoderOutput, rnn_decode, restrict_t
                     continue
                 else:
                     heapq.heappush(newNodes, newNode)
-        nodes = newNodes 
+
+            # if beam is empty and there are no newly expanded nodes stop
+            if len(nodes) == 0 and len(newNodes) == 0:
+                return endNodes
+
+        nodes = newNodes
+
     return endNodes
 
 

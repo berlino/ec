@@ -63,21 +63,32 @@ def score_decode_rnn(decoder, encoderOutput, targetTokens, device):
         scorePerTaskInBatch[j] = sampleScore
     return scorePerTaskInBatch
 
-def score_decode(decoder, encoderOutput, targetTokens, device):
+def score_decode(decoder, encoderOutput, targetTokens, rnn_decode, device):
     """
     Args:
         decoder (torch.nn.Module): torch Decoder
         encoderOutput (torch.tensor): batch_size x encoder_embed_dim
         targetTokens (torch.tensor): batch_size x MAX_PROGRAM_SEQ_LENGTH
+        rnn_decode (bool): Whether to use RNN for decoding
     """
     batch_size = encoderOutput.size(0)
-
     scores = torch.empty(targetTokens.size(), device=device)
 
+    if rnn_decode:
+        # 1 x batch_size x embed_dim
+        hidden = encoderOutput.unsqueeze(0)
+
     for i in range(MAX_PROGRAM_LENGTH):
-        # batch_size x num_tokens
-        attnOutputWeights = decoder.forward(encoderOutput, pp=None, parentTokenIdx=targetTokens[:, i], restrictTypes=False, device=device)
-        nextTokenDist = Categorical(probs=attnOutputWeights)
+
+        if rnn_decode:
+            # batch_size x num_tokens, batch_size x hidden_embed_dim
+            probs, hidden = decoder.forward_rnn(encoderOutput, pp=None, parentTokenIdx=targetTokens[:, i], 
+            last_hidden=hidden, restrictTypes=False, device=device)
+        else:
+            # batch_size x num_tokens
+            probs = decoder.forward(encoderOutput, pp=None, parentTokenIdx=targetTokens[:, i], restrictTypes=False, device=device)
+    
+        nextTokenDist = Categorical(probs=probs)
         scores[:, i] = -nextTokenDist.log_prob(targetTokens[:, i])
 
     # we don't want to take gradient steps on pad token after the program has already been sampled

@@ -23,7 +23,7 @@ class EncoderDecoder(nn.Module):
         super(EncoderDecoder, self).__init__()
         
         self.device = device
-        self.decode_func = score_decode_rnn if rnn_decode else score_decode
+        self.rnn_decode = rnn_decode
         # there are three additional tokens, one for the start token input grid (tgridin) variable and the other for input 
         # variable of lambda expression (assumes no nested lambdas)
         print("Starting to load decoder")
@@ -38,5 +38,5 @@ class EncoderDecoder(nn.Module):
     def forward(self, io_grids, test_in, desc_tokens, mode, targets=None):
         
         encoderOutputs = self.encoder(io_grids, test_in, desc_tokens)
-        batch_scores = self.decode_func(self.decoder, encoderOutputs, targets, self.device)
+        batch_scores = score_decode(self.decoder, encoderOutputs, targets, self.rnn_decode, self.device)
         return batch_scores
