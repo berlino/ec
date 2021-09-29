@@ -14,6 +14,12 @@ TOKEN_PAD_VALUE = -1
 MAX_DESC_SEQ_LENGTH = 300
 MAX_NUM_IOS = 3
 
+
+def get_batch_start_end_idxs(n, batch_size):
+    for i in range(0, n, batch_size):
+        yield i, min(i+batch_size, n)
+
+
 def normalize_weights(weights, beta):
     """
     :param weights: assume each weight is the probability of each program (and not the log probability)

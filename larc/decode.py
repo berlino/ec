@@ -145,7 +145,7 @@ def multicore_decode(model, grammar, dataset, tasks, restrict_types, rnn_decode,
     
     model.share_memory() 
     parallel_results = parallelMap(
-    num_cpus, 
+    min(num_cpus, len(dataset)), 
     lambda i: decode_helper(core_idx=i, num_cpus=num_cpus, model=model),
     range(num_cpus),
     maxtasksperchild=True,
