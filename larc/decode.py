@@ -1,3 +1,4 @@
+import math
 import torch
 from torch.distributions.categorical import Categorical
 import torch.nn as nn
@@ -9,7 +10,7 @@ from dreamcoder.utilities import parallelMap
 from larc.beamSearch import randomized_beam_search_decode
 from larc.decoder import MAX_PROGRAM_LENGTH
 from larc.decoderUtils import execute_programs
-from larc.larcDataset import collate
+from larc.larcDataset import collate, get_batch_start_end_idxs
 
 # TODO: Delete or fix bugs
 def decode_single(decoder, encoderOutput, targetTokens=None):
@@ -73,7 +74,7 @@ def score_decode(decoder, encoderOutput, targetTokens, rnn_decode, device):
 
 def multicore_decode(model, grammar, dataset, tasks, restrict_types, rnn_decode, how="sample", n=10, beam_width=10, epsilon=0.1, num_cpus=1, verbose=False):
     
-    def decode_helper(core_idx, num_cpus, model):
+    def decode_helper(idx_pair, num_cpus, model):
         """
         Returns:
              task_to_ll (dict): dictionary with entries (task_name, list of log_likelihoods) e.g. ("3459335.json", [0.0, -float("inf")])
@@ -87,12 +88,8 @@ def multicore_decode(model, grammar, dataset, tasks, restrict_types, rnn_decode,
         model.eval()
         with torch.no_grad():
 
-            # split dataset assigning subset to each core
-            num_samples_per_core = len(dataset) // num_cpus
-            end_index = min(num_samples_per_core * (core_idx+1), len(dataset))
-            core_dataset = dataset[num_samples_per_core * core_idx : end_index]
-
-            data_loader = DataLoader(core_dataset, batch_size=1, collate_fn =lambda x: collate(x, False), drop_last=True, shuffle=True)
+            start_idx, end_idx = idx_pair
+            data_loader = DataLoader(dataset[start_idx:end_idx], batch_size=1, collate_fn =lambda x: collate(x, False), drop_last=True, shuffle=True)
 
             task_to_programs = {}
 
@@ -106,8 +103,6 @@ def multicore_decode(model, grammar, dataset, tasks, restrict_types, rnn_decode,
                 
                     task = batch["name"][i]
                     task_to_programs[task] = []
-
-                    # print("Decoding task {} (core_idx {})".format(task, core_idx))
 
                     if how == "sample":
                         raise Exception("Not imlemented yet")
@@ -142,12 +137,18 @@ def multicore_decode(model, grammar, dataset, tasks, restrict_types, rnn_decode,
         # required for torch.multiprocessing to work properly
         torch.set_num_threads(1)
         torch.multiprocessing.set_sharing_strategy('file_system')
+
+    # calculate how many tasks to assign to each core    
+    num_tasks_per_core = int(math.ceil(len(dataset) / num_cpus))
+    idx_pairs = list(get_batch_start_end_idxs(len(dataset), num_tasks_per_core))
+    print("idx_pairs", idx_pairs)
     
-    model.share_memory() 
+    # sharing model across cores so that it's not copied to each of them
+    model.share_memory()
     parallel_results = parallelMap(
-    min(num_cpus, len(dataset)), 
-    lambda i: decode_helper(core_idx=i, num_cpus=num_cpus, model=model),
-    range(num_cpus),
+    num_cpus, 
+    lambda idx_pair: decode_helper(idx_pair=idx_pair, num_cpus=num_cpus, model=model),
+    idx_pairs,
     maxtasksperchild=True,
     memorySensitive=False)
     

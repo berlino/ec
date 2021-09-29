@@ -115,9 +115,9 @@ def main(args):
                 model = train_experience_replay(model, task_to_correct_programs, tasks_dir=tasks_dir, beta=beta,
                    num_epochs=epochs_per_replay, lr=lr, weight_decay=weight_decay, batch_size=batch_size, device=device)
             
-               torch.save({
+                torch.save({
                    'model_state_dict': model.state_dict(),
-               }, 'data/larc/model_{}.pt'.format(iteration))
+                }, 'data/larc/model_{}.pt'.format(iteration))
        
   
             # decode with randomized beam search
