@@ -143,10 +143,13 @@ def multicore_decode(model, grammar, dataset, tasks, restrict_types, rnn_decode,
         torch.set_num_threads(1)
         torch.multiprocessing.set_sharing_strategy('file_system')
     
+    model.share_memory() 
     parallel_results = parallelMap(
     num_cpus, 
     lambda i: decode_helper(core_idx=i, num_cpus=num_cpus, model=model),
-    range(num_cpus))
+    range(num_cpus),
+    maxtasksperchild=True,
+    memorySensitive=False)
     
     all_task_to_program, all_task_to_ll = {}, {}
     for task_to_ll, task_to_program in parallel_results:

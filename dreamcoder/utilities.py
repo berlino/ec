@@ -246,6 +246,8 @@ def parallelMap(numberOfCPUs, f, *xs, chunksize=None, maxtasksperchild=None, mem
     pool = Pool(numberOfCPUs, maxtasksperchild=maxtasksperchild)
     ys = pool.map(parallelMapCallBack, permutation,
                   chunksize=chunksize)
+    pool.close()
+    pool.join()
     pool.terminate()
 
     PARALLELMAPDATA = None

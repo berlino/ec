@@ -74,7 +74,6 @@ def main(args):
     print("Startin to load model")
     model = EncoderDecoder(grammar=grammar, request=request, cuda=use_cuda, device=device, rnn_decode=rnn_decode, 
         program_embedding_size=128, primitive_to_idx=token_to_idx)
-    model.share_memory()
     print("Finished loading model")
 
     # load tasks to check sampled programs against
@@ -110,27 +109,29 @@ def main(args):
                     print("\n\n{}: {}".format(task, "\n".join([" ".join([idx_to_token[i] for i in p[0]]) for p in programs]))) 
 
         if len(task_to_correct_programs) > 0:
-            model = model.to(device=torch.device("gpu"))
+            model = model.to(device=torch.device("cuda"))
             model = train_experience_replay(model, task_to_correct_programs, tasks_dir=tasks_dir, beta=beta,
                 num_epochs=epochs_per_replay, lr=lr, weight_decay=weight_decay, batch_size=batch_size, device=device)
             
             torch.save({
                'model_state_dict': model.state_dict(),
             }, 'data/larc/model_{}.pt'.format(iteration))
-        
-        start_time = time.time()
+       
+  
         # decode with randomized beam search
+        print("Starting to decode")
+        decode_start_time = time.time()
         model = model.to(device=torch.device("cpu"))
         task_to_decoded_programs, task_to_lls = multicore_decode(model, grammar, larc_train_dataset_cpu, tasks, restrict_types=restrict_types, rnn_decode=rnn_decode, how="randomized_beam_search", 
             beam_width=beam_width, epsilon=epsilon, num_cpus=num_cpus, verbose=verbose)
-        print("\nFinished Decoding in {}s \n".format(time.time() - start_time))
+        print("\nFinished Decoding in {}s \n".format(time.time() - decode_start_time))
 
         # experience replay train with discovered program
-        task_to_correct_programs = {}
+        task_to_correct_programs_iter = {}
         for task,log_likelihoods in task_to_lls.items():
             for i,ll in enumerate(log_likelihoods):
                 if ll == 0.0:
-                    res = task_to_correct_programs.get(task, [])
+                    res = task_to_correct_programs_iter.get(task, [])
                     programName, program = task_to_decoded_programs[task][i]
                     print("Task {}: {}".format(task, programName))
  
@@ -139,4 +140,18 @@ def main(args):
                         # put tensor on gpu for training
                         programScore = program.totalScore[0].to(device=torch.device("cuda"))
                     res.append((paddedProgramTokenSeq, programScore))
-                    task_to_correct_programs[task] = res
+
+                    # add to library of discovered programs if it is not already there
+                    task_programs = task_to_correct_programs.get(task, [])
+                    existingTokenSequences = [tokenSeq for tokenSeq, score in task_programs]
+                    if paddedProgramTokenSeq not in existingTokenSequences:
+                         task_programs.append((paddedProgramTokenSeq, programScore))
+                         task_to_correct_programs[task] = task_programs
+                    task_to_correct_programs_iter[task] = res
+
+        print("Decoded correct programs for {} tasks at iteration {}".format(len(task_to_correct_programs_iter), iteration))
+        print("Decoded correct programs for {} tasks total".format(len(task_to_correct_programs)))
+
+        print("task_to_correct_programs_iter", task_to_correct_programs_iter)
+        print("task_to_correct_programs", task_to_correct_programs)
+
