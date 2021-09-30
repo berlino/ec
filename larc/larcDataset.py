@@ -131,7 +131,8 @@ def load_task_to_programs_from_frontiers_pkl(grammar, request, token_to_idx, pkl
 class LARC_Cell_Dataset(Dataset):
     """dataset for predicting each cell color in LARC dataset."""
 
-    def __init__(self, tasks_json_path, resize=(30,30), num_ios=3, tasks_subset=None, max_tasks=float('inf'), for_synthesis=False, beta=0.0, task_to_programs=None, device=torch.device("cpu")):
+    def __init__(self, tasks_json_path, resize=(30,30), num_ios=3, tasks_subset=None, max_tasks=float('inf'), for_synthesis=False, beta=0.0, 
+        task_to_programs=None, device=torch.device("cpu"), task_to_sentences=None):
         """
         Params:
             tasks_json_path: path to folder with task jsons in it
@@ -146,7 +147,8 @@ class LARC_Cell_Dataset(Dataset):
         tasks_subset = set(tasks_subset) if tasks_subset is not None else None    # for O(1) checks
         tokenizer = BertTokenizer.from_pretrained("bert-base-uncased", cache_dir=".cache/")
 
-        task_generator = self.gen_larc_synth_tasks(tasks_json_path, tasks_subset, self.task_to_programs, beta=beta) if for_synthesis \
+        task_generator = self.gen_larc_synth_tasks(tasks_json_path, tasks_subset, self.task_to_programs, beta=beta, 
+            task_to_sentences=task_to_sentences) if for_synthesis \
         else self.gen_larc_pred_tasks(tasks_json_path, tasks_subset)
 
         # pad all grids with 0s to make same size
@@ -227,14 +229,14 @@ class LARC_Cell_Dataset(Dataset):
         """
         yield task
 
-    def gen_larc_synth_tasks(self, tasks_json_path, tasks_subset, task_to_programs, beta):
+    def gen_larc_synth_tasks(self, tasks_json_path, tasks_subset, task_to_programs, beta, task_to_sentences):
         """
         generate larc tasks to train synthesis model with
         :param tasks_json_path: path to folder with LARC tasks
         :yields: {'io_grids': [(input1, output1), (input2, output2)...], 'test_in': test_input, 'desc': NL description, 'programs': list of programs (strings)}
         """
 
-        for base_task in self.gen_larc_tasks(tasks_json_path, tasks_subset=tasks_subset):  # {'io_grids': [(input1, output1), (input2, output2)...], 'test': (test_input, test output), 'desc': NL description}
+        for base_task in self.gen_larc_tasks(tasks_json_path, tasks_subset=tasks_subset, task_to_sentences=task_to_sentences):  # {'io_grids': [(input1, output1), (input2, output2)...], 'test': (test_input, test output), 'desc': NL description}
             for task in self.augment_larc_task(base_task):
                 test_in, test_out = task['test']
                 task_dict = {'io_grids': task['io_grids'], 'test_in': test_in, 'desc': task['desc'], 'num': task['num'], 'name': task['name']}
@@ -266,7 +268,7 @@ class LARC_Cell_Dataset(Dataset):
                         yield {'io_grids': task['io_grids'], 'test_in': test_in, 'desc': task['desc'], 'x': x, 'y': y,
                                'col': cell_color, 'num': task['num']}
 
-    def gen_larc_tasks(self, task_json_path, min_perc=0.1, tasks_subset=None):
+    def gen_larc_tasks(self, task_json_path, min_perc=0.1, tasks_subset=None, task_to_sentences=None):
         """
         generator for tasks for input to NN
         :param task_json_path: path to folder with LARC tasks
@@ -295,12 +297,20 @@ class LARC_Cell_Dataset(Dataset):
                 # get test IO
                 io_test = (task['test'][0]['input'], task['test'][0]['output'])
 
-                # yield for each description
-                for desc in task['descriptions'].values():
-                    suc, tot = 0, 0
-                    for build in desc['builds'].values():
-                        suc += 1 if build['success'] else 0
-                        tot += 1
-                    if tot > 0 and suc / tot >= min_perc:   # tot > 0 to avoid / 0
-                        num_tasks += 1
-                        yield {'io_grids': io_exs, 'test': io_test, 'desc': desc['do_description'], 'num': task_num, 'name': task['name']}
+                # If this file has been provided use its NL instead of the ones from task_json_path (hacky way to ensure we use same data
+                # as bigram synthesis model)
+                if task_to_sentences is not None:
+                    if task["name"] in task_to_sentences:
+                        description = ". ".join(task_to_sentences[task["name"]])
+                        yield {'io_grids': io_exs, 'test': io_test, 'desc': description, 'num': task_num, 'name': task['name']}
+
+                else:
+                    # yield for each description
+                    for desc in task['descriptions'].values():
+                        suc, tot = 0, 0
+                        for build in desc['builds'].values():
+                            suc += 1 if build['success'] else 0
+                            tot += 1
+                        if tot > 0 and suc / tot >= min_perc:   # tot > 0 to avoid / 0
+                            num_tasks += 1
+                            yield {'io_grids': io_exs, 'test': io_test, 'desc': desc['do_description'], 'num': task_num, 'name': task['name']}
