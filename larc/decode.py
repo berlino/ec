@@ -72,7 +72,7 @@ def score_decode(decoder, encoderOutput, targetTokens, rnn_decode, device):
         scorePerTaskInBatch[j] = sampleScore
     return scorePerTaskInBatch
 
-def multicore_decode(model, grammar, dataset, tasks, restrict_types, rnn_decode, how="sample", n=10, beam_width=10, epsilon=0.1, num_cpus=1, verbose=False):
+def multicore_decode(model, grammar, dataset, tasks, restrict_types, rnn_decode, num_iter_beam_search=1, how="sample", n=10, beam_width=10, epsilon=0.1, num_cpus=1, verbose=False):
     
     def decode_helper(idx_pair, num_cpus, model):
         """
@@ -89,7 +89,7 @@ def multicore_decode(model, grammar, dataset, tasks, restrict_types, rnn_decode,
         with torch.no_grad():
 
             start_idx, end_idx = idx_pair
-            data_loader = DataLoader(dataset[start_idx:end_idx], batch_size=1, collate_fn =lambda x: collate(x, False), drop_last=True, shuffle=True)
+            data_loader = DataLoader(dataset[start_idx:end_idx], batch_size=end_idx-start_idx, collate_fn =lambda x: collate(x, False), drop_last=False, shuffle=True)
 
             task_to_programs = {}
 
@@ -100,23 +100,26 @@ def multicore_decode(model, grammar, dataset, tasks, restrict_types, rnn_decode,
                 
                 # iterate through each task in the batch
                 for i in range(encoderOutputs.size(0)):
-                
+   
                     task = batch["name"][i]
                     task_to_programs[task] = []
 
-                    if how == "sample":
-                        raise Exception("Not imlemented yet")
+                    # run beam search num_iter_beam_search times
+                    for j in range(num_iter_beam_search):
+
+                        if how == "sample":
+                            raise Exception("Not imlemented yet")
     # 
-                    elif how == "randomized_beam_search":
-                        beam_search_result = randomized_beam_search_decode(model.decoder, encoderOutputs[i:i+1, :], restrict_types=restrict_types, rnn_decode=rnn_decode, 
-                            beam_width=beam_width, epsilon=epsilon, device=torch.device("cpu"))
-                        if len(beam_search_result) == 0:
-                            continue
-                        else:
-                            for (score, node) in beam_search_result:
-                                program_string = " ".join(node.programStringsSeq + [")"])
-                                program_string = str(Program.parse(program_string))
-                                task_to_programs[task].append((program_string, node))
+                        elif how == "randomized_beam_search":
+                            beam_search_result = randomized_beam_search_decode(model.decoder, encoderOutputs[i:i+1, :], restrict_types=restrict_types, rnn_decode=rnn_decode, 
+                                beam_width=beam_width, epsilon=epsilon, device=torch.device("cpu"))
+                            if len(beam_search_result) == 0:
+                                continue
+                            else:
+                                for (score, node) in beam_search_result:
+                                    program_string = " ".join(node.programStringsSeq + [")"])
+                                    program_string = str(Program.parse(program_string))
+                                    task_to_programs[task].append((program_string, node))
 
             # if verbose and len(task_to_programs) > 0:
                 # print("\nNumber of programs decoded per task")
@@ -141,7 +144,6 @@ def multicore_decode(model, grammar, dataset, tasks, restrict_types, rnn_decode,
     # calculate how many tasks to assign to each core    
     num_tasks_per_core = int(math.ceil(len(dataset) / num_cpus))
     idx_pairs = list(get_batch_start_end_idxs(len(dataset), num_tasks_per_core))
-    print("idx_pairs", idx_pairs)
     
     # sharing model across cores so that it's not copied to each of them
     model.share_memory()

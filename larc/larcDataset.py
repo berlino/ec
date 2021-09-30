@@ -20,14 +20,14 @@ def get_batch_start_end_idxs(n, batch_size):
         yield i, min(i+batch_size, n)
 
 
-def normalize_weights(weights, beta):
+def normalize_weights(programs, beta):
     """
-    :param weights: assume each weight is the probability of each program (and not the log probability)
+    :param programs: list of (token_idx_seq, weight) tuples. assume each weight is the probability of each program (and not the log probability)
     :param beta: controls how much to rely on weights, with beta=0 corresponding to uniform distribution and beta=1 corresponding to leaving as is
     """
 
-    denominator = sum([w**beta for w in weights])
-    return [w**beta / denominator for w in weights]
+    denominator = sum([w**beta for _,w in programs])
+    return [(p, w**beta / denominator) for p,w in programs]
 
 def collate(x, inlcude_ground_truth_programs):
 
@@ -161,9 +161,8 @@ class LARC_Cell_Dataset(Dataset):
             # if we are generating tasks for synthesis model then we don't need x and y positions as input
             if for_synthesis:
                 if task_to_programs is not None:
-                    new_task["program"] = torch.tensor(new_task["program"], device=device)
-                    new_task["program_weight"] = new_task["program_weight"]
-
+                    if isinstance(new_task["program"], list):
+                        new_task["program"] = torch.tensor(new_task["program"], device=device)
             else:
                 # 1-hot x and y
                 max_x, max_y = 30, 30
@@ -241,10 +240,10 @@ class LARC_Cell_Dataset(Dataset):
                 task_dict = {'io_grids': task['io_grids'], 'test_in': test_in, 'desc': task['desc'], 'num': task['num'], 'name': task['name']}
                 if task_to_programs is not None:
                     programs = task_to_programs[task['name']]
-                    weights = normalize_weights([w for program,w in programs], beta)
-                    for i in range(min(len(programs), 8)):
-                        task_dict['program'] = programs[i][0]
-                        task_dict['program_weight'] = weights[i].detach()
+                    weight_normalized_programs = normalize_weights(programs, beta)
+                    for i in range(len(weight_normalized_programs)):
+                        task_dict['program'] = weight_normalized_programs[i][0]
+                        task_dict['program_weight'] = weight_normalized_programs[i][1].detach()
                         yield task_dict
                 else:
                     yield task_dict

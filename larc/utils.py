@@ -68,6 +68,11 @@ def commandLineArgs():
                         default=False,
                         help="Whether to jumpstart by training on set of ground truth programs first",
                         action="store_true")
+    parser.add_argument("--num-iter-beam-search",
+                        dest="num_iter_beam_search",
+                        default=1,
+                        type=int)
+
 
     args = vars(parser.parse_args())
     return args
