@@ -303,6 +303,7 @@ class LARC_Cell_Dataset(Dataset):
                     if task["name"] in task_to_sentences:
                         description = ". ".join(task_to_sentences[task["name"]])
                     else:
+                        # copying how we handle no language in Bigram model experiments. Encoder should learn to ignore "" for tasks we solve with no language
                         description = ""
                     yield {'io_grids': io_exs, 'test': io_test, 'desc': description, 'num': task_num, 'name': task['name']}
 
