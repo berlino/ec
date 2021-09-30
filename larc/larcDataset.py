@@ -302,7 +302,9 @@ class LARC_Cell_Dataset(Dataset):
                 if task_to_sentences is not None:
                     if task["name"] in task_to_sentences:
                         description = ". ".join(task_to_sentences[task["name"]])
-                        yield {'io_grids': io_exs, 'test': io_test, 'desc': description, 'num': task_num, 'name': task['name']}
+                    else:
+                        description = ""
+                    yield {'io_grids': io_exs, 'test': io_test, 'desc': description, 'num': task_num, 'name': task['name']}
 
                 else:
                     # yield for each description
