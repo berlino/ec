@@ -39,6 +39,9 @@ PRIMITIVE_HUMAN_READABLE = os.path.join(DATA_DIR, "primitiveNamesToDescriptions.
 PRIOR_ENUMERATION_FRONTIERS = os.path.join(DATA_DIR, "prior_enumeration_frontiers_8hr.pkl")
 ELICIT_FEATURE_VECTOR = os.path.join(DATA_DIR, "elicit_feature_vectors.json")
 
+SPLIT_SEED = 0
+SPLIT_RATIO = 0.5
+
 class LMPseudoTranslationFeatureExtractor(LMFeatureExtractor):
     """Generates pseudo annotations during training."""
     def __init__(self, tasks=[], testingTasks=[], cuda=False):
@@ -156,6 +159,16 @@ def retrieveARCJSONTask(filename, directory, useEvalExamplesForTraining=False):
     task.specialTask = ('arc', None)
     return task
 
+def train_test_split(tasks, ratio, seed):
+    
+    random.seed(seed)
+    random.shuffle(tasks)
+    train_size = int(ratio * len(tasks))
+    # change global seed so that it's not always fixed for other parts of the pipeline
+    random.seed()
+
+    return tasks[:train_size], tasks[train_size:]
+
 def preload_initial_frontiers(preload_frontiers_file):
     with open(preload_frontiers_file, "rb") as f:
         preloaded_frontiers = pickle.load(f)
@@ -170,6 +183,7 @@ def arc_options(parser):
     # parser.add_argument("--random-seed", type=int, default=17)
     parser.add_argument("--singleTask", default=False, action="store_true")
     parser.add_argument("--unigramEnumerationTimeout", type=int, default=3600)
+    parser.add_argument("--splitRatio", type=float, default=0.5)
     parser.add_argument("--firstTimeEnumerationTimeout", type=int, default=1)
     parser.add_argument("--featureExtractor", default="dummy", choices=[
         "arcCNN",
@@ -216,8 +230,10 @@ def main(args):
     homeDirectory = "/".join(os.path.abspath(__file__).split("/")[:-4])
     dataDirectory = homeDirectory + "/arc_data/data/"
 
-    trainTasks = retrieveARCJSONTasks(dataDirectory + 'training', useEvalExamplesForTraining=True, filenames=None)
-    holdoutTasks = retrieveARCJSONTasks(dataDirectory + 'evaluation')
+    tasks = retrieveARCJSONTasks(dataDirectory + 'training', useEvalExamplesForTraining=True, filenames=None)
+    
+    # hardcoding seed to make sure we use the same train test split across experiments
+    trainTasks, holdoutTasks = train_test_split(tasks, SPLIT_RATIO, SPLIT_SEED)
     
     language_annotations_data = args.pop("language_annotations_data") 
     if language_annotations_data is not None:
