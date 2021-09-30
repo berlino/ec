@@ -31,6 +31,7 @@ from dreamcoder.domains.arc.cnn_feature_extractor import ArcCNN
 
 DATA_DIR = "data/arc"
 
+CHECKPOINT_FILE_PREFIX = "experimentOutputs"
 NONE = "NONE"
 LANGUAGE_PROGRAMS_FILE = os.path.join(DATA_DIR, "best_programs_nl_sentences.csv") # Sentences and the best supervised programs.
 TAGGED_LANGUAGE_FEATURES_FILE = os.path.join(DATA_DIR, "tagged_nl_sentences.csv") # Tagged semantic features.
@@ -169,15 +170,25 @@ def train_test_split(tasks, ratio, seed):
 
     return tasks[:train_size], tasks[train_size:]
 
-def preload_initial_frontiers(preload_frontiers_file):
-    with open(preload_frontiers_file, "rb") as f:
-        preloaded_frontiers = pickle.load(f)
+def preload_initial_frontiers(preload_frontiers_file, is_checkpoint_file=False):
+
+    if is_checkpoint_file:
+        with open(preload_frontiers_file, "rb") as handle:
+            result = dill.load(handle)
+            preloaded_frontiers = result.allFrontiers
+
+
+    else:
+        with open(preload_frontiers_file, "rb") as f:
+            preloaded_frontiers = pickle.load(f)
+
     tasks_to_preloaded_frontiers = {
         task.name : frontier
         for task, frontier in preloaded_frontiers.items() if not frontier.empty
     }
     print(f"Preloaded frontiers for {len(tasks_to_preloaded_frontiers)} tasks.")
     return tasks_to_preloaded_frontiers
+
 
 def arc_options(parser):
     # parser.add_argument("--random-seed", type=int, default=17)
@@ -243,7 +254,8 @@ def main(args):
     preloaded_frontiers_file = args.pop("preload_frontiers")
     preloaded_frontiers = dict()
     if preloaded_frontiers_file != NONE:
-        preloaded_frontiers = preload_initial_frontiers(preloaded_frontiers_file)
+        is_checkpoint_file = CHECKPOINT_FILE_PREFIX in preloaded_frontiers_file
+        preloaded_frontiers = preload_initial_frontiers(preloaded_frontiers_file, is_checkpoint_file)
 
     primitivesTable = {
         "base": basePrimitives() + leafPrimitives(),
