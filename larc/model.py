@@ -107,74 +107,74 @@ def main(args):
         task_to_programs=None, device=torch.device("cpu"), task_to_sentences=task_to_sentences)
     print("Finished loading dataset ({} samples)".format(len(larc_train_dataset_cpu)))
     
-    # task_to_correct_programs, task_to_correct_programs_iter = {}, {}
-    # for iteration in range(num_cycles):
+    task_to_correct_programs, task_to_correct_programs_iter = {}, {}
+    for iteration in range(num_cycles):
  
-    #     for start_idx, end_idx in get_batch_start_end_idxs(len(larc_train_dataset_cpu), batch_size):
-    #         larc_train_dataset_batch_cpu = larc_train_dataset_cpu[start_idx:end_idx]
+        for start_idx, end_idx in get_batch_start_end_idxs(len(larc_train_dataset_cpu), batch_size):
+            larc_train_dataset_batch_cpu = larc_train_dataset_cpu[start_idx:end_idx]
         
-    #         if iteration == 0 and jumpstart:
-    #             tasks_subset = [] if tasks_subset is None else tasks_subset
-    #             task_to_programs = {k:v for k,v in task_to_programs.items() if ((len(v) > 0) and (k in tasks_subset))}
-    #             task_to_programs = {k:v[:(min(max_programs_per_task, len(v)))] for k,v in task_to_programs.items()}
-    #             task_to_correct_programs = task_to_programs
-    #             print("{} initial tasks to learn from".format(len(task_to_programs)))
-    #             if verbose:
-    #                 for task, programs in task_to_correct_programs.items():
-    #                     print("\n\n{}: {}".format(task, "\n".join([" ".join([idx_to_token[i] for i in p[0]]) for p in programs]))) 
+            if iteration == 0 and jumpstart:
+                tasks_subset = [] if tasks_subset is None else tasks_subset
+                task_to_programs = {k:v for k,v in task_to_programs.items() if ((len(v) > 0) and (k in tasks_subset))}
+                task_to_programs = {k:v[:(min(max_programs_per_task, len(v)))] for k,v in task_to_programs.items()}
+                task_to_correct_programs = task_to_programs
+                print("{} initial tasks to learn from".format(len(task_to_programs)))
+                if verbose:
+                    for task, programs in task_to_correct_programs.items():
+                        print("\n\n{}: {}".format(task, "\n".join([" ".join([idx_to_token[i] for i in p[0]]) for p in programs]))) 
 
-    #         if len(task_to_correct_programs_iter) > 0:
-    #             model = model.to(device=torch.device("cuda"))
-    #             model = train_experience_replay(model, task_to_correct_programs_iter, tasks_dir=tasks_dir, beta=beta,
-    #                num_epochs=epochs_per_replay, lr=lr, weight_decay=weight_decay, batch_size=batch_size, device=device)
+            if len(task_to_correct_programs_iter) > 0:
+                model = model.to(device=torch.device("cuda"))
+                model = train_experience_replay(model, task_to_correct_programs_iter, tasks_dir=tasks_dir, beta=beta,
+                   num_epochs=epochs_per_replay, lr=lr, weight_decay=weight_decay, batch_size=batch_size, device=device)
             
-    #             torch.save({
-    #                'model_state_dict': model.state_dict(),
-    #             }, 'data/larc/model_{}.pt'.format(iteration))
+                torch.save({
+                   'model_state_dict': model.state_dict(),
+                }, 'data/larc/model_{}.pt'.format(iteration))
        
   
-    #         # decode with randomized beam search
-    #         print("Starting to decode")
-    #         decode_start_time = time.time()
-    #         model = model.to(device=torch.device("cpu"))
-    #         task_to_decoded_programs, task_to_lls = multicore_decode(model, grammar, larc_train_dataset_batch_cpu, tasks, restrict_types=restrict_types, rnn_decode=rnn_decode, num_iter_beam_search=num_iter_beam_search,
-    #             how="randomized_beam_search", beam_width=beam_width, epsilon=epsilon, num_cpus=num_cpus, verbose=verbose)
-    #         print("\nFinished Decoding in {}s \n".format(time.time() - decode_start_time))
+            # decode with randomized beam search
+            print("Starting to decode")
+            decode_start_time = time.time()
+            model = model.to(device=torch.device("cpu"))
+            task_to_decoded_programs, task_to_lls = multicore_decode(model, grammar, larc_train_dataset_batch_cpu, tasks, restrict_types=restrict_types, rnn_decode=rnn_decode, num_iter_beam_search=num_iter_beam_search,
+                how="randomized_beam_search", beam_width=beam_width, epsilon=epsilon, num_cpus=num_cpus, verbose=verbose)
+            print("\nFinished Decoding in {}s \n".format(time.time() - decode_start_time))
             
-    #         # experience replay train with discovered program
-    #         task_to_correct_programs_iter = {}
-    #         for task,log_likelihoods in task_to_lls.items():
-    #             programs_for_task = []
-    #             for i,ll in enumerate(log_likelihoods):
-    #                 if ll == 0.0:
-    #                     programName, program = task_to_decoded_programs[task][i]
-    #                     print("Task {}: {}".format(task, programName))
+            # experience replay train with discovered program
+            task_to_correct_programs_iter = {}
+            for task,log_likelihoods in task_to_lls.items():
+                programs_for_task = []
+                for i,ll in enumerate(log_likelihoods):
+                    if ll == 0.0:
+                        programName, program = task_to_decoded_programs[task][i]
+                        print("Task {}: {}".format(task, programName))
  
-    #                     paddedProgramTokenSeq = pad_token_seq(program.programTokenSeq, token_to_idx["PAD"], MAX_PROGRAM_LENGTH)
-    #                     programScore = program.totalScore[0]
-    #                     if use_cuda:
-    #                         # put tensor on gpu for training
-    #                         programScore = programScore.to(device=torch.device("cuda"))
-    #                     programs_for_task.append((paddedProgramTokenSeq, programScore))
+                        paddedProgramTokenSeq = pad_token_seq(program.programTokenSeq, token_to_idx["PAD"], MAX_PROGRAM_LENGTH)
+                        programScore = program.totalScore[0]
+                        if use_cuda:
+                            # put tensor on gpu for training
+                            programScore = programScore.to(device=torch.device("cuda"))
+                        programs_for_task.append((paddedProgramTokenSeq, programScore))
 
-    #                     # add to library of discovered programs if it is not already there
-    #                     task_programs = task_to_correct_programs.get(task, [])
-    #                     existingTokenSequences = [tokenSeq for tokenSeq, score in task_programs]
-    #                     if paddedProgramTokenSeq not in existingTokenSequences:
-    #                         task_programs.append((paddedProgramTokenSeq, programScore))
-    #                         task_to_correct_programs[task] = task_programs
+                        # add to library of discovered programs if it is not already there
+                        task_programs = task_to_correct_programs.get(task, [])
+                        existingTokenSequences = [tokenSeq for tokenSeq, score in task_programs]
+                        if paddedProgramTokenSeq not in existingTokenSequences:
+                            task_programs.append((paddedProgramTokenSeq, programScore))
+                            task_to_correct_programs[task] = task_programs
                         
-    #             # normalize weights and update data structure of solved tasks for this iteration
-    #             if len(programs_for_task) > 0:
-    #                 task_to_correct_programs_iter[task] = normalize_weights(programs_for_task, beta)
+                # normalize weights and update data structure of solved tasks for this iteration
+                if len(programs_for_task) > 0:
+                    task_to_correct_programs_iter[task] = normalize_weights(programs_for_task, beta)
 
 
-    #         task_to_correct_programs_iter = {'1cf80156.json': [(torch.tensor([1, 25, 8, 45, 4, 79, 33, 8, 10, 11, 42, 4, 79, 79, 2, 3, 2, 78, 78, 78, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], device=torch.device("cuda")), torch.tensor(2.8922, device=torch.device('cuda'))), (torch.tensor([1, 25, 8, 45, 4, 79, 33, 8, 10, 11, 42, 4, 79, 79, 2, 3, 2, 78, 78, 79, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], device=torch.device('cuda')), torch.tensor(2.7261, device=torch.device('cuda')))]}
+            task_to_correct_programs_iter = {'1cf80156.json': [(torch.tensor([1, 25, 8, 45, 4, 79, 33, 8, 10, 11, 42, 4, 79, 79, 2, 3, 2, 78, 78, 78, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], device=torch.device("cuda")), torch.tensor(2.8922, device=torch.device('cuda'))), (torch.tensor([1, 25, 8, 45, 4, 79, 33, 8, 10, 11, 42, 4, 79, 79, 2, 3, 2, 78, 78, 79, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], device=torch.device('cuda')), torch.tensor(2.7261, device=torch.device('cuda')))]}
 
 
-    #         print("Decoded correct programs for {} tasks at iteration {}".format(len(task_to_correct_programs_iter), iteration))
-    #         print("Decoded correct programs for {} tasks total".format(len(task_to_correct_programs)))
+            print("Decoded correct programs for {} tasks at iteration {}".format(len(task_to_correct_programs_iter), iteration))
+            print("Decoded correct programs for {} tasks total".format(len(task_to_correct_programs)))
 
-    #         print("task_to_correct_programs_iter", task_to_correct_programs_iter)
-    #         print("task_to_correct_programs", task_to_correct_programs)
+            print("task_to_correct_programs_iter", task_to_correct_programs_iter)
+            print("task_to_correct_programs", task_to_correct_programs)
 
