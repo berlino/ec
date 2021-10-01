@@ -19,7 +19,7 @@ class EncoderDecoder(nn.Module):
         3. Use output from 2 as query and token embeddings as keys to get attention vector
     """
 
-    def __init__(self, grammar, request, cuda, device, rnn_decode, program_embedding_size=128, primitive_to_idx=None):
+    def __init__(self, grammar, request, cuda, device, rnn_decode, use_nl=True, program_embedding_size=128, primitive_to_idx=None):
         super(EncoderDecoder, self).__init__()
         
         self.device = device
@@ -30,7 +30,7 @@ class EncoderDecoder(nn.Module):
         self.decoder = Decoder(embedding_size=program_embedding_size, grammar=grammar, request=request, cuda=cuda, device=device, max_program_length=MAX_PROGRAM_LENGTH, 
             encoderOutputSize=64, primitive_to_idx=primitive_to_idx, use_rnn=rnn_decode)
         print("Finished loading Decoder, starting to load Encoder")
-        self.encoder = LARCEncoder(cuda=cuda, device=device)
+        self.encoder = LARCEncoder(cuda=cuda, use_nl=use_nl, device=device)
         print("Finished loading Encoder")
     
         if cuda: self.cuda()

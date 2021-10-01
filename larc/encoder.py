@@ -11,10 +11,11 @@ class LARCEncoder(nn.Module):
         - better way to handle different grid sizes than padding with special token
         - make LM changeable at initialization
     """
-    def __init__(self, cuda, device):
+    def __init__(self, cuda, device, use_nl=False):
         super(LARCEncoder, self).__init__()
         
         self.device = device
+        self.use_nl = use_nl
 
         # grid encoder
         # 30x30x11 --> 256
@@ -52,19 +53,19 @@ class LARCEncoder(nn.Module):
             nn.ReLU(),
         )
 
-        # natural language description encoding
-        # nl --> 64
-
-        self.bert = BertModel.from_pretrained("bert-base-uncased", cache_dir=".cache/")
-        self.bert.requires_grad_(False)
-        self.bert_resize = nn.Sequential(
-            nn.Linear(768, 64),
-            nn.ReLU(),
-        )
+        if self.use_nl:
+            # natural language description encoding
+            # nl --> 64
+            self.bert = BertModel.from_pretrained("bert-base-uncased", cache_dir=".cache/")
+            self.bert.requires_grad_(False)
+            self.bert_resize = nn.Sequential(
+                nn.Linear(768, 64),
+                nn.ReLU(),
+            )
 
         # transformer:
-        # batch_size x 64 x 5 --> batch_size x 64 x 5
-        encoder_layer = nn.TransformerEncoderLayer(d_model=5, nhead=5)
+        # seq_length x batch_size x d_model --> seq_length x batch_size x d_model
+        encoder_layer = nn.TransformerEncoderLayer(d_model=64, nhead=4)
         self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=6)
 
         if cuda: self.cuda()
@@ -83,20 +84,20 @@ class LARCEncoder(nn.Module):
         # run test input grid through encoder
         transformer_input.append(self.test_in_embedding(self.encoder(test_in)))
 
-        # run through BERT
-        transformer_input.append(self.bert_resize(self.bert(**desc_tokens)['pooler_output']))
+        if self.use_nl:
+            # run through BERT
+            transformer_input.append(self.bert_resize(self.bert(**desc_tokens)['pooler_output']))
 
         # stack all inputs
-        t_in = torch.stack(transformer_input, dim=1).transpose(1,2)
+        t_in = torch.stack(transformer_input, dim=1)
         # change shape so that t_in works with batch_first=False
         t_in = t_in.transpose(0, 1)
-
-        # 64 x batch_size x 5 --> 64 x batch_size x 5
+        # seq_length x batch_size x d_model --> seq_length x batch_size x d_model
         t_out = self.transformer(t_in)
 
         # TODO: ask evan about changing
         # aggregate transformers vector outputs into a single vector by taking max operation
-        t_out = torch.max(t_out, dim=2).values
+        t_out = torch.max(t_out, dim=0).values
 
         # new shape is: batch_size x embed_dim
-        return torch.transpose(t_out, 0, 1)
+        return t_out

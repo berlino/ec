@@ -102,9 +102,11 @@ class Decoder(nn.Module):
                 
             probs = F.softmax(logits, dim=1)
             temp = probs.squeeze()
-            for i,token in sorted(list(self.idxToPrimitive.items()), key=lambda x: temp[x[0]]):
-                if temp[i] > 0.0:
-                   print("{}: {}".format(token, temp[i]))
+            
+            # used for debugging
+            # for i,token in sorted(list(self.idxToPrimitive.items()), key=lambda x: temp[x[0]]):
+            #    if temp[i] > 0.0:
+            #       print("{}: {}".format(token, temp[i]))
             return probs, hidden, nextTokenType, lambdaVars, pp
 
         else:

@@ -32,7 +32,7 @@ class PartialProgram:
 
         self.programStringsSeq = ["(lambda"] if programStringsSeq is None else programStringsSeq
         
-        self.totalScore = 0.0
+        self.totalScore = 0.0 if totalScore is None else totalScore
 
         self.nextTokenTypeStack = Stack([requestReturnType]) if nextTokenTypeStack is None else nextTokenTypeStack
         self.lambdaVarsTypeStack = Stack() if lambdaVarsTypeStack is None else lambdaVarsTypeStack
@@ -97,7 +97,8 @@ class PartialProgram:
                 self.lambdaVarsTypeStack.pop()
 
         self.hidden = hidden
-        self.totalScore += score
+        self.totalScore += score.item()
+        # print("{}: {}".format(" ".join(self.programStringsSeq), self.totalScore))
 
         return self
 

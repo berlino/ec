@@ -6,6 +6,10 @@ def commandLineArgs():
                         dest="restrict_types",
                         default=False,
                         action="store_true")
+    parser.add_argument("--limit-overfit",
+                        dest="limit_overfit",
+                        default=False,
+                        action="store_true")
     parser.add_argument("--use-cuda",
                         dest="use_cuda",
                         default=False,
@@ -72,7 +76,15 @@ def commandLineArgs():
                         dest="num_iter_beam_search",
                         default=1,
                         type=int)
-
+    parser.add_argument("--preload-frontiers",
+                        dest="preload_frontiers",
+                        default=None,
+                        type=str) 
+    parser.add_argument("--no-nl",
+                        dest="no_nl",
+                        default=False,
+                        help="Whether to condition on natural language description i.e. use NL as input to encoder",
+                        action="store_true")
 
     args = vars(parser.parse_args())
     return args

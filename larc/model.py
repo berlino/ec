@@ -1,3 +1,5 @@
+import datetime
+import dill
 import json
 import os
 import pickle
@@ -24,6 +26,8 @@ from larc.encoderDecoder import EncoderDecoder
 from larc.larcDataset import *
 from larc.train import *
 
+TRAIN_BATCH_SIZE = 8
+
 def main(args):
 
     use_cuda = args.pop("use_cuda")
@@ -43,6 +47,9 @@ def main(args):
     seed = args.pop("seed")
     jumpstart = args.pop("jumpstart")
     num_iter_beam_search = args.pop("num_iter_beam_search")
+    preload_frontiers = args.pop("preload_frontiers")
+    limit_overfit = args.pop("limit_overfit")
+    no_nl = args.pop("no_nl")
 
     # tasks_subset = ["67a3c6ac.json", "aabf363d.json"]
     tasks_subset = None
@@ -74,7 +81,7 @@ def main(args):
     # load model
     request = arrow(tgridin, tgridout)
     print("Startin to load model")
-    model = EncoderDecoder(grammar=grammar, request=request, cuda=use_cuda, device=device, rnn_decode=rnn_decode, 
+    model = EncoderDecoder(grammar=grammar, request=request, cuda=use_cuda, device=device, rnn_decode=rnn_decode, use_nl=not no_nl,
         program_embedding_size=128, primitive_to_idx=token_to_idx)
     print("Finished loading model")
 
@@ -91,46 +98,53 @@ def main(args):
     assert len(set(train_task_names).intersection(set(test_task_names))) == 0
 
     # load already discovered programs
-    tasks_dir = "data/larc/tasks_json"
-    json_file_name = "data/arc/prior_enumeration_frontiers_8hr.json"
-    task_to_programs_json = json.load(open(json_file_name, 'r'))
-    task_to_programs = load_task_to_programs_from_frontiers_json(grammar, token_to_idx, max_program_length=MAX_PROGRAM_LENGTH, 
-        task_to_programs_json=task_to_programs_json, device=device)
+    if preload_frontiers is not None:
+        task_to_programs = preload_frontiers_to_task_to_programs(preload_frontiers_filename=preload_frontiers)
+        task_to_programs = process_task_to_programs(grammar, token_to_idx, max_program_length=MAX_PROGRAM_LENGTH, 
+            task_to_programs=task_to_programs, device=device)
     print("Loaded task to programs")
+    print(task_to_programs)
 
     # load dataset for torch model
     # load task_to_sentences file to use instead of default NL data (so as to use the same NL data as bigram model)
     task_to_sentences = json.load(open(larc_directory + "language.json", "r"))
     print("task_to_sentences length", len(task_to_sentences))
     tasks_subset = tasks_subset if tasks_subset is not None else train_task_names
+    tasks_dir = "data/larc/tasks_json"
     larc_train_dataset_cpu = LARC_Cell_Dataset(tasks_dir, tasks_subset=tasks_subset, num_ios=MAX_NUM_IOS, resize=(30, 30), for_synthesis=True, beta=beta, 
         task_to_programs=None, device=torch.device("cpu"), task_to_sentences=task_to_sentences)
     print("Finished loading dataset ({} samples)".format(len(larc_train_dataset_cpu)))
     
+    # make results directory
+    timestamp = datetime.datetime.now().isoformat()
+    outputDirectory = "experimentOutputs/larc_neural/%s" % timestamp
+    os.system("mkdir -p %s" % outputDirectory)
+    
+    task_to_recently_decoded = {t:False for t in train_task_names}
     task_to_correct_programs, task_to_correct_programs_iter = {}, {}
     for iteration in range(num_cycles):
  
         for start_idx, end_idx in get_batch_start_end_idxs(len(larc_train_dataset_cpu), batch_size):
             larc_train_dataset_batch_cpu = larc_train_dataset_cpu[start_idx:end_idx]
         
-            if iteration == 0 and jumpstart:
-                tasks_subset = [] if tasks_subset is None else tasks_subset
-                task_to_programs = {k:v for k,v in task_to_programs.items() if ((len(v) > 0) and (k in tasks_subset))}
-                task_to_programs = {k:v[:(min(max_programs_per_task, len(v)))] for k,v in task_to_programs.items()}
-                task_to_correct_programs = task_to_programs
+            if (iteration == 0 and start_idx == 0)  and jumpstart:
+                # task_to_programs = {k:v for k,v in task_to_programs.items() if ((len(v) > 0) and (k in tasks_subset))}
+                # task_to_programs = {k:v[:(min(max_programs_per_task, len(v)))] for k,v in task_to_programs.items()}
+                task_to_correct_programs_iter = task_to_programs
                 print("{} initial tasks to learn from".format(len(task_to_programs)))
                 if verbose:
-                    for task, programs in task_to_correct_programs.items():
+                    for task, programs in task_to_correct_programs_iter.items():
                         print("\n\n{}: {}".format(task, "\n".join([" ".join([idx_to_token[i] for i in p[0]]) for p in programs]))) 
 
             if len(task_to_correct_programs_iter) > 0:
                 model = model.to(device=torch.device("cuda"))
                 model = train_experience_replay(model, task_to_correct_programs_iter, tasks_dir=tasks_dir, beta=beta,
-                   num_epochs=epochs_per_replay, lr=lr, weight_decay=weight_decay, batch_size=batch_size, device=device)
+                   num_epochs= 1 if (iteration == 0 and start_idx == 0) else epochs_per_replay, lr=lr, weight_decay=weight_decay, batch_size=TRAIN_BATCH_SIZE, device=device)
             
                 torch.save({
                    'model_state_dict': model.state_dict(),
-                }, 'data/larc/model_{}.pt'.format(iteration))
+                }, '{}/model_{}.pt'.format(outputDirectory, iteration))
+                dill.dump(task_to_correct_programs, open("{}/task_to_correct_programs.pkl".format(outputDirectory), "wb"))
        
   
             # decode with randomized beam search
@@ -148,33 +162,36 @@ def main(args):
                 for i,ll in enumerate(log_likelihoods):
                     if ll == 0.0:
                         programName, program = task_to_decoded_programs[task][i]
-                        print("Task {}: {}".format(task, programName))
+                        print("Task {}: {} ({})".format(task, programName, program.totalScore))
  
                         paddedProgramTokenSeq = pad_token_seq(program.programTokenSeq, token_to_idx["PAD"], MAX_PROGRAM_LENGTH)
-                        programScore = program.totalScore[0]
+                        programScore = program.totalScore
                         if use_cuda:
                             # put tensor on gpu for training
-                            programScore = programScore.to(device=torch.device("cuda"))
+                            programScore = torch.tensor(programScore, device=torch.device("cuda"))
                         programs_for_task.append((paddedProgramTokenSeq, programScore))
 
                         # add to library of discovered programs if it is not already there
                         task_programs = task_to_correct_programs.get(task, [])
-                        existingTokenSequences = [tokenSeq for tokenSeq, score in task_programs]
-                        if paddedProgramTokenSeq not in existingTokenSequences:
-                            task_programs.append((paddedProgramTokenSeq, programScore))
+                        existingProgramNames = [programName for programName, p in task_programs]
+                        if programName not in existingProgramNames:
+                            task_programs.append((programName, program))
                             task_to_correct_programs[task] = task_programs
-                        
-                # normalize weights and update data structure of solved tasks for this iteration
+                
                 if len(programs_for_task) > 0:
-                    task_to_correct_programs_iter[task] = normalize_weights(programs_for_task, beta)
-
-
-            task_to_correct_programs_iter = {'1cf80156.json': [(torch.tensor([1, 25, 8, 45, 4, 79, 33, 8, 10, 11, 42, 4, 79, 79, 2, 3, 2, 78, 78, 78, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], device=torch.device("cuda")), torch.tensor(2.8922, device=torch.device('cuda'))), (torch.tensor([1, 25, 8, 45, 4, 79, 33, 8, 10, 11, 42, 4, 79, 79, 2, 3, 2, 78, 78, 79, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], device=torch.device('cuda')), torch.tensor(2.7261, device=torch.device('cuda')))]}
-
-
-            print("Decoded correct programs for {} tasks at iteration {}".format(len(task_to_correct_programs_iter), iteration))
+                    if limit_overfit:
+                        if not task_to_recently_decoded[task]:
+                            task_to_correct_programs_iter[task] = programs_for_task
+                    else:
+                        task_to_correct_programs_iter[task] = programs_for_task
+                    task_to_recently_decoded[task] = True
+                else:
+                    task_to_recently_decoded[task] = False
+            
+            print("Training on discovered programs for {} tasks at iteration {}".format(len(task_to_correct_programs_iter), iteration))
             print("Decoded correct programs for {} tasks total".format(len(task_to_correct_programs)))
-
-            print("task_to_correct_programs_iter", task_to_correct_programs_iter)
-            print("task_to_correct_programs", task_to_correct_programs)
+        
+        print("Decoded correct program for {} tasks at iteration {}".format(len([el for el in list(task_to_recently_decoded.values()) if el]), iteration))
+  
+            # task_to_correct_programs_iter = {'1cf80156.json': [(torch.tensor([1, 25, 8, 45, 4, 79, 33, 8, 10, 11, 42, 4, 79, 79, 2, # 3, 2, 78, 78, 78, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], device=torch.device("cuda")), torch.tensor(2.8922, device=torch.device('cuda'))), #  (torch.tensor([1, 25, 8, 45, 4, 79, 33, 8, 10, 11, 42, 4, 79, 79, 2, 3, 2, 78, 78, 79, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], device=torc # h.device('cuda')), torch.tensor(2.7261, device=torch.device('cuda')))]}
 

@@ -1,3 +1,4 @@
+import dill
 import numpy as np
 import pickle
 import torch
@@ -11,7 +12,7 @@ from larc.decoderUtils import program_to_token_sequence
 
 PAD_VAL = 10
 TOKEN_PAD_VALUE = -1
-MAX_DESC_SEQ_LENGTH = 300
+MAX_DESC_SEQ_LENGTH = 350
 MAX_NUM_IOS = 3
 
 
@@ -22,12 +23,12 @@ def get_batch_start_end_idxs(n, batch_size):
 
 def normalize_weights(programs, beta):
     """
-    :param programs: list of (token_idx_seq, weight) tuples. assume each weight is the probability of each program (and not the log probability)
+    :param programs: list of (token_idx_seq, weight) tuples. each weight is the negative log probability of each program (and not the probability)
     :param beta: controls how much to rely on weights, with beta=0 corresponding to uniform distribution and beta=1 corresponding to leaving as is
     """
 
-    denominator = sum([w**beta for _,w in programs])
-    return [(p, w**beta / denominator) for p,w in programs]
+    denominator = sum([torch.exp(-w)**beta for _,w in programs])
+    return [(p, torch.exp(-w)**beta / denominator) for p,w in programs]
 
 def collate(x, inlcude_ground_truth_programs):
 
@@ -37,7 +38,7 @@ def collate(x, inlcude_ground_truth_programs):
     # stack all tensors of the same input/output type and the same example index to form batch
     io_grids_batched = [(torch.stack([x[i]["io_grids"][ex_idx][0] for i in range(len(x))]), torch.stack([x[i]["io_grids"][ex_idx][1] for i in range(len(x))])) 
         for ex_idx in range(MAX_NUM_IOS)]
-
+    
     batch_data = {
                 "name": [x[i]["name"] for i in range(len(x))],
                 "io_grids": io_grids_batched,
@@ -80,15 +81,28 @@ def pad_token_seq(token_sequence, pad_token, max_program_length):
         token_sequence.append(pad_token)
     return token_sequence
 
-def load_task_to_programs_from_frontiers_json(grammar, token_to_idx, max_program_length, task_to_programs_json, device):
+def preload_frontiers_to_task_to_programs(preload_frontiers_filename):
+
+    with open(preload_frontiers_filename, "rb") as handle:
+        result = dill.load(handle)
+    preloaded_frontiers = result.allFrontiers
+    
+    print("preloaded frontiers", preloaded_frontiers)
+    task_to_programs = {}
+    for t,frontier in preloaded_frontiers.items():
+        if not frontier.empty:
+            task_to_programs[t.name] = [str(e.program) for e in frontier.entries]
+    print(task_to_programs)
+    return task_to_programs
+
+def process_task_to_programs(grammar, token_to_idx, max_program_length, task_to_programs, device):
     """
     Load prior enumeration frontiers and process into dictionary with task names as keys and lists of corresponding programs as values.
     Each program is represented as a list of indicies created used token_to_idx argument. Pads programs so they are all the same length.
     """
-
-    task_to_programs = {}
-    for task, task_programs in task_to_programs_json.items():
-        task_to_programs[task] = []
+    processed_task_to_programs = {}
+    for task, task_programs in task_to_programs.items():
+        processed_task_to_programs[task] = []
         for program_string in task_programs:
 
             # hacky way to check that all programs to be used for imitation learning can be parsed (e.g. don't contain primitives not in our grammar)
@@ -100,8 +114,8 @@ def load_task_to_programs_from_frontiers_json(grammar, token_to_idx, max_program
             token_sequence = [token_to_idx[token] for token in program_to_token_sequence(program, grammar)]
             padded_token_sequence = pad_token_seq(token_sequence, token_to_idx["PAD"], max_program_length)
             # append token sequence and the score of the program. Default to 1.0 since we want to equallly weight all frontier entries
-            task_to_programs[task].append((padded_token_sequence, torch.tensor(1.0, device=device, requires_grad=False)))
-    return task_to_programs
+            processed_task_to_programs[task].append((padded_token_sequence, torch.tensor(1.0, device=device, requires_grad=False)))
+    return processed_task_to_programs
 
 
 def load_task_to_programs_from_frontiers_pkl(grammar, request, token_to_idx, pkl_name="data/arc/prior_enumeration_frontiers_8hr.pkl"):
@@ -243,6 +257,7 @@ class LARC_Cell_Dataset(Dataset):
                 if task_to_programs is not None:
                     programs = task_to_programs[task['name']]
                     weight_normalized_programs = normalize_weights(programs, beta)
+                    print("weight-normalized-programs ({}): {}".format(task['name'], weight_normalized_programs))
                     for i in range(len(weight_normalized_programs)):
                         task_dict['program'] = weight_normalized_programs[i][0]
                         task_dict['program_weight'] = weight_normalized_programs[i][1].detach()
