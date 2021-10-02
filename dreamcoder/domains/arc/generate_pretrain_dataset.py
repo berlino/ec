@@ -22,7 +22,7 @@ def main():
     # frontiers = recognitionModel.sampleManyHelmholtz([request], N=100, CPUs=1)
 
 
-    frontiers, _ = helmholtzEnumeration(grammar, requests=[request], enumerationTimeout=1, solver="ocaml", CPUs=1, maximumFrontier=1000)
+    frontiers, _ = helmholtzEnumeration(grammar, request=[request], inputs=None, timeout=1, special="arc")
 
     for f in frontiers:
         for e in f.entries:
