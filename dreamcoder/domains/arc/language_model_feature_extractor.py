@@ -54,8 +54,8 @@ class LMFeatureExtractor(nn.Module):
 
         self.lm_model_name = lm_model_name
         if T5 in self.lm_model_name:
-            self.tokenizer = T5Tokenizer.from_pretrained(self.lm_model_name)
-            self.t5_encoder_model = T5EncoderModel.from_pretrained(self.lm_model_name)
+            self.tokenizer = T5Tokenizer.from_pretrained(self.lm_model_name, cache_dir=".cache/")
+            self.t5_encoder_model = T5EncoderModel.from_pretrained(self.lm_model_name, cache_dir=".cache/")
             self.language_encoder_fn = self._t5_language_encoder_fn
         else:
             self.language_encoder_fn = pipeline('feature-extraction', self.lm_model_name)

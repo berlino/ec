@@ -94,7 +94,8 @@ class ECResult():
                      "rewriteTaskMetrics": "RW",
                      'taskBatchSize': 'batch',
                      "firstTimeEnumerationTimeout": 't_zero',
-                     "unigramEnumerationTimeout": "UET"}
+                     "unigramEnumerationTimeout": "UET",
+                     "noConsolidation": "noCons"}
 
     @staticmethod
     def abbreviate(parameter): return ECResult.abbreviations.get(parameter, parameter)
@@ -241,7 +242,8 @@ def ecIterator(grammar, tasks,
             "compressor",
             "custom_wake_generative",
             "preloaded_frontiers",
-            "no_background_helmholtz"
+            "no_background_helmholtz",
+            "solver"
             } and v is not None}
     if not useRecognitionModel:
         for k in {"helmholtzRatio", "recognitionTimeout", "biasOptimal", "mask",
@@ -350,8 +352,8 @@ def ecIterator(grammar, tasks,
                                                      CPUs=CPUs, evaluationTimeout=evaluationTimeout,
                                                      solver=solver,
                                                      **kw)
-        trainFrontiers, _, trainingTimes = enumerator(tasks, enumerationTimeout=enumerationTimeout)
-        testFrontiers, _, testingTimes = enumerator(testingTasks, enumerationTimeout=testingTimeout, testing=True)
+        trainFrontiers, trainingTimes = enumerator(tasks, enumerationTimeout=enumerationTimeout)
+        testFrontiers, testingTimes = enumerator(testingTasks, enumerationTimeout=testingTimeout, testing=True)
 
         recognizer = result.recognitionModel
         updateTaskSummaryMetrics(result.recognitionTaskMetrics, trainingTimes, 'recognitionBestTimes')
@@ -368,6 +370,15 @@ def ecIterator(grammar, tasks,
                                                                  for f in trainFrontiers + testFrontiers
                                                                  if len(f) > 0},
                                  'frontier')
+
+        for f in testFrontiers: result.recordFrontier(f)
+        result.testSearchTime = {t: tm for t, tm in testingTimes.items() if tm is not None}
+        times = [t for t in testingTimes.values() if t is not None ]
+        eprint("\n".join(f.summarize() for f in testFrontiers))
+        summaryStatistics("Testing tasks", times)
+        eprint("Hits %d/%d testing tasks" % (len(times), len(testingTasks)))
+        result.testingSearchTime.append(times)
+
         SUFFIX = ".pickle"
         assert path.endswith(SUFFIX)
         path = path[:-len(SUFFIX)] + "_FTM=True" + SUFFIX

@@ -30,6 +30,7 @@ from dreamcoder.domains.arc.cnn_feature_extractor import ArcCNN
 
 
 DATA_DIR = "data/arc"
+LARC_DIR = "data/larc/"
 
 CHECKPOINT_FILE_PREFIX = "experimentOutputs"
 NONE = "NONE"
@@ -39,6 +40,7 @@ LANGUAGE_ANNOTATIONS_FILE = os.path.join(DATA_DIR, "language/sentences/language.
 PRIMITIVE_HUMAN_READABLE = os.path.join(DATA_DIR, "primitiveNamesToDescriptions.json")
 PRIOR_ENUMERATION_FRONTIERS = os.path.join(DATA_DIR, "prior_enumeration_frontiers_8hr.pkl")
 ELICIT_FEATURE_VECTOR = os.path.join(DATA_DIR, "elicit_feature_vectors.json")
+TRAIN_TEST_SPLIT_FILENAME = "train_test_split.json"
 
 SPLIT_SEED = 0
 SPLIT_RATIO = 0.5
@@ -160,15 +162,15 @@ def retrieveARCJSONTask(filename, directory, useEvalExamplesForTraining=False):
     task.specialTask = ('arc', None)
     return task
 
-def train_test_split(tasks, ratio, seed):
+def train_test_split(task_names, ratio, seed):
     
     random.seed(seed)
-    random.shuffle(tasks)
-    train_size = int(ratio * len(tasks))
+    random.shuffle(task_names)
+    train_size = int(ratio * len(task_names))
     # change global seed so that it's not always fixed for other parts of the pipeline
     random.seed()
 
-    return tasks[:train_size], tasks[train_size:]
+    return {"train": task_names[:train_size], "test":task_names[train_size:]}
 
 def preload_initial_frontiers(preload_frontiers_file, is_checkpoint_file=False):
 
@@ -241,14 +243,22 @@ def main(args):
     homeDirectory = "/".join(os.path.abspath(__file__).split("/")[:-4])
     dataDirectory = homeDirectory + "/arc_data/data/"
 
-    tasks = retrieveARCJSONTasks(dataDirectory + 'training', useEvalExamplesForTraining=True, filenames=None)
-    
-    # hardcoding seed to make sure we use the same train test split across experiments
-    trainTasks, holdoutTasks = train_test_split(tasks, SPLIT_RATIO, SPLIT_SEED)
+    # load tasks
+    tasks_with_eval_ex = retrieveARCJSONTasks(dataDirectory + 'training', useEvalExamplesForTraining=True, filenames=None)
+    tasks_without_eval_ex = retrieveARCJSONTasks(dataDirectory + 'training', useEvalExamplesForTraining=False, filenames=None)
+
+    # load train and test task names
+    train_test_split_dict = json.load(open(LARC_DIR + TRAIN_TEST_SPLIT_FILENAME, "r"))
+    train_task_names = [t for t in train_test_split_dict["train"]]
+    test_task_names = [t for t in train_test_split_dict["test"]]
+ 
+    # when evaluating we induce program only from training examples
+    trainTasks = [t for t in tasks_with_eval_ex if t.name in train_task_names]
+    testTasks = [t for t in tasks_without_eval_ex if t.name in test_task_names]
     
     language_annotations_data = args.pop("language_annotations_data") 
     if language_annotations_data is not None:
-        trainTasks, holdoutTasks = language_utilities.add_task_language_annotations(trainTasks, holdoutTasks, language_annotations_data)
+        trainTasks, testTasks = language_utilities.add_task_language_annotations(trainTasks, testTasks, language_annotations_data)
         
     # Load any pre-initialized frontiers.
     preloaded_frontiers_file = args.pop("preload_frontiers")
@@ -256,6 +266,8 @@ def main(args):
     if preloaded_frontiers_file != NONE:
         is_checkpoint_file = CHECKPOINT_FILE_PREFIX in preloaded_frontiers_file
         preloaded_frontiers = preload_initial_frontiers(preloaded_frontiers_file, is_checkpoint_file)
+
+    assert len([t for t,f in preloaded_frontiers.items() if (len(f.entries) > 0) and (t in train_task_names)]) == len(preloaded_frontiers)
 
     primitivesTable = {
         "base": basePrimitives() + leafPrimitives(),
@@ -288,6 +300,6 @@ def main(args):
 
     # Utility function to remove any command line arguments that are not in the main iterator.
     pop_all_domain_specific_args(args, ecIterator)
-    explorationCompression(baseGrammar, trainTasks, featureExtractor=featureExtractor, testingTasks=[], 
+    explorationCompression(baseGrammar, trainTasks, featureExtractor=featureExtractor, testingTasks=testTasks, 
     preloaded_frontiers=preloaded_frontiers,
      **args)
