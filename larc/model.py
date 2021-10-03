@@ -27,6 +27,7 @@ from larc.larcDataset import *
 from larc.train import *
 
 TRAIN_BATCH_SIZE = 8
+NUM_EPOCHS_START = 50
 
 def main(args):
 
@@ -50,6 +51,10 @@ def main(args):
     preload_frontiers = args.pop("preload_frontiers")
     limit_overfit = args.pop("limit_overfit")
     no_nl = args.pop("no_nl")
+    no_io = args.pop("no_io")
+    num_epochs_start = args.pop("num_epochs_start")
+    resume = args.pop("resume")
+    resume_iter = args.pop("resume_iter")
 
     # tasks_subset = ["67a3c6ac.json", "aabf363d.json"]
     tasks_subset = None
@@ -81,9 +86,17 @@ def main(args):
     # load model
     request = arrow(tgridin, tgridout)
     print("Startin to load model")
-    model = EncoderDecoder(grammar=grammar, request=request, cuda=use_cuda, device=device, rnn_decode=rnn_decode, use_nl=not no_nl,
+    model = EncoderDecoder(grammar=grammar, request=request, cuda=use_cuda, device=device, rnn_decode=rnn_decode, use_nl=not no_nl, use_io=not no_io,
         program_embedding_size=128, primitive_to_idx=token_to_idx)
     print("Finished loading model")
+
+    # load weights from file if resuming
+    if resume is not None:
+        outputDirectory = resume
+        path = "{}/model_{}.pt".format(outputDirectory, resume_iter)
+        state_dict = torch.load(path)["model_state_dict"]
+        model.load_state_dict(state_dict)
+        print("Resumed model at iteration {}, from {}".format(resume_iter, path))
 
     # load tasks
     data_directory = "arc_data/data/"
@@ -102,8 +115,8 @@ def main(args):
         task_to_programs = preload_frontiers_to_task_to_programs(preload_frontiers_filename=preload_frontiers)
         task_to_programs = process_task_to_programs(grammar, token_to_idx, max_program_length=MAX_PROGRAM_LENGTH, 
             task_to_programs=task_to_programs, device=device)
-    print("Loaded task to programs")
-    print(task_to_programs)
+        print("Loaded task to programs")
+        print(task_to_programs)
 
     # load dataset for torch model
     # load task_to_sentences file to use instead of default NL data (so as to use the same NL data as bigram model)
@@ -115,14 +128,19 @@ def main(args):
         task_to_programs=None, device=torch.device("cpu"), task_to_sentences=task_to_sentences)
     print("Finished loading dataset ({} samples)".format(len(larc_train_dataset_cpu)))
     
-    # make results directory
-    timestamp = datetime.datetime.now().isoformat()
-    outputDirectory = "experimentOutputs/larc_neural/%s" % timestamp
-    os.system("mkdir -p %s" % outputDirectory)
+    if resume:
+        outputDirectory = resume
+    else:
+        # make results directory
+        timestamp = datetime.datetime.now().isoformat()
+        outputDirectory = "experimentOutputs/larc_neural/%s" % timestamp
+        os.system("mkdir -p %s" % outputDirectory)
     
     task_to_recently_decoded = {t:False for t in train_task_names}
-    task_to_correct_programs, task_to_correct_programs_iter = {}, {}
-    for iteration in range(num_cycles):
+    task_to_correct_programs_iter = {}
+    task_to_correct_programs = dill.load(open("{}/task_to_correct_programs.pkl".format(outputDirectory), "rb")) if resume else {}
+    
+    for iteration in range(resume_iter, num_cycles):
  
         for start_idx, end_idx in get_batch_start_end_idxs(len(larc_train_dataset_cpu), batch_size):
             larc_train_dataset_batch_cpu = larc_train_dataset_cpu[start_idx:end_idx]
@@ -139,7 +157,7 @@ def main(args):
             if len(task_to_correct_programs_iter) > 0:
                 model = model.to(device=torch.device("cuda"))
                 model = train_experience_replay(model, task_to_correct_programs_iter, tasks_dir=tasks_dir, beta=beta,
-                   num_epochs= 1 if (iteration == 0 and start_idx == 0) else epochs_per_replay, lr=lr, weight_decay=weight_decay, batch_size=TRAIN_BATCH_SIZE, device=device)
+                   num_epochs=num_epochs_start if (iteration == 0 and start_idx == 0) else epochs_per_replay, lr=lr, weight_decay=weight_decay, batch_size=TRAIN_BATCH_SIZE, device=device)
             
                 torch.save({
                    'model_state_dict': model.state_dict(),

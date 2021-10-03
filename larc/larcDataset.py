@@ -13,7 +13,7 @@ from larc.decoderUtils import program_to_token_sequence
 PAD_VAL = 10
 TOKEN_PAD_VALUE = -1
 MAX_DESC_SEQ_LENGTH = 350
-MAX_NUM_IOS = 3
+MAX_NUM_IOS = None
 
 
 def get_batch_start_end_idxs(n, batch_size):

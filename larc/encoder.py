@@ -11,7 +11,7 @@ class LARCEncoder(nn.Module):
         - better way to handle different grid sizes than padding with special token
         - make LM changeable at initialization
     """
-    def __init__(self, cuda, device, use_nl=False):
+    def __init__(self, cuda, device, use_nl=True, use_io=True):
         super(LARCEncoder, self).__init__()
         
         self.device = device
@@ -27,24 +27,25 @@ class LARCEncoder(nn.Module):
             nn.Conv2d(32, 64, 7),
             nn.Flatten(),
         )
+        
+        if self.use_io:
+            # input vs. output embedding
+            # 256 --> 128
+            self.in_encoder = nn.Sequential(
+                nn.Linear(256, 128),
+                nn.ReLU(),
+            )
+            self.out_encoder = nn.Sequential(
+                nn.Linear(256, 128),
+                nn.ReLU(),
+            )
 
-        # input vs. output embedding
-        # 256 --> 128
-        self.in_encoder = nn.Sequential(
-            nn.Linear(256, 128),
-            nn.ReLU(),
-        )
-        self.out_encoder = nn.Sequential(
-            nn.Linear(256, 128),
-            nn.ReLU(),
-        )
-
-        # example embedding
-        # 256 --> 64
-        self.ex_encoder = nn.Sequential(
-            nn.Linear(256, 64),
-            nn.ReLU(),
-        )
+            # example embedding
+            # 256 --> 64
+            self.ex_encoder = nn.Sequential(
+                nn.Linear(256, 64),
+                nn.ReLU(),
+            )
 
         # test input embedding
         # 256 --> 64
@@ -74,11 +75,11 @@ class LARCEncoder(nn.Module):
     def forward(self, io_grids, test_in, desc_tokens):
         # run grids through encoders
         transformer_input = []
-        for io_in, io_out in io_grids:
-            io_in = self.in_encoder(self.encoder(io_in))
-            io_out = self.out_encoder(self.encoder(io_out))
-            io = self.ex_encoder(torch.cat((io_in, io_out), dim=-1))
-
+        if self.use_io:
+            for io_in, io_out in io_grids:
+                io_in = self.in_encoder(self.encoder(io_in))
+                io_out = self.out_encoder(self.encoder(io_out))
+                io = self.ex_encoder(torch.cat((io_in, io_out), dim=-1))
             transformer_input.append(io)
 
         # run test input grid through encoder
