@@ -8,6 +8,13 @@ from dreamcoder.domains.regex.groundtruthRegexes import gt_dict
 
 gt_dict = {"Data column no. "+str(num): r_str for num, r_str in gt_dict.items()}
 
+class DummyLikelihoodModel:
+    def __init__(self, timeout=None):
+        self.timeout = timeout
+
+    def score(self, program, task):
+        return True, 0.0
+
 class AllOrNothingLikelihoodModel:
     def __init__(self, timeout=None):
         self.timeout = timeout

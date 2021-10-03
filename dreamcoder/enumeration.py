@@ -1,4 +1,4 @@
-from dreamcoder.likelihoodModel import AllOrNothingLikelihoodModel
+from dreamcoder.likelihoodModel import AllOrNothingLikelihoodModel, DummyLikelihoodModel
 from dreamcoder.grammar import *
 from dreamcoder.utilities import get_root_dir
 
@@ -35,6 +35,7 @@ def multicoreEnumeration(
         "ocaml": solveForTask_ocaml,
         "pypy": solveForTask_pypy,
         "python": solveForTask_python,
+        "dummy": solveForTask_python
     }
     assert (
         solver in solvers
@@ -44,6 +45,8 @@ def multicoreEnumeration(
     if solver == "pypy" or solver == "python":
         # Use an all or nothing likelihood model.
         likelihoodModel = AllOrNothingLikelihoodModel(timeout=evaluationTimeout)
+    elif solver == "dummy":
+        likelihoodModel = DummyLikelihoodModel(timeout=evaluationTimeout)
 
     solver = solvers[solver]
 
