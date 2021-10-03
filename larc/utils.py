@@ -6,6 +6,11 @@ def commandLineArgs():
                         dest="restrict_types",
                         default=False,
                         action="store_true")
+    parser.add_argument("--test",
+                        dest="test",
+                        default=False,
+                        help="True if we want to just test an existing model",
+                        action="store_true")
     parser.add_argument("--limit-overfit",
                         dest="limit_overfit",
                         default=False,
@@ -82,6 +87,11 @@ def commandLineArgs():
                         type=int)
     parser.add_argument("--resume-iter",
                         dest="resume_iter",
+                        default=0,
+                        type=int)
+                        type=int)
+    parser.add_argument("--test-decode-time",
+                        dest="test_decode_time",
                         default=0,
                         type=int)
     parser.add_argument("--fixed-epoch-pretrain",
