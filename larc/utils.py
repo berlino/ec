@@ -84,6 +84,10 @@ def commandLineArgs():
                         dest="resume_iter",
                         default=0,
                         type=int)
+    parser.add_argument("--fixed-epoch-pretrain",
+                        dest="fixed_epoch_pretrain",
+                        default=0,
+                        type=int)
     parser.add_argument("--preload-frontiers",
                         dest="preload_frontiers",
                         default=None,

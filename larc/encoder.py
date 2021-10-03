@@ -16,6 +16,7 @@ class LARCEncoder(nn.Module):
         
         self.device = device
         self.use_nl = use_nl
+        self.use_io = use_io
 
         # grid encoder
         # 30x30x11 --> 256

@@ -55,6 +55,7 @@ def main(args):
     num_epochs_start = args.pop("num_epochs_start")
     resume = args.pop("resume")
     resume_iter = args.pop("resume_iter")
+    fixed_epoch_pretrain = args.pop("fixed_epoch_pretrain")
 
     # tasks_subset = ["67a3c6ac.json", "aabf363d.json"]
     tasks_subset = None
@@ -124,10 +125,16 @@ def main(args):
     print("task_to_sentences length", len(task_to_sentences))
     tasks_subset = tasks_subset if tasks_subset is not None else train_task_names
     tasks_dir = "data/larc/tasks_json"
+
+    pretrain_dataset_cpu = LARC_Cell_Dataset(tasks_dir, tasks_subset=list(task_to_programs.keys()), num_ios=MAX_NUM_IOS, resize=(30, 30), for_synthesis=True, beta=beta,
+        task_to_programs=task_to_programs, device=torch.device("cpu"), task_to_sentences=task_to_sentences)
+    pretrain_dataset_gpu = LARC_Cell_Dataset(tasks_dir, tasks_subset=list(task_to_programs.keys()), num_ios=MAX_NUM_IOS, resize=(30, 30), for_synthesis=True, beta=beta,
+        task_to_programs=task_to_programs, device=torch.device("cuda"), task_to_sentences=task_to_sentences)
     larc_train_dataset_cpu = LARC_Cell_Dataset(tasks_dir, tasks_subset=tasks_subset, num_ios=MAX_NUM_IOS, resize=(30, 30), for_synthesis=True, beta=beta, 
         task_to_programs=None, device=torch.device("cpu"), task_to_sentences=task_to_sentences)
-    print("Finished loading dataset ({} samples)".format(len(larc_train_dataset_cpu)))
-    
+    print("Finished loading pre dataset ({} samples)".format(len(pretrain_dataset_gpu)))
+    print("Finished loading distant supervision train dataset ({} samples)".format(len(larc_train_dataset_cpu)))
+
     if resume:
         outputDirectory = resume
     else:
@@ -139,25 +146,47 @@ def main(args):
     task_to_recently_decoded = {t:False for t in train_task_names}
     task_to_correct_programs_iter = {}
     task_to_correct_programs = dill.load(open("{}/task_to_correct_programs.pkl".format(outputDirectory), "rb")) if resume else {}
-    
+    pretraining = True  
+ 
     for iteration in range(resume_iter, num_cycles):
  
         for start_idx, end_idx in get_batch_start_end_idxs(len(larc_train_dataset_cpu), batch_size):
             larc_train_dataset_batch_cpu = larc_train_dataset_cpu[start_idx:end_idx]
         
-            if (iteration == 0 and start_idx == 0)  and jumpstart:
-                # task_to_programs = {k:v for k,v in task_to_programs.items() if ((len(v) > 0) and (k in tasks_subset))}
-                # task_to_programs = {k:v[:(min(max_programs_per_task, len(v)))] for k,v in task_to_programs.items()}
-                task_to_correct_programs_iter = task_to_programs
-                print("{} initial tasks to learn from".format(len(task_to_programs)))
+            while pretraining:
+                # train
+                num_epochs_start = 10 * num_epochs_start if fixed_epoch_pretrain == 0 else fixed_epoch_pretrain
+                task_to_programs = {k:v for k,v in task_to_programs.items() if ((len(v) > 0) and (k in tasks_subset))}
+                task_to_programs = {k:v[:(min(max_programs_per_task, len(v)))] for k,v in task_to_programs.items()}
                 if verbose:
-                    for task, programs in task_to_correct_programs_iter.items():
+                    for task, programs in task_to_programs.items():
                         print("\n\n{}: {}".format(task, "\n".join([" ".join([idx_to_token[i] for i in p[0]]) for p in programs]))) 
+                model = model.to(device=torch.device("cuda"))
+                model = train_experience_replay(model, pretrain_dataset_gpu, num_epochs=num_epochs_start, lr=lr, weight_decay=weight_decay, batch_size=sum([len(programs) for t,programs in task_to_programs.items()]))
+
+                # decode
+                # decode with randomized beam search
+                print("Starting to decode")
+                decode_start_time = time.time()
+                model = model.to(device=torch.device("cpu"))
+                task_to_decoded_programs, task_to_lls = multicore_decode(model, grammar, pretrain_dataset_cpu, tasks, restrict_types=restrict_types, rnn_decode=rnn_decode, num_iter_beam_search=num_iter_beam_search,
+                how="randomized_beam_search", beam_width=beam_width, epsilon=0.1, num_cpus=num_cpus, verbose=verbose)
+                print("\nFinished Decoding in {}s \n".format(time.time() - decode_start_time))
+
+                # check if all preloaded frontiers successfully decoded
+                tasks_solved = [t for t in task_to_decoded_programs.keys() if any([ll == 0.0 for ll in task_to_lls[t]])]
+                print("tasks_solved", tasks_solved)
+                
+                if fixed_epoch_pretrain or (len(tasks_solved) >= len(list(task_to_programs.keys()))):
+                    pretraining = False
+                    torch.save({
+                       'model_state_dict': model.state_dict(),
+                    }, '{}/model_done_pretraining.pt'.format(outputDirectory))
 
             if len(task_to_correct_programs_iter) > 0:
                 model = model.to(device=torch.device("cuda"))
-                model = train_experience_replay(model, task_to_correct_programs_iter, tasks_dir=tasks_dir, beta=beta,
-                   num_epochs=num_epochs_start if (iteration == 0 and start_idx == 0) else epochs_per_replay, lr=lr, weight_decay=weight_decay, batch_size=TRAIN_BATCH_SIZE, device=device)
+                iter_train_dataset = LARC_Cell_Dataset(tasks_dir, tasks_subset=list(task_to_correct_programs_iter.keys()), num_ios=MAX_NUM_IOS, resize=(30, 30), for_synthesis=True, beta=beta, task_to_programs=task_to_correct_programs_iter, device=device)
+                model = train_experience_replay(model, iter_train_dataset, num_epochs=epochs_per_replay, lr=lr, weight_decay=weight_decay, batch_size=TRAIN_BATCH_SIZE)
             
                 torch.save({
                    'model_state_dict': model.state_dict(),

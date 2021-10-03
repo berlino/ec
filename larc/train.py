@@ -79,10 +79,8 @@ def getKfoldSplit(taskNames, trainRatio, k):
 
         yield trainTaskNames, testTaskNames
 
-def train_experience_replay(model, task_to_correct_programs, tasks_dir, beta, num_epochs, lr, weight_decay, batch_size, device):
+def train_experience_replay(model, larc_train_dataset, num_epochs, lr, weight_decay, batch_size):
 
-    larc_train_dataset = LARC_Cell_Dataset(tasks_dir, tasks_subset=list(task_to_correct_programs.keys()), num_ios=MAX_NUM_IOS, resize=(30, 30), 
-        for_synthesis=True, beta=beta, task_to_programs=task_to_correct_programs, device=device)
     train_loader = DataLoader(larc_train_dataset, shuffle=True, batch_size=batch_size, collate_fn=lambda x: collate(x, True), drop_last=False)
 
     model, epoch_train_scores, test_scores = train_imitiation_learning(model, train_loader, test_loader=None, batch_size=batch_size, 
