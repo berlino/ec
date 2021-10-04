@@ -16,6 +16,8 @@ TOP_N = 3
 
 IO_BIGRAM_CHECKPOINT = "experimentOutputs/arc/2021-09-30T23:07:48.432156/arc_aic=1.0_arity=0_BO=True_CO=True_ES=1_ET=720_t_zero=1_HR=0.0_it=5_MF=10_noConsolidation=True_pc=10_RS=1000_RT=3600_RR=False_RW=False_solver=ocaml_STM=True_L=1.0_batch=200_TRR=randomShuffle_K=2_topkNotMAP=False_UET=3600_DSL=False_FTM=True.pickle"
 IO_NL_BIGRAM_CHECKPOINT = "experimentOutputs/arc/2021-09-30T15:06:29.861706/arc_aic=1.0_arity=0_BO=True_CO=True_ES=1_ET=720_t_zero=1_HR=0.0_it=5_MF=10_noConsolidation=True_pc=10_RS=1000_RT=3600_RR=False_RW=False_solver=ocaml_STM=True_L=1.0_batch=200_TRR=randomShuffle_K=2_topkNotMAP=False_UET=3600_DSL=False_FTM=True.pickle"
+IO_NL_PSEUDO_BIGRAM_CHECKPOINT = "experimentOutputs/arc/2021-10-01T11:24:05.422831/arc_aic=1.0_arity=0_BO=True_CO=True_ES=1_ET=720_t_zero=1_HR=0.5_it=5_MF=10_noConsolidation=True_pc=10_RS=1000_RT=3600_RR=False_RW=False_solver=ocaml_STM=True_L=1.0_batch=200_TRR=randomShuffle_K=2_topkNotMAP=False_UET=3600_DSL=False_FTM=True.pickle"
+
 
 def taskMessage(t, task_to_programs):
     m = {
@@ -50,7 +52,7 @@ def execute_programs(tasks, grammar, task_to_programs):
 
 def best_first_enumeration(recognitionModel, grammar, tasks, testTasksWithNl, request):
      testTasks = [t for t in tasks if t.name in testTasksWithNl]
-     allFrontiers, _ = recognitionModel.enumerateFrontiers(testTasks, enumerationTimeout=30, CPUs=numberOfCPUs(), frontierSize=10, solver="dummy", maximumFrontier=3)
+     allFrontiers, _ = recognitionModel.enumerateFrontiers(testTasks, enumerationTimeout=30, CPUs=numberOfCPUs(), frontierSize=10, solver="dummy", maximumFrontier=TOP_N)
      solved = set()
 
      test_tasks_to_programs = {frontier.task.name : [(str(e.program), None) for e in frontier.entries] for  frontier in allFrontiers}
@@ -75,14 +77,15 @@ def run_synthesized_programs_on_holdout(result, tasks, grammar, trainTasksWithNl
                  top_n_entries = sorted([e for e in f.entries], reverse=True, key=lambda e: e.logPrior)[:TOP_N]
                  test_tasks_to_programs[t.name] = [(str(e.program), None) for e in top_n_entries]
 
-     print("{} test tasks with NL program found".format(len([t for t in test_tasks_to_programs.keys() if t in testTasksWithNl])))
      print("{} test tasks program found".format(len(test_tasks_to_programs)))
-     response = execute_programs([t for t in tasks if t.name in test_tasks_to_programs], grammar, test_tasks_to_programs)
-     print("{} test tasks solved".format(len([r for r in response if any([ll == 0.0 for ll in r['log_likelihoods']])])))
+     test_tasks_to_programs_with_nl = {t:v for t,v in test_tasks_to_programs.items() if t in testTasksWithNl}
+     print("{} test tasks with NL program found".format(len(test_tasks_to_programs_with_nl)))
+     response = execute_programs([t for t in tasks if t.name in test_tasks_to_programs_with_nl], grammar, test_tasks_to_programs_with_nl)
+     print("{} test tasks solved (with NL)".format(len([r for r in response if any([ll == 0.0 for ll in r['log_likelihoods']])])))
 
      return
 
-def experiment_output_main(path=IO_NL_BIGRAM_CHECKPOINT):
+def experiment_output_main(path=IO_NL_PSEUDO_BIGRAM_CHECKPOINT):
 
     with open(path, "rb") as handle:
         result = dill.load(handle)
@@ -107,6 +110,6 @@ def experiment_output_main(path=IO_NL_BIGRAM_CHECKPOINT):
     tasks = retrieveARCJSONTasks('arc_data/data/training', useEvalExamplesForTraining=True, filenames=None)
     request = tasks[0].request
 
-    run_synthesized_programs_on_holdout(result, tasks, grammar, trainTasksWithNl, testTasksWithNl, train_task_names, test_task_names)
-    # best_first_enumeration(result.recognitionModel, grammar, tasks, testTasksWithNl, request)
+    # run_synthesized_programs_on_holdout(result, tasks, grammar, trainTasksWithNl, testTasksWithNl, train_task_names, test_task_names)
+    best_first_enumeration(result.recognitionModel, grammar, tasks, testTasksWithNl, request)
     return

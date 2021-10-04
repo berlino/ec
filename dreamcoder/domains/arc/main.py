@@ -217,6 +217,7 @@ def arc_options(parser):
     parser.add_argument("--primitive_names_to_descriptions",
     default=PRIMITIVE_HUMAN_READABLE)
     parser.add_argument("--preload_frontiers", default=NONE)
+    parser.add_argument("--filter_test_task_if_no_nl", default=False, action="store_true")
 
     # parser.add_argument("-i", type=int, default=10)
 
@@ -259,7 +260,12 @@ def main(args):
     language_annotations_data = args.pop("language_annotations_data") 
     if language_annotations_data is not None:
         trainTasks, testTasks = language_utilities.add_task_language_annotations(trainTasks, testTasks, language_annotations_data)
-        
+
+    filter_test_task_if_no_nl = args.pop("filter_test_task_if_no_nl")
+    if filter_test_task_if_no_nl:
+        testTasks = [t for t in testTasks if len(t.sentences) > 0]
+    print("{} test tasks".format(len(testTasks)))
+ 
     # Load any pre-initialized frontiers.
     preloaded_frontiers_file = args.pop("preload_frontiers")
     preloaded_frontiers = dict()
