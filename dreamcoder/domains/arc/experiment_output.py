@@ -25,8 +25,12 @@ class Result:
         self.result = dill.load(open(path, "rb"))
         train_task_names, test_task_names, trainTasksWithNl, testTasksWithNl, grammar, tasks, request = _load_relevant_data()
 
-        self.task_to_program_to_solved = {}
-        # self.task_to_program_to_solved = run_synthesized_programs_on_holdout(self.result, tasks, grammar, trainTasksWithNl, testTasksWithNl, train_task_names, test_task_names)
+        try:
+            self.task_to_program_to_solved = run_synthesized_programs_on_holdout(self.result, tasks, grammar, trainTasksWithNl, testTasksWithNl, train_task_names, test_task_names)
+        except:
+            print("WARNING: Failed to initialize task_to_program_to_solved, can't check test enumeration results on holdout example")
+            self.task_to_program_to_solved = {}
+
 
     def is_solution(self, task, program):
         if task.name in self.task_to_program_to_solved:
@@ -129,8 +133,8 @@ def plot_frontiers_single_iter(result, testTasksWithNl, label):
     times = [time for task,time in result.testSearchTime.items() if task.name in testTasksWithNl]
 
     sorted_times = sorted(times)
-    plt.ylim(0, 50)
-    plt.xlim(0, 40)
+    # plt.ylim(0, 50)
+    # plt.xlim(0, 40)
     plt.xlabel("Time (s)")
     plt.ylabel("Number of tasks solved")
     plt.plot(sorted_times, range(len(sorted_times)), label=label)
