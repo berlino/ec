@@ -1,6 +1,7 @@
 import dill
 import json
 import os
+import matplotlib.pyplot as plt
 import subprocess
 
 from dreamcoder.grammar import Grammar
@@ -85,13 +86,7 @@ def run_synthesized_programs_on_holdout(result, tasks, grammar, trainTasksWithNl
 
      return
 
-def experiment_output_main(path=IO_NL_PSEUDO_BIGRAM_CHECKPOINT):
-
-    with open(path, "rb") as handle:
-        result = dill.load(handle)
-
-    train_test_split_dict = json.load(open(LARC_DIR + TRAIN_TEST_SPLIT_FILENAME, "r"))
-
+def _load_relevant_data():
     # load train and test task names
     train_test_split_dict = json.load(open(LARC_DIR + TRAIN_TEST_SPLIT_FILENAME, "r"))
     train_task_names = [t for t in train_test_split_dict["train"]]
@@ -110,6 +105,38 @@ def experiment_output_main(path=IO_NL_PSEUDO_BIGRAM_CHECKPOINT):
     tasks = retrieveARCJSONTasks('arc_data/data/training', useEvalExamplesForTraining=True, filenames=None)
     request = tasks[0].request
 
-    # run_synthesized_programs_on_holdout(result, tasks, grammar, trainTasksWithNl, testTasksWithNl, train_task_names, test_task_names)
-    best_first_enumeration(result.recognitionModel, grammar, tasks, testTasksWithNl, request)
+    return train_task_names, test_task_names, trainTasksWithNl, testTasksWithNl, grammar, tasks, request
+
+def plot_frontiers_single_iter(result, testTasksWithNl, label):
+    assert len(result.testingSearchTime)
+    times = [time for task,time in result.testSearchTime.items() if task.name in testTasksWithNl]
+
+    sorted_times = sorted(times)
+    plt.ylim(0, 50)
+    plt.xlim(0, 40)
+    plt.xlabel("Time (s)")
+    plt.ylabel("Number of tasks solved")
+    plt.plot(sorted_times, range(len(sorted_times)), label=label)
+    return
+
+def experiment_output_main(action):
+
+    paths = [IO_BIGRAM_CHECKPOINT, IO_NL_BIGRAM_CHECKPOINT, IO_NL_PSEUDO_BIGRAM_CHECKPOINT]
+    labels = ["IO", "IO + NL", "IO + NL (pseudo)"]
+    results = {label: dill.load(open(path, "rb")) for label,path in zip(labels, paths)}
+    
+    train_task_names, test_task_names, trainTasksWithNl, testTasksWithNl, grammar, tasks, request = _load_relevant_data()
+
+    if action == "plot":
+        for label,result in results.items():
+            plot_frontiers_single_iter(result, testTasksWithNl, label)
+        plt.legend()
+        plt.show()
+
+    elif action == "run":
+        for label,result in results.items():
+            run_synthesized_programs_on_holdout(result, tasks, grammar, trainTasksWithNl, testTasksWithNl, train_task_names, test_task_names)
+
+    elif  action == "best_first":
+        best_first_enumeration(result.recognitionModel, grammar, tasks, testTasksWithNl, request)
     return

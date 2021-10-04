@@ -4,7 +4,7 @@ try:
 except ModuleNotFoundError:
     import bin.binutil  # alt import if called as module
 
-from dreamcoder.domains.arc.experiment_output import experiment_output_main
+from dreamcoder.domains.arc.experiment_output import *
 from dreamcoder.domains.arc.main import main, arc_options
 from dreamcoder.recognition import DummyFeatureExtractor
 from dreamcoder.dreamcoder import commandlineArguments
@@ -20,6 +20,6 @@ if __name__ == '__main__':
         CPUs=numberOfCPUs(),
         extras=arc_options)
 
-    main(args)
-    # experiment_output_main()
+    # main(args)
+    experiment_output_main("plot")
 
