@@ -21,5 +21,5 @@ if __name__ == '__main__':
         extras=arc_options)
 
     # main(args)
-    experiment_output_main("plot")
+    experiment_output_main("conditional_bigrams")
 

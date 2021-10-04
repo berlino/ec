@@ -1090,7 +1090,7 @@ class ContextualGrammar:
                            for i, primitive in enumerate(primitives)
                            if primitive.isInvented or noInventions }
         eprint(primitive2index)
-        ns = 10000
+        ns = 1000
         with timing(f"calculated expected uses using Monte Carlo simulation w/ {ns} samples"):
             for _ in range(ns):
                 p = self.sample(request, maxAttempts=0)
