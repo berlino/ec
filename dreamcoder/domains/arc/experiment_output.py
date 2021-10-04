@@ -4,6 +4,7 @@ import os
 import matplotlib.pyplot as plt
 import subprocess
 
+from dreamcoder.frontier import Frontier
 from dreamcoder.grammar import Grammar
 from dreamcoder.domains.arc.main import retrieveARCJSONTasks
 from dreamcoder.domains.arc.arcPrimitives import basePrimitives, leafPrimitives, moreSpecificPrimitives
@@ -13,26 +14,33 @@ LARC_DIR = "data/larc/"
 DATA_DIR = "data/arc"
 TRAIN_TEST_SPLIT_FILENAME = "train_test_split.json"
 LANGUAGE_ANNOTATIONS_FILE = os.path.join(DATA_DIR, "language/sentences/language.json") # All language annotations for training.
-TOP_N = 3
+TOP_N = 3	
 
+# trained for 1000 recognition steps per iteration 
 IO_BIGRAM_CHECKPOINT = "experimentOutputs/arc/2021-09-30T23:07:48.432156/arc_aic=1.0_arity=0_BO=True_CO=True_ES=1_ET=720_t_zero=1_HR=0.0_it=5_MF=10_noConsolidation=True_pc=10_RS=1000_RT=3600_RR=False_RW=False_solver=ocaml_STM=True_L=1.0_batch=200_TRR=randomShuffle_K=2_topkNotMAP=False_UET=3600_DSL=False_FTM=True.pickle"
 IO_NL_BIGRAM_CHECKPOINT = "experimentOutputs/arc/2021-09-30T15:06:29.861706/arc_aic=1.0_arity=0_BO=True_CO=True_ES=1_ET=720_t_zero=1_HR=0.0_it=5_MF=10_noConsolidation=True_pc=10_RS=1000_RT=3600_RR=False_RW=False_solver=ocaml_STM=True_L=1.0_batch=200_TRR=randomShuffle_K=2_topkNotMAP=False_UET=3600_DSL=False_FTM=True.pickle"
 IO_NL_PSEUDO_BIGRAM_CHECKPOINT = "experimentOutputs/arc/2021-10-01T11:24:05.422831/arc_aic=1.0_arity=0_BO=True_CO=True_ES=1_ET=720_t_zero=1_HR=0.5_it=5_MF=10_noConsolidation=True_pc=10_RS=1000_RT=3600_RR=False_RW=False_solver=ocaml_STM=True_L=1.0_batch=200_TRR=randomShuffle_K=2_topkNotMAP=False_UET=3600_DSL=False_FTM=True.pickle"
 
+# trained for 10,000 recognition steps per iteration
+IO_BIGRAM_CHECKPOINT = "experimentOutputs/arc/2021-09-30T14:45:18.915411/arc_aic=1.0_arity=0_BO=True_CO=True_ES=1_ET=720_t_zero=1_HR=0.0_it=5_MF=10_noConsolidation=True_pc=10_RS=10000_RT=3600_RR=False_RW=False_solver=ocaml_STM=True_L=1.0_batch=200_TRR=randomShuffle_K=2_topkNotMAP=False_UET=3600_DSL=False_FTM=True.pickle"
+IO_NL_BIGRAM_CHECKPOINT = "experimentOutputs/arc/2021-09-30T14:38:38.039529/arc_aic=1.0_arity=0_BO=True_CO=True_ES=1_ET=720_t_zero=1_HR=0.0_it=5_MF=10_noConsolidation=True_pc=10_RS=10000_RT=3600_RR=False_RW=False_solver=ocaml_STM=True_L=1.0_batch=200_TRR=randomShuffle_K=2_topkNotMAP=False_UET=3600_DSL=False_FTM=True.pickle"
+IO_NL_PSEUDO_BIGRAM_CHECKPOINT = "experimentOutputs/arc/2021-10-02T01:56:55.896457/arc_aic=1.0_arity=0_BO=True_CO=True_ES=1_ET=720_t_zero=1_HR=0.5_it=5_MF=10_noCons=True_pc=10_RS=10000_RT=3600_RR=False_RW=False_STM=True_L=1.0_batch=200_TRR=randomShuffle_K=2_topkNotMAP=False_UET=3600_DSL=False_FTM=True.pickle"
 
 class Result:
-    def __init__(self, path):
+    def __init__(self, path, label):
+        self.label = label
         self.result = dill.load(open(path, "rb"))
         train_task_names, test_task_names, trainTasksWithNl, testTasksWithNl, grammar, tasks, request = _load_relevant_data()
+        
+        print("\n{}".format(self.label))
+        self.task_to_program_to_solved = run_synthesized_programs_on_holdout(self.result, tasks, grammar, trainTasksWithNl, testTasksWithNl, train_task_names, test_task_names)
+        self.test_frontier_solutions = {t:Frontier([e for e in frontiers[-1].entries if self._is_solution(t, e.program)], t) for t,frontiers in self.result.frontiersOverTime.items()}
 
-        self.task_to_program_to_solved = {}
-        # self.task_to_program_to_solved = run_synthesized_programs_on_holdout(self.result, tasks, grammar, trainTasksWithNl, testTasksWithNl, train_task_names, test_task_names)
-
-    def is_solution(self, task, program):
+    def _is_solution(self, task, program):
         if task.name in self.task_to_program_to_solved:
             program_string = str(program)
             if program_string in self.task_to_program_to_solved[task.name]:
-                return task_to_program_to_solved[task.name][str(program)]
+                return self.task_to_program_to_solved[task.name][str(program)]
         return False
 
 
@@ -136,33 +144,43 @@ def plot_frontiers_single_iter(result, testTasksWithNl, label):
     plt.plot(sorted_times, range(len(sorted_times)), label=label)
     return
 
-def get_most_different_tasks(result_1, result_2, testTasksWithNl):
 
-    for t in result_1.frontiersOverTime.keys():
+def get_expected_uses(result_a, result_b, testTasksWithNl):
 
-        print(result_1.frontiersOverTime[t][-1])
-        print(result_2.frontiersOverTime[t][-1])
-    return
     
-
-def get_expected_uses(result_1, result_2, testTasksWithNl):
-
-    get_most_different_tasks(result_1, result_2, testTasksWithNl)
-
+    for t,f_a in result_a.test_frontier_solutions.items():
+        f_b = result_b.test_frontier_solutions[t]
+        heading = "\nTask: {}\n{}\n--------------------------------------------------".format(t.name, t.sentences)
+        to_print = []
+        if not f_a.empty:
+            to_print.append(heading)
+            to_print.append("{}: {} ({})".format(result_a.label, f_a.topK(1).entries[0].program, f_a.topK(1).entries[0].logPrior))
+            if not f_b.empty:
+                to_print.append("{}: {} ({})\n".format(result_b.label, f_b.topK(1).entries[0].program, f_b.topK(1).entries[0].logPrior))
+        elif not f_b.empty:
+            to_print.append(heading)
+            to_print.append("{}: {} ({})".format(result_b.label, f_b.topK(1).entries[0].program, f_b.topK(1).entries[0].logPrior))
+        
+        if len(to_print) > 0:
+            print("\n".join(to_print))
+ 
+    """
     for t,v in result_1.recognitionTaskMetrics.items():
+            io_print.append(            to_print.append("Task: {}".format(t.name))
         if t.name in testTasksWithNl:
             grammar = result_1.recognitionModel.grammarOfTask(t)
             uses = grammar.expectedUsesMonteCarlo(t.request, debug=None)
             print(uses)
             return
     print(result.recognitionModel)
+    """
     return
 
 def experiment_output_main(action):
 
     paths = [IO_BIGRAM_CHECKPOINT, IO_NL_BIGRAM_CHECKPOINT, IO_NL_PSEUDO_BIGRAM_CHECKPOINT]
     labels = ["IO", "IO + NL", "IO + NL (pseudo)"]
-    results = {label: Result(path) for label,path in zip(labels, paths)}
+    results = {label: Result(path, label) for label,path in zip(labels, paths)}
     
     train_task_names, test_task_names, trainTasksWithNl, testTasksWithNl, grammar, tasks, request = _load_relevant_data()
 
@@ -172,13 +190,9 @@ def experiment_output_main(action):
         plt.legend()
         plt.show()
 
-    elif action == "run":
-        for label,result in results.items():
-            run_synthesized_programs_on_holdout(result.result, tasks, grammar, trainTasksWithNl, testTasksWithNl, train_task_names, test_task_names)
-
     elif action == "best_first":
-        best_first_enumeration(result.recognitionModel, grammar, tasks, testTasksWithNl, request)
+        best_first_enumeration(results["IO + NL (pseudo)"].result.recognitionModel, grammar, tasks, testTasksWithNl, request)
 
     elif action == "conditional_bigrams":
-        get_expected_uses(results["IO + NL (pseudo)"].result, results["IO"].result, testTasksWithNl)
+        get_expected_uses(results["IO + NL (pseudo)"], results["IO"], testTasksWithNl)
     return
