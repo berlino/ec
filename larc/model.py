@@ -28,7 +28,7 @@ from larc.train import *
 
 TRAIN_BATCH_SIZE = 8
 NUM_EPOCHS_START = 50
-TOP_N = 5
+TOP_N = 3
 
 def main(args):
 
@@ -115,6 +115,7 @@ def main(args):
     test_task_names = [t for t in train_test_split_dict["test"]]
     assert len(set(train_task_names).intersection(set(test_task_names))) == 0
 
+    pretraining = False
     # load already discovered programs
     if preload_frontiers is not None:
         task_to_programs = preload_frontiers_to_task_to_programs(preload_frontiers_filename=preload_frontiers)
@@ -122,6 +123,7 @@ def main(args):
             task_to_programs=task_to_programs, device=device)
         print("Loaded task to programs")
         print(task_to_programs)
+        pretraining = True
 
     # load dataset for torch model
     # load task_to_sentences file to use instead of default NL data (so as to use the same NL data as bigram model)
@@ -138,16 +140,17 @@ def main(args):
     tasks_subset = tasks_subset if tasks_subset is not None else train_task_names
     tasks_dir = "data/larc/tasks_json"
 
-    pretrain_dataset_cpu = LARC_Cell_Dataset(tasks_dir, tasks_subset=list(task_to_programs.keys()), num_ios=MAX_NUM_IOS, resize=(30, 30), for_synthesis=True, beta=beta,
-        task_to_programs=task_to_programs, device=torch.device("cpu"), task_to_sentences=task_to_sentences)
-    pretrain_dataset_gpu = LARC_Cell_Dataset(tasks_dir, tasks_subset=list(task_to_programs.keys()), num_ios=MAX_NUM_IOS, resize=(30, 30), for_synthesis=True, beta=beta,
-        task_to_programs=task_to_programs, device=torch.device("cuda"), task_to_sentences=task_to_sentences)
+    if preload_frontiers is not None:
+        pretrain_dataset_cpu = LARC_Cell_Dataset(tasks_dir, tasks_subset=list(task_to_programs.keys()), num_ios=MAX_NUM_IOS, resize=(30, 30), for_synthesis=True, beta=beta,
+            task_to_programs=task_to_programs, device=torch.device("cpu"), task_to_sentences=task_to_sentences)
+        pretrain_dataset_gpu = LARC_Cell_Dataset(tasks_dir, tasks_subset=list(task_to_programs.keys()), num_ios=MAX_NUM_IOS, resize=(30, 30), for_synthesis=True, beta=beta,
+            task_to_programs=task_to_programs, device=torch.device("cuda"), task_to_sentences=task_to_sentences)
+        print("Finished loading pre dataset ({} samples)".format(len(pretrain_dataset_gpu)))
+
     larc_train_dataset_cpu = LARC_Cell_Dataset(tasks_dir, tasks_subset=tasks_subset, num_ios=MAX_NUM_IOS, resize=(30, 30), for_synthesis=True, beta=beta, 
         task_to_programs=None, device=torch.device("cpu"), task_to_sentences=task_to_sentences)
-        task_to_programs=task_to_programs, device=torch.device("cuda"), task_to_sentences=task_to_sentences)
     larc_test_dataset_cpu = LARC_Cell_Dataset(tasks_dir, tasks_subset=test_task_names, num_ios=MAX_NUM_IOS, resize=(30, 30), for_synthesis=True, beta=beta,
         task_to_programs=None, device=torch.device("cpu"), task_to_sentences=task_to_sentences)
-    print("Finished loading pre dataset ({} samples)".format(len(pretrain_dataset_gpu)))
     print("Finished loading distant supervision train dataset ({} samples)".format(len(larc_train_dataset_cpu)))
     print("Finished loading test dataset ({} samples)".format(len(larc_test_dataset_cpu)))
 
@@ -163,39 +166,42 @@ def main(args):
     task_to_recently_decoded = {t:False for t in train_task_names}
     task_to_correct_programs_iter = {}
     task_to_correct_programs = dill.load(open("{}/task_to_correct_programs.pkl".format(outputDirectory), "rb")) if resume else {}
-    pretraining = True
-
 
     if test:
         start_time = time.time()
         # key is task name, value is (program_name, PartialProgram)
         test_tasks_to_discovered_programs = {}
-        while True:
-            for start_idx, end_idx in get_batch_start_end_idxs(len(larc_train_dataset_cpu), batch_size):
-                # if decoding timeout has been reached, evaluate top-n discovered programs for each task on holdout example
-                if time.time() - start_time > test_decode_time:
-                    # keep top-n programs for each task
-                    test_tasks_to_best_discovered_programs = {t: sorted(programs, key=lambda x: x[1].totalScore)[:TOP_N] for t,programs in test_tasks_to_discovered_programs.items()}
-                    print("test_tasks_to_best_discovered_programs", test_tasks_to_best_discovered_programs)
-                    # importantly we use tasks and not tasks_no_eval_ex so that ll is 0.0 only if programs get eval example correct as well
-                    test_tasks_to_lls = execute_programs(tasks, grammar, test_tasks_to_best_discovered_programs)
-                    test_tasks_solved = [t for t in test_tasks_to_best_discovered_programs.keys() if any([ll == 0.0 for ll in test_tasks_to_lls[t]])]
-                    print("test tasks solved", test_tasks_solved)
-                    return
+        for start_idx, end_idx in get_batch_start_end_idxs(len(larc_test_dataset_cpu), batch_size):
+            larc_test_dataset_batch_cpu = larc_test_dataset_cpu[start_idx:end_idx]
 
-                # decode with randomized beam search
-                print("Starting to decode")
-                decode_start_time = time.time()
-                model = model.to(device=torch.device("cpu"))
-                task_to_decoded_programs, task_to_lls = multicore_decode(model, grammar, larc_test_dataset_cpu, tasks_no_eval_ex, restrict_types=restrict_types, rnn_decode=rnn_decode, num_iter_beam_search=num_iter_beam_search,
-                how="randomized_beam_search", beam_width=beam_width, epsilon=0.0, num_cpus=num_cpus, verbose=verbose)
-                print("\nFinished Decoding in {}s \n".format(time.time() - decode_start_time))
+            # decode with randomized beam search
+            print("Starting to decode ({} - {})".format(start_idx, end_idx))
+            decode_start_time = time.time()
+            model = model.to(device=torch.device("cpu"))
+            task_to_decoded_programs, task_to_lls = multicore_decode(model, grammar, larc_test_dataset_batch_cpu, tasks_no_eval_ex, restrict_types=restrict_types, rnn_decode=rnn_decode, num_iter_beam_search=num_iter_beam_search,
+            how="randomized_beam_search", beam_width=beam_width, epsilon=0.0, num_cpus=num_cpus, verbose=verbose)
+            print("\nFinished Decoding in {}s \n".format(time.time() - decode_start_time))
+ 
+            # save discovered programs
+            for t in task_to_decoded_programs.keys():
+                for p_idx,ll in enumerate(task_to_lls[t]):
+                    if ll == 0.0:
+                        print("Found program: {} for task: {}".format(task_to_decoded_programs[t][p_idx][0], t))
+                        test_tasks_to_discovered_programs[t] = test_tasks_to_discovered_programs.get(t, []) + [task_to_decoded_programs[t][p_idx]]
 
-                # save discovered programs
-                for t in task_to_decoded_programs.keys():
-                    for p_idx,ll in enumerate(task_to_lls[t]):
-                        if ll == 0.0:
-                            test_tasks_to_discovered_programs[t] = test_tasks_to_discovered_programs[t].get(t, []) + [task_to_decoded_programs[t][p_idx]]
+        # keep top-n programs for each task
+        print("test_tasks_to_discovered_programs \n{}".format(test_tasks_to_discovered_programs))
+        test_tasks_to_best_discovered_programs = {t: sorted(programs, key=lambda x: x[1].totalScore)[:TOP_N] for t,programs in test_tasks_to_discovered_programs.items()}
+        print("test_tasks_to_best_discovered_programs (top {})\n{}".format(TOP_N, test_tasks_to_best_discovered_programs))
+        # importantly we use tasks and not tasks_no_eval_ex so that ll is 0.0 only if programs get eval example correct as well
+        response = execute_programs([t for t in tasks if t.name in test_tasks_to_best_discovered_programs], grammar, test_tasks_to_best_discovered_programs)
+        test_tasks_to_lls = {}
+        for item in response:
+            test_tasks_to_lls[item["task"]] = item["log_likelihoods"]
+        test_tasks_solved = [t for t in test_tasks_to_best_discovered_programs.keys() if any([ll == 0.0 for ll in test_tasks_to_lls[t]])]
+        print("test tasks solved", test_tasks_solved)
+        return
+
 
     else:
 

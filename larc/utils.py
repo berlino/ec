@@ -89,7 +89,6 @@ def commandLineArgs():
                         dest="resume_iter",
                         default=0,
                         type=int)
-                        type=int)
     parser.add_argument("--test-decode-time",
                         dest="test_decode_time",
                         default=0,
