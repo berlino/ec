@@ -91,6 +91,30 @@ class Program(object):
                 assert False
         return t(show_vars, [], self)
 
+
+   def left_order_tokens_alt(self):
+
+        def t(env, tokens, p):
+
+            if p.isIndex:
+                    return tokens + [env[p.i]]
+            elif p.isAbstraction:
+                # if this is the first lambda that every program has
+                if len(env) == 0:
+                    return ["LAMBDA"] + t(["INPUT"], [], p.body)
+                else:
+                    return tokens + ["LAMBDA"] + t(["LAMBDA_INPUT"] + env, [], p.body)
+            elif p.isApplication:
+                return tokens + t(env, [], p.f) + t(env, [], p.x)
+            elif p.isInvented:
+                return tokens + [str(p)]
+            elif p.isPrimitive:
+                return tokens + [str(p)]
+            else:
+                assert False
+        # ignore the first lambda
+        return t([], [], self)[1:]
+
     def wellTyped(self):
         try:
             self.infer()

@@ -14,6 +14,32 @@ import heapq
 
 import hashlib
 
+class EarlyStopping:
+    def __init__(self, patience=10, n_epochs_stop=10, init_best_val_loss=1000):
+        self.patience = patience
+        self.n_epochs_stop = n_epochs_stop
+        self.num_epochs_no_improvement = 0
+        self.best_val_loss = init_best_val_loss
+        self.best_model = None
+
+    def should_stop(self, epoch, val_loss, model):
+
+        # have we beat the best model so far?
+        if val_loss < self.best_val_loss:
+            self.num_epochs_no_improvement = 0
+            self.best_val_loss = val_loss
+            self.best_model = model
+            return False, self.best_model
+        else:
+            if epoch > self.patience:
+                self.num_epochs_no_improvement += 1
+
+        # are we done
+        if self.num_epochs_no_improvement >= self.n_epochs_stop:
+            print("Early Stopping: Best model test loss {} did not improve after {} epochs".format(self.best_val_loss, self.n_epochs_stop))
+            return True, self.best_model
+        return False, self.best_model
+
 def pop_all_domain_specific_args(args_dict, iterator_fn):
     """Pops any additional domain-specific arguments that may have been added at the command line
     but are not present in the main iterator.
@@ -200,7 +226,7 @@ def parallelMap(numberOfCPUs, f, *xs, chunksize=None, maxtasksperchild=None, mem
     if seedRandom:
         PARALLELBASESEED = random.random()
 
-    from multiprocessing import Pool
+    from torch.multiprocessing import Pool
 
     # Randomize the order in case easier ones come earlier or later
     permutation = list(range(n))
