@@ -1,3 +1,4 @@
+import dill
 import numpy as np
 import pickle
 import torch
@@ -7,21 +8,27 @@ import os
 import json
 
 from dreamcoder.program import Program
-from larc.decoderUtils import program_to_token_sequence
+from neural_seq.decoderUtils import program_to_token_sequence
 
 PAD_VAL = 10
 TOKEN_PAD_VALUE = -1
-MAX_DESC_SEQ_LENGTH = 300
-MAX_NUM_IOS = 3
+MAX_DESC_SEQ_LENGTH = 350
+MAX_NUM_IOS = 5
 
-def normalize_weights(weights, beta):
+
+def get_batch_start_end_idxs(n, batch_size):
+    for i in range(0, n, batch_size):
+        yield i, min(i+batch_size, n)
+
+
+def normalize_weights(programs, beta):
     """
-    :param weights: assume each weight is the probability of each program (and not the log probability)
+    :param programs: list of (token_idx_seq, weight) tuples. each weight is the negative log probability of each program (and not the probability)
     :param beta: controls how much to rely on weights, with beta=0 corresponding to uniform distribution and beta=1 corresponding to leaving as is
     """
 
-    denominator = sum([w**beta for w in weights])
-    return [w**beta / denominator for w in weights]
+    denominator = sum([torch.exp(-w)**beta for _,w in programs])
+    return [(p, torch.exp(-w)**beta / denominator) for p,w in programs]
 
 def collate(x, inlcude_ground_truth_programs):
 
@@ -31,7 +38,7 @@ def collate(x, inlcude_ground_truth_programs):
     # stack all tensors of the same input/output type and the same example index to form batch
     io_grids_batched = [(torch.stack([x[i]["io_grids"][ex_idx][0] for i in range(len(x))]), torch.stack([x[i]["io_grids"][ex_idx][1] for i in range(len(x))])) 
         for ex_idx in range(MAX_NUM_IOS)]
-
+    
     batch_data = {
                 "name": [x[i]["name"] for i in range(len(x))],
                 "io_grids": io_grids_batched,
@@ -68,15 +75,34 @@ def print_device(el):
         print("type of el is: {}".format(type(el)))
     return
 
-def load_task_to_programs_from_frontiers_json(grammar, token_to_idx, max_program_length, task_to_programs_json, device):
+def pad_token_seq(token_sequence, pad_token, max_program_length):
+    # pad on the right so that all token sequences are the same length
+    while len(token_sequence) < max_program_length:
+        token_sequence.append(pad_token)
+    return token_sequence
+
+def preload_frontiers_to_task_to_programs(preload_frontiers_filename):
+
+    with open(preload_frontiers_filename, "rb") as handle:
+        result = dill.load(handle)
+    preloaded_frontiers = result.allFrontiers
+    
+    print("preloaded frontiers", preloaded_frontiers)
+    task_to_programs = {}
+    for t,frontier in preloaded_frontiers.items():
+        if not frontier.empty:
+            task_to_programs[t.name] = [str(e.program) for e in frontier.entries]
+    print(task_to_programs)
+    return task_to_programs
+
+def process_task_to_programs(grammar, token_to_idx, max_program_length, task_to_programs, device):
     """
     Load prior enumeration frontiers and process into dictionary with task names as keys and lists of corresponding programs as values.
     Each program is represented as a list of indicies created used token_to_idx argument. Pads programs so they are all the same length.
     """
-
-    task_to_programs = {}
-    for task, task_programs in task_to_programs_json.items():
-        task_to_programs[task] = []
+    processed_task_to_programs = {}
+    for task, task_programs in task_to_programs.items():
+        processed_task_to_programs[task] = []
         for program_string in task_programs:
 
             # hacky way to check that all programs to be used for imitation learning can be parsed (e.g. don't contain primitives not in our grammar)
@@ -86,12 +112,10 @@ def load_task_to_programs_from_frontiers_json(grammar, token_to_idx, max_program
                 continue
             # seq
             token_sequence = [token_to_idx[token] for token in program_to_token_sequence(program, grammar)]
-            # pad on the right so that all token sequences are the same length
-            while len(token_sequence) < max_program_length:
-                token_sequence.append(TOKEN_PAD_VALUE)
+            padded_token_sequence = pad_token_seq(token_sequence, token_to_idx["PAD"], max_program_length)
             # append token sequence and the score of the program. Default to 1.0 since we want to equallly weight all frontier entries
-            task_to_programs[task].append((token_sequence, torch.tensor(1.0, device=device)))
-    return task_to_programs
+            processed_task_to_programs[task].append((padded_token_sequence, torch.tensor(1.0, device=device, requires_grad=False)))
+    return processed_task_to_programs
 
 
 def load_task_to_programs_from_frontiers_pkl(grammar, request, token_to_idx, pkl_name="data/arc/prior_enumeration_frontiers_8hr.pkl"):
@@ -121,7 +145,8 @@ def load_task_to_programs_from_frontiers_pkl(grammar, request, token_to_idx, pkl
 class LARC_Cell_Dataset(Dataset):
     """dataset for predicting each cell color in LARC dataset."""
 
-    def __init__(self, tasks_json_path, resize=(30,30), num_ios=3, tasks_subset=None, max_tasks=float('inf'), for_synthesis=False, beta=0.0, task_to_programs=None, device=torch.device("cpu")):
+    def __init__(self, tasks_json_path, resize=(30,30), num_ios=3, tasks_subset=None, max_tasks=float('inf'), for_synthesis=False, beta=0.0, 
+        task_to_programs=None, device=torch.device("cpu"), task_to_sentences=None):
         """
         Params:
             tasks_json_path: path to folder with task jsons in it
@@ -136,7 +161,8 @@ class LARC_Cell_Dataset(Dataset):
         tasks_subset = set(tasks_subset) if tasks_subset is not None else None    # for O(1) checks
         tokenizer = BertTokenizer.from_pretrained("bert-base-uncased", cache_dir=".cache/")
 
-        task_generator = self.gen_larc_synth_tasks(tasks_json_path, tasks_subset, self.task_to_programs, beta=beta) if for_synthesis \
+        task_generator = self.gen_larc_synth_tasks(tasks_json_path, tasks_subset, self.task_to_programs, beta=beta, 
+            task_to_sentences=task_to_sentences) if for_synthesis \
         else self.gen_larc_pred_tasks(tasks_json_path, tasks_subset)
 
         # pad all grids with 0s to make same size
@@ -151,9 +177,8 @@ class LARC_Cell_Dataset(Dataset):
             # if we are generating tasks for synthesis model then we don't need x and y positions as input
             if for_synthesis:
                 if task_to_programs is not None:
-                    new_task["program"] = torch.tensor(new_task["program"], device=device)
-                    new_task["program_weight"] = new_task["program_weight"]
-
+                    if isinstance(new_task["program"], list):
+                        new_task["program"] = torch.tensor(new_task["program"], device=device)
             else:
                 # 1-hot x and y
                 max_x, max_y = 30, 30
@@ -218,23 +243,24 @@ class LARC_Cell_Dataset(Dataset):
         """
         yield task
 
-    def gen_larc_synth_tasks(self, tasks_json_path, tasks_subset, task_to_programs, beta):
+    def gen_larc_synth_tasks(self, tasks_json_path, tasks_subset, task_to_programs, beta, task_to_sentences):
         """
         generate larc tasks to train synthesis model with
         :param tasks_json_path: path to folder with LARC tasks
         :yields: {'io_grids': [(input1, output1), (input2, output2)...], 'test_in': test_input, 'desc': NL description, 'programs': list of programs (strings)}
         """
 
-        for base_task in self.gen_larc_tasks(tasks_json_path, tasks_subset=tasks_subset):  # {'io_grids': [(input1, output1), (input2, output2)...], 'test': (test_input, test output), 'desc': NL description}
+        for base_task in self.gen_larc_tasks(tasks_json_path, tasks_subset=tasks_subset, task_to_sentences=task_to_sentences):  # {'io_grids': [(input1, output1), (input2, output2)...], 'test': (test_input, test output), 'desc': NL description}
             for task in self.augment_larc_task(base_task):
                 test_in, test_out = task['test']
                 task_dict = {'io_grids': task['io_grids'], 'test_in': test_in, 'desc': task['desc'], 'num': task['num'], 'name': task['name']}
                 if task_to_programs is not None:
                     programs = task_to_programs[task['name']]
-                    weights = normalize_weights([w for program,w in programs], beta)
-                    for i in range(len(programs)):
-                        task_dict['program'] = programs[i][0]
-                        task_dict['program_weight'] = weights[i].detach()
+                    weight_normalized_programs = normalize_weights(programs, beta)
+                    print("weight-normalized-programs ({}): {}".format(task['name'], weight_normalized_programs))
+                    for i in range(len(weight_normalized_programs)):
+                        task_dict['program'] = weight_normalized_programs[i][0]
+                        task_dict['program_weight'] = weight_normalized_programs[i][1].detach()
                         yield task_dict
                 else:
                     yield task_dict
@@ -257,7 +283,7 @@ class LARC_Cell_Dataset(Dataset):
                         yield {'io_grids': task['io_grids'], 'test_in': test_in, 'desc': task['desc'], 'x': x, 'y': y,
                                'col': cell_color, 'num': task['num']}
 
-    def gen_larc_tasks(self, task_json_path, min_perc=0.1, tasks_subset=None):
+    def gen_larc_tasks(self, task_json_path, min_perc=0.1, tasks_subset=None, task_to_sentences=None):
         """
         generator for tasks for input to NN
         :param task_json_path: path to folder with LARC tasks
@@ -286,12 +312,23 @@ class LARC_Cell_Dataset(Dataset):
                 # get test IO
                 io_test = (task['test'][0]['input'], task['test'][0]['output'])
 
-                # yield for each description
-                for desc in task['descriptions'].values():
-                    suc, tot = 0, 0
-                    for build in desc['builds'].values():
-                        suc += 1 if build['success'] else 0
-                        tot += 1
-                    if tot > 0 and suc / tot >= min_perc:   # tot > 0 to avoid / 0
-                        num_tasks += 1
-                        yield {'io_grids': io_exs, 'test': io_test, 'desc': desc['do_description'], 'num': task_num, 'name': task['name']}
+                # If this file has been provided use its NL instead of the ones from task_json_path (hacky way to ensure we use same data
+                # as bigram synthesis model)
+                if task_to_sentences is not None:
+                    if task["name"] in task_to_sentences:
+                        description = ". ".join(task_to_sentences[task["name"]])
+                    else:
+                        # copying how we handle no language in Bigram model experiments. Encoder should learn to ignore "" for tasks we solve with no language
+                        description = ""
+                    yield {'io_grids': io_exs, 'test': io_test, 'desc': description, 'num': task_num, 'name': task['name']}
+
+                else:
+                    # yield for each description
+                    for desc in task['descriptions'].values():
+                        suc, tot = 0, 0
+                        for build in desc['builds'].values():
+                            suc += 1 if build['success'] else 0
+                            tot += 1
+                        if tot > 0 and suc / tot >= min_perc:   # tot > 0 to avoid / 0
+                            num_tasks += 1
+                            yield {'io_grids': io_exs, 'test': io_test, 'desc': desc['do_description'], 'num': task_num, 'name': task['name']}

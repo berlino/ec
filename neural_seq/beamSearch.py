@@ -1,66 +1,95 @@
 import torch
 
-from larc.decoderUtils import *
+from neural_seq.decoderUtils import *
 import heapq
 
-MAX_PROGRAM_LENGTH = 30
+MAX_PROGRAM_LENGTH = 20
 
-def randomized_beam_search_decode(decoder, encoderOutput, beam_width, epsilon, num_end_nodes):
+def pop_node_to_expand(nodes, epsilon):
+
+    if random.random() < epsilon:
+        i = random.randint(0,len(nodes)-1)
+        node = nodes[i]
+        nodes[i] = nodes[0]
+        heapq.heappop(nodes)
+    else:
+        node = heapq.heappop(nodes)
+    return node
+
+
+def randomized_beam_search_decode(decoder, encoderOutput, rnn_decode, restrict_types, beam_width, epsilon, device):
+
+    if not restrict_types:
+        raise Exception("Not Implemented")
+
+    num_end_nodes = beam_width
 
     # list of final programs
     endNodes = []
 
+    if rnn_decode:
+        # we assume num_layers=1 and batch_size=1
+        assert decoder.num_layers == 1 and encoderOutput.size(0) == 1
+        # num_layers x batch_size x embed_dim
+        init_hidden = decoder.bridge(encoderOutput)
+        init_hidden = init_hidden.reshape(1,1,-1) if rnn_decode else None
+    else:
+        init_hidden = None
+
     # starting node
-    nodes = [PartialProgram(decoder.primitiveToIdx, decoder.request.returns(), decoder.device)]
+    nodes = [PartialProgram(decoder.primitiveToIdx, decoder.request.returns(), device, hidden=init_hidden)]
 
     while True:
         newNodes = []
         for k in range(beam_width):
-            # true with probability epsilon and false with probability (1-epsilon)
+
+            # if beam is empty and there are no newly expanded nodes stop
             if len(nodes) == 0:
-                 if len(newNodes) == 0:
-                     return endNodes
-                 continue
-            if random.random() < epsilon:
-                 i = random.randint(0,len(nodes)-1)
-                 node = nodes[i]
-                 nodes[i] = nodes[0]
-                 heapq.heappop(nodes)
+                if len(newNodes) == 0:
+                    return endNodes
+                else:
+                    break
+            node = pop_node_to_expand(nodes, epsilon)
+    
+            if rnn_decode:
+                parenTokenIdx = torch.tensor([node.parentTokenStack.pop()], device=device)
+                probs, hidden, nextTokenType, lambdaVars, node = decoder.forward_rnn(encoderOutput, node, parenTokenIdx,
+                last_hidden=node.hidden, device=device, restrictTypes=True)
+
             else:
-                 node = heapq.heappop(nodes)
-            
-            
-            # print("{} total nodes, Selected node has {} tokens, {} score, {} endNodes found".format(len(newNodes), len(node.programTokenSeq), node.totalScore, len(endNodes)))
-            # print("Selected node: {}".format(node.programStringsSeq))
-            attnOutputWeights, nextTokenType, lambdaVars, node = decoder.forward(encoderOutput, node)
-            # print('pp', node.programStringsSeq)
-            # print("nextTokenType", nextTokenType)
-            # print(attnOutputWeights)
-            attnOutputWeights = attnOutputWeights[0, 0, :]
+                # batch_size (1) x embed_dim
+                parenTokenIdx = torch.tensor([node.parentTokenStack.pop()], device=device)
+                probs, nextTokenType, lambdaVars, node = decoder.forward(encoderOutput, node, parenTokenIdx,
+                device=device, restrictTypes=True)
+                hidden = None
 
-            weights, indices = attnOutputWeights[attnOutputWeights > 0], attnOutputWeights.nonzero()
-            # print(indices)
-            # print([decoder.idxToPrimitive[idx.item()] for idx in indices])
+            # assumes batch_size of 1
+            probs = probs.squeeze()
+            indices = probs.nonzero()
 
-            # add to queue
+            # expand node adding all possible next partial programs to queue (newNodes)
             for idx in indices:
                 nextToken = decoder.idxToPrimitive[idx.item()]
                 newNode = node.copy()
-                nllScore = -torch.log(attnOutputWeights[idx])
-                newNode.processNextToken(nextToken, nextTokenType, nllScore, lambdaVars, decoder.primitiveToIdx, decoder.device)
+                nllScore = -torch.log(probs[idx])
+                newNode.processNextToken(nextToken, nextTokenType, nllScore, lambdaVars, decoder.primitiveToIdx, hidden, device)
 
                 if len(newNode.nextTokenTypeStack) == 0:
                     endNodes.append((newNode.totalScore, newNode))
                     # print("{} total nodes, Selected node has {} tokens, {} endNodes found".format(len(nodes), len(newNode.programTokenSeq), len(endNodes)))
-                    # print("Selected node: {}".format(newNode.programStringsSeq))
+                    # print("Decoded syntactically valid program: {}".format(newNode.programStringsSeq))
                     if len(endNodes) >= num_end_nodes:
                         return endNodes
-
-                elif len(newNode.programTokenSeq) > MAX_PROGRAM_LENGTH:
+                
+                # using the type system we can be intelligent about ruling out programs that don't satisfy
+                elif len(newNode.programTokenSeq) + len(newNode.nextTokenTypeStack) > MAX_PROGRAM_LENGTH:
                     continue
                 else:
                     heapq.heappush(newNodes, newNode)
-        nodes = newNodes 
+      
+        nodes = newNodes
+        # print("{} nodes in beam".format(len(nodes)))
+
     return endNodes
 
 

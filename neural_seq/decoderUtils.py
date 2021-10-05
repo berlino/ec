@@ -1,9 +1,9 @@
-import copy
-from dreamcoder.domains.arc.utilsPostProcessing import *
 from dreamcoder.program import Program
 from dreamcoder.type import Context
 from dreamcoder.utilities import get_root_dir
 
+import copy
+import dill
 import json
 import subprocess
 
@@ -18,7 +18,8 @@ class PartialProgram:
         lambdaVarsTypeStack=None, 
         openParenthesisStack=None,
         parentTokenStack=None,
-        totalScore=None):
+        totalScore=None,
+        hidden=None):
 
         self.primitiveToIdx = primitiveToIdx
         self.requestReturnType = requestReturnType
@@ -31,7 +32,7 @@ class PartialProgram:
 
         self.programStringsSeq = ["(lambda"] if programStringsSeq is None else programStringsSeq
         
-        self.totalScore = 0.0
+        self.totalScore = 0.0 if totalScore is None else totalScore
 
         self.nextTokenTypeStack = Stack([requestReturnType]) if nextTokenTypeStack is None else nextTokenTypeStack
         self.lambdaVarsTypeStack = Stack() if lambdaVarsTypeStack is None else lambdaVarsTypeStack
@@ -41,10 +42,12 @@ class PartialProgram:
         else:
             self.parentTokenStack = parentTokenStack
 
+        self.hidden = hidden
+
     def __lt__(self, other):
         return (self.totalScore < other.totalScore)
 
-    def processNextToken(self, nextToken, nextTokenType, score, lambdaVars, primitiveToIdx, device):
+    def processNextToken(self, nextToken, nextTokenType, score, lambdaVars, primitiveToIdx, hidden, device):
 
         if nextToken == "START":
             assert Exception("Should never sample START")
@@ -66,6 +69,8 @@ class PartialProgram:
             # technically the parent token is LAMBDA but that carries no information so we use the grandparent
             self.parentTokenStack.push(torch.tensor([primitiveToIdx["LAMBDA"]], device=device))
             self.programStringsSeq.append("(lambda")
+        elif nextToken == "PAD":
+            raise Exception("Should never get here since we are tracking program types PAD should always be masked")     
         else:
             sampledToken = Program.parse(nextToken)
             if sampledToken.tp.isArrow() and not(nextTokenType.isArrow()):
@@ -91,9 +96,14 @@ class PartialProgram:
             if isLambda:
                 self.lambdaVarsTypeStack.pop()
 
-        self.totalScore += score
+        self.hidden = hidden
+        self.totalScore += score.item()
+        # print("{}: {}".format(" ".join(self.programStringsSeq), self.totalScore))
 
         return self
+
+    def detach_tensors(self):
+            self.programTokenSeq = self.programTokenSeq.detach()
 
     def copy(self):
         return PartialProgram( 
@@ -106,7 +116,8 @@ class PartialProgram:
             lambdaVarsTypeStack = self.lambdaVarsTypeStack.copy(), 
             openParenthesisStack = self.openParenthesisStack.copy(),
             parentTokenStack = self.parentTokenStack.copy(),
-            totalScore = self.totalScore)
+            totalScore = self.totalScore,
+            hidden = self.hidden)
 
 class Stack:
     """
@@ -167,7 +178,6 @@ def execute_programs(tasks, grammar, task_to_programs):
 
     try:
         solver_file = os.path.join(get_root_dir(), "solvers/exec_arc_p")
-        print("solver_file", solver_file)
         process = subprocess.Popen(
             solver_file, stdin=subprocess.PIPE, stdout=subprocess.PIPE
         )
@@ -189,6 +199,29 @@ def program_to_token_sequence(program, grammar):
 	program_token_sequence = [token for token in program.left_order_tokens_alt()]
 	return ["START"] + program_token_sequence
 
+
+# Uses `parameters` to construct the checkpoint path
+def checkpointPath(iteration, extra=""):
+    parameters["iterations"] = iteration
+    kvs = [
+        "{}={}".format(
+            ECResult.abbreviate(k),
+            parameters[k]) for k in sorted(
+            parameters.keys())]
+    return "{}_{}{}.pickle".format(outputPrefix, "_".join(kvs), extra)
+
+def resume_from_path(resume):
+    try:
+        resume = int(resume)
+        path = checkpointPath(resume)
+    except ValueError:
+        path = resume
+    with open(path, "rb") as handle:
+        result = dill.load(handle)
+    resume = len(result.grammars) - 1
+    print("Loaded checkpoint from", path)
+    grammar = result.grammars[-1] if result.grammars else grammar
+    return result, grammar, result.grammars[0]
 
 def main():
 

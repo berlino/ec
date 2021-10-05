@@ -92,7 +92,7 @@ class Program(object):
         return t(show_vars, [], self)
 
 
-   def left_order_tokens_alt(self):
+    def left_order_tokens_alt(self):
 
         def t(env, tokens, p):
 

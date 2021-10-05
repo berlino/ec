@@ -2,7 +2,7 @@ import pickle
 
 from dreamcoder.domains.arc.arcPrimitives import basePrimitives, leafPrimitives, moreSpecificPrimitives
 
-from larc.decoderUtils import *
+from neural_seq.decoderUtils import *
 
 def test_parse_token_sequence():
 
