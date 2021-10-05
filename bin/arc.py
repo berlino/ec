@@ -20,6 +20,6 @@ if __name__ == '__main__':
         CPUs=numberOfCPUs(),
         extras=arc_options)
 
-    # main(args)
-    experiment_output_main("plot_marginals")
+    main(args)
+    # experiment_output_main("plot_marginals")
 
