@@ -1,5 +1,5 @@
-#  Communicating Natural Programs to Humans and Machines : Leveraging Language for Program Synthesis
-This repository is the official implementation for the language-guided program synthesis experiments in **Communicating Natural Programs to Humans and Machines** (Section 5, Leveraging Language for Program Synthesis). The paper is currently under review. This repository and branch is a static branch designed to reproduce the results in the paper.
+#  Communicating Natural Programs to Humans and Machines
+This repository is the official implementation for the language-guided program synthesis experiments in **Communicating Natural Programs to Humans and Machines** (Section 5, Executing Natual Programs). The paper is currently under review. This repository and branch is a static branch designed to reproduce the results in the paper.
 
 ![banner](./docs/arc-data-collection.jpg "Banner")
 
@@ -78,27 +78,7 @@ The ```--resume [CHECKPOINT_PATH]``` commandline argument will resume training f
 For additional information on the command line output (and default scripts to graph the outputs from the checkpoints), see docs/EC_README.md.
 
 ###### Command line arguments for experiments
-To train and evaluate the best-performing model in the paper (Table 1, Language – T5 + pseudoannotation training, initialized from tasks solved after an 8hr initial enumeration from the base DSL), run:
+To train and evaluate the best-performing model in the paper (Table 1, IO + NL, initialized from tasks solved after a 1hr initial enumeration from the base DSL), run:
 ```
-python3.7 bin/arc.py \
-  --enumerationTimeout 720 # Search timeout (s)
-  --testingTimeout 0 # Search timeout on testing tasks (we do not evaluate on testing tasks in the reported experiments)
-  --iterations 5 # By default, number of full *epochs* to run over training tasks.
-  --taskBatchSize 400 # Training batch size at each iteration. Set to the full 400 training tasks
-  --recognitionSteps 10000 # Maximum gradient steps for the neural model.
-  --featureExtractor LMPseudoTranslationFeatureExtractor # Neural model (T5-small) with pseudo-annotation training.
-  --preload_frontiers data/arc/prior_enumeration_frontiers_8hr.pkl # Initialize from tasks solved from 8 hours of enumeration. See data/arc/prior_enumeration* for other initializations.
-  --Helmholtz 0.5 # Train 50% on pseudoannotations and 50% on solved tasks with accompanying annotations.
-  --taskReranker randomShuffle # Random permutation of training tasks (N/A when no train-time batching.)
-  --seed 1 # Random seed.
-  --no-background-helmholtz --testEvery 1  --biasOptimal --contextual --no-cuda  --CPUs 24 -no-dsl 
+python bin/arc.py --enumerationTimeout 720 --no-dsl --testingTimeout 0 --iterations 5 --taskBatchSize 200 --testEvery 1 --recognitionSteps 10000 --biasOptimal --contextual --no-cuda --CPUs 24 --featureExtractor LMPseudoTranslationFeatureExtractor --Helmholtz 0.5 --no-background-helmholtz --no-consolidation --taskReranker randomShuffle --seed 2  --preload_frontiers experimentOutputs/arc/2021-09-30T12:23:24.378667/arc_aic=1.0_arity=0_ET=10_t_zero=1_it=1_MF=10_noConsolidation=True_pc=10_RW=False_solver=ocaml_STM=True_L=1.0_batch=200_TRR=randomShuffle_K=2_topkNotMAP=False_UET=3600_DSL=True_rec=False.pickle'
 ```
-
-## Results
-The table below (Table 1 in the main paper) shows the number of training tasks solved after 5 iterations of search (720s per task), initialized with various initializations.
-
-![results](./docs/results.png "Results")
-
-Commands to reproduce each of these experiments (including the full initialization) can be found in the ```docs/neurips_2021_experiments``` file.
-
-
