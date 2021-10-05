@@ -17,7 +17,7 @@ pip install --upgrade setuptools;
 ```
 2. Install the requirements.
 ```
-pip install -r neurips_2021_requirements.txt
+pip install -r iclr_2022_requirements.txt
 ```
 3. Download the T5 pre-trained language model. At an interactive prompt, run:
 ```
