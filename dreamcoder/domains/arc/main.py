@@ -218,7 +218,6 @@ def arc_options(parser):
     default=PRIMITIVE_HUMAN_READABLE)
     parser.add_argument("--preload_frontiers", default=NONE)
     parser.add_argument("--filter_test_task_if_no_nl", default=False, action="store_true")
-
     # parser.add_argument("-i", type=int, default=10)
 
 def run_tests(args):

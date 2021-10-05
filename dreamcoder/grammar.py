@@ -1079,8 +1079,7 @@ class ContextualGrammar:
             returnValue = Application(returnValue, x)
             
         return context, returnValue
-
-    def expectedUsesMonteCarlo(self, request, debug=None):
+    def expectedUsesMonteCarlo(self, request, debug=None, returnPrimitive2index=False):
         import numpy as np
         n = 0
         u = [0.]*len(self.primitives)
@@ -1089,8 +1088,8 @@ class ContextualGrammar:
         primitive2index = {primitive: i
                            for i, primitive in enumerate(primitives)
                            if primitive.isInvented or noInventions }
-        eprint(primitive2index)
-        ns = 1000
+        # eprint(primitive2index)
+        ns = 100
         with timing(f"calculated expected uses using Monte Carlo simulation w/ {ns} samples"):
             for _ in range(ns):
                 p = self.sample(request, maxAttempts=0)
@@ -1106,7 +1105,43 @@ class ContextualGrammar:
             eprint(f"Got {n} samples. Feature vector:\n{u}")
             eprint(f"Likely used primitives: {[p for p,i in primitive2index.items() if u[i] > 0.5]}")
             eprint(f"Likely used primitive indices: {[i for p,i in primitive2index.items() if u[i] > 0.5]}")
-        return u
+        if returnPrimitive2index:
+            return u, {str(p):i for p,i in primitive2index.items()}
+        else:
+            return u
+
+    def marginalsMonteCarlo(self, request, debug=None, returnPrimitive2index=False, numMcSamples=None):
+        import numpy as np
+        n = 0
+        u = [0. for _ in range(len(self.primitives))]
+        primitives = list(sorted(self.primitives, key=str))
+        noInventions = all( not p.isInvented for p in primitives )
+        primitive2index = {primitive: i
+                           for i, primitive in enumerate(primitives)
+                           if primitive.isInvented or noInventions }
+        # eprint(primitive2index)
+        ns = 10000 if numMcSamples is None else numMcSamples
+        with timing(f"calculated expected uses using Monte Carlo simulation w/ {ns} samples"):
+            for _ in range(ns):
+                primitive_counted_already = set()
+                p = self.sample(request, maxAttempts=0)
+                if p is None: continue
+                n += 1
+                if debug and n < 10:
+                    eprint(debug, p)
+                for _, child in p.walk():
+                    if child not in primitive2index or str(child) in primitive_counted_already: continue
+                    u[primitive2index[child]] += 1.0
+                    primitive_counted_already.add(str(child))
+        u = np.array(u)/n
+        if debug:
+            eprint(f"Got {n} samples. Feature vector:\n{u}")
+            eprint(f"Likely used primitives: {[p for p,i in primitive2index.items() if u[i] > 0.5]}")
+            eprint(f"Likely used primitive indices: {[i for p,i in primitive2index.items() if u[i] > 0.5]}")
+        if returnPrimitive2index:
+            return u, {str(p):i for p,i in primitive2index.items()}
+        else:
+            return u
 
     def featureVector(self, _=None, requests=None, onlyInventions=True, normalize=True):
         """
