@@ -102,6 +102,9 @@ def enumerateHelmholtzOcaml(tasks, grammar, enumerationTimeout, CPUs, featureExt
         frontier = Frontier([FrontierEntry(program=Program.parse(p), logPrior=entry["ll"], logLikelihood=0.0) for p in entry["programs"]], task=task)
         return frontier
 
+    requests = list(set([t.request for t in tasks]))
+    assert len(requests) == 1
+    request = requests[0]
     frontiers = parallelMap(CPUs, lambda entry: parseAndMakeTaskFromProgram(entry, request, featureExtractor), response, memorySensitive=True)
     frontiers = [f for f in frontiers if f is not None] 
     print("{} Frontiers after filtering".format(len(frontiers)))

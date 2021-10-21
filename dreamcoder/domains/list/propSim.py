@@ -7,6 +7,7 @@ from dreamcoder.utilities import vprint
 from dreamcoder.domains.list.utilsProperties import createFrontiersWithInputsFromTask
 
 MAX_NUM_SIM_TASKS_TO_PRINT = 5
+THRESHOLD_POSTERIOR_SUM = 500
 
 class ZeroPropertiesFound(Exception):
     pass
@@ -68,7 +69,10 @@ def getTaskSimilarFrontier(
 
     vprint("\n{} Most Similar Prop Sig Tasks\n--------------------------------------------------------------------------------".format(nSim), verbose)
     frontiersToUse, frontierWeights = [], []
-    for i,idx in enumerate(simDf.head(nSim).index.values):
+    
+    toIter = enumerate(simDf.index.values) if nSim == (-1) else enumerate(simDf.head(nSim).index.values)
+    totalPosteriorSum = 0
+    for i,idx in toIter:
         if i < MAX_NUM_SIM_TASKS_TO_PRINT:
             vprint("\nTask similarity score: {}".format(simDf.loc[idx, "score"]), verbose)
             vprint(matchingFrontiers[idx].task.describe(), verbose)
@@ -79,6 +83,11 @@ def getTaskSimilarFrontier(
 
         frontiersToUse.append(matchingFrontiers[idx])
         frontierWeights.append(simDf.loc[idx, "score"])
+       
+        if nSim == (-1):
+            totalPosteriorSum += simDf.loc[idx, "score"]
+            if totalPosteriorSum > THRESHOLD_POSTERIOR_SUM:
+                return frontiersToUse, frontierWeights, solved
 
     return frontiersToUse, frontierWeights, solved
 

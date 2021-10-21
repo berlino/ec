@@ -506,6 +506,7 @@ def ecIterator(grammar, tasks,
         eprint("Total frontiers: " + str(len([f for f in result.allFrontiers.values() if not f.empty])))
 
         # Train + use recognition model
+        # if useRecognitionModel and (not (j == 0 and propSim)):
         if useRecognitionModel:
             # Should we initialize the weights to be what they were before?
             previousRecognitionModel = None
@@ -530,10 +531,10 @@ def ecIterator(grammar, tasks,
                                previousRecognitionModel=previousRecognitionModel, matrixRank=matrixRank,
                                timeout=recognitionTimeout, evaluationTimeout=evaluationTimeout,
                                enumerationTimeout=enumerationTimeout,
-                               helmholtzRatio=thisRatio, helmholtzFrontiers=helmholtzFrontiers(),
+                               helmholtzRatio=thisRatio, helmholtzFrontiers=None,
                                auxiliaryLoss=auxiliaryLoss, cuda=cuda, CPUs=CPUs, solver=solver,
                                recognitionSteps=recognitionSteps, maximumFrontier=maximumFrontier, 
-                               featureExtractorArgs=featureExtractorArgs, epochs=epochs)
+                               featureExtractorArgs=featureExtractorArgs, epochs=epochs, helmEnumerationTimeout=helmEnumerationTimeout, numHelmFrontiers=numHelmFrontiers)
 
             showHitMatrix(tasksHitTopDown, tasksHitBottomUp, wakingTaskBatch)
             
@@ -660,19 +661,22 @@ def sleep_propsim(result, j, grammar, taskBatch, tasks, allFrontiers, ensembleSi
     computePriorFromTasks, filterSimilarProperties, maxFractionSame, valuesToInt, helmEnumerationTimeout, outputDirectory, verbose):
     
     # initialize property feature extractor, sampling properties if needed
-    propertyFeatureExtractors = [featureExtractor(tasksToSolve=taskBatch, allTasks=tasks, grammar=grammar, cuda=cuda, featureExtractorArgs=featureExtractorArgs) for i in range(ensembleSize)]
+    properties = None
+    if result.recognitionModel is not None:
+        properties = result.recognitionModel.featureExtractor.properties[::]
+    propertyFeatureExtractors = [featureExtractor(tasksToSolve=taskBatch, allTasks=tasks, grammar=grammar, properties=properties, cuda=cuda, featureExtractorArgs=featureExtractorArgs) for i in range(ensembleSize)]
     recognizers = [PropSimModel(propertyFeatureExtractors[i],grammar,
                  rank=None,contextual=contextual,mask=False,
                  cuda=cuda, id=i) for i in range(ensembleSize)]
 
     # enumerate helmholtz tasks from which to select n most similar
-    # helmholtzFrontiers = enumerateHelmholtzOcaml(tasks, grammar, helmEnumerationTimeout, CPUs, propertyFeatureExtractors[0], save=False)
+    helmholtzFrontiers = enumerateHelmholtzOcaml(tasks, grammar, helmEnumerationTimeout, CPUs, propertyFeatureExtractors[0], save=False)
     # use for debug only locally where we can't do Ocaml enumeration
-    helmholtzFrontiers = [f for f in allFrontiers if len(f.entries) > 0]
+    # helmholtzFrontiers = [f for f in allFrontiers if len(f.entries) > 0]
 
     print("Enumerated {} helmholtz tasks".format(len(helmholtzFrontiers)))
     if numHelmFrontiers is not None and numHelmFrontiers < len(helmholtzFrontiers):
-        helmholtzFrontiers = sorted(helmholtzFrontiers, key=lambda f: f.topK(1).entries[0].logPosterior, reverse=True)
+        helmholtzFrontiers.sort(key=lambda f: f.topK(1).entries[0].logPosterior, reverse=True)
         helmholtzFrontiers = helmholtzFrontiers[:min(len(helmholtzFrontiers), numHelmFrontiers)]
 
     saveDirectory = outputDirectory + "helmholtzFrontiers_numFrontiers={}_iter={}.pkl".format(len(helmholtzFrontiers), j)
@@ -695,7 +699,7 @@ def sleep_propsim(result, j, grammar, taskBatch, tasks, allFrontiers, ensembleSi
                                         valuesToInt,
                                         verbose),
                                     recognizers,
-                                    seedRandom=True
+                                    seedRandom=True, memorySensitive=True
                                     )
 
     eprint(f"Currently using this much memory: {getThisMemoryUsage()}")
@@ -773,7 +777,7 @@ def sleep_recognition(result, grammar, taskBatch, tasks, testingTasks, allFronti
                       previousRecognitionModel=None, recognitionSteps=None,
                       timeout=None, enumerationTimeout=None, evaluationTimeout=None,
                       helmholtzRatio=None, helmholtzFrontiers=None, maximumFrontier=None,
-                      auxiliaryLoss=None, cuda=None, CPUs=None, solver=None, featureExtractorArgs=None, epochs=None):
+                      auxiliaryLoss=None, cuda=None, CPUs=None, solver=None, featureExtractorArgs=None, epochs=None, helmEnumerationTimeout=None, numHelmFrontiers=None):
     eprint("Using an ensemble size of %d. Note that we will only store and test on the best recognition model." % ensembleSize)
 
     featureExtractorObjects = [featureExtractor(tasks, grammar=grammar, testingTasks=testingTasks, cuda=cuda, featureExtractorArgs=featureExtractorArgs) for i in range(ensembleSize)]
@@ -787,6 +791,20 @@ def sleep_recognition(result, grammar, taskBatch, tasks, testingTasks, allFronti
                                     previousRecognitionModel=previousRecognitionModel,
                                     id=i) for i in range(ensembleSize)]
     eprint(f"Currently using this much memory: {getThisMemoryUsage()}")
+
+    # enumerate helmholtz tasks from which to select n most similar
+    helmholtzFrontiers = enumerateHelmholtzOcaml(tasks, grammar, helmEnumerationTimeout, CPUs, featureExtractorObjects[0], save=False)
+    # use for debug only locally where we can't do Ocaml enumeration
+    # helmholtzFrontiers = [f for f in allFrontiers if len(f.entries) > 0]
+
+    print("Enumerated {} helmholtz tasks".format(len(helmholtzFrontiers)))
+    if numHelmFrontiers is not None and numHelmFrontiers < len(helmholtzFrontiers):
+        helmholtzFrontiers.sort(key=lambda f: f.topK(1).entries[0].logPosterior, reverse=True)
+        helmholtzFrontiers = helmholtzFrontiers[:min(len(helmholtzFrontiers), numHelmFrontiers)]
+
+    # saveDirectory = outputDirectory + "helmholtzFrontiers_numFrontiers={}_iter={}.pkl".format(len(helmholtzFrontiers), j)
+    # dill.dump(helmholtzFrontiers, open(saveDirectory, "wb"))
+
     trainedRecognizers = parallelMap(min(CPUs,len(recognizers)),
                                      lambda recognizer: recognizer.trainRecognizer(allFrontiers,
                                                                          biasOptimal=biasOptimal,
