@@ -88,7 +88,7 @@ def _getPriorBasedSimilarityScore(taskSig, trainTaskSig, propertyToPriorDistribu
     taskProbsPerPropValue = propertyToPriorDistribution[taskSig, np.arange(propertyToPriorDistribution.shape[1])]
     trainTaskProbsPerPropValue = propertyToPriorDistribution[trainTaskSig, np.arange(propertyToPriorDistribution.shape[1])]   
 
-    # The weight of each property p_i is the probability of (p_i(taskSig), p_i(trainTaskSig))
+    # The weight of each property p_i is 1 / the probability of (p_i(taskSig), p_i(trainTaskSig))
     weights = 1.0 / np.multiply(taskProbsPerPropValue,trainTaskProbsPerPropValue)
     
     # vector including only properties for which the 2 tasks have the same value

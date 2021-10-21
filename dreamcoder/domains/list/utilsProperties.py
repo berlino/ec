@@ -76,7 +76,7 @@ def makeTaskFromProgram(program, request, featureExtractor, differentOutputs=Tru
                 return None
     return task
 
-def enumerateFromOcamlGrammar(tasks, grammar, enumerationTimeout):
+def enumerateFromOcamlGrammar(tasks, grammar, enumerationTimeout, special):
     requests = list({t.request for t in tasks})
     request = requests[0]
     assert len(requests) == 1
