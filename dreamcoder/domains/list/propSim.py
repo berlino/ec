@@ -50,7 +50,7 @@ def getTaskSimilarFrontier(
     vprint("\n------------------------------------------------ Task {} ----------------------------------------------------".format(task), verbose)
     vprint(task.describe(), verbose)
     try:
-        simDf, matchingFrontiers = createSimilarTasksDf(allTasks, taskIdx, allFrontiers, properties, propertySimTasksMatrix, propertyToPriorDistribution, valuesToInt, 
+        simDf, matchingFrontiers, _ = createSimilarTasksDf(allTasks, taskIdx, allFrontiers, properties, propertySimTasksMatrix, propertyToPriorDistribution, valuesToInt, 
             onlyUseTrueProperties=onlyUseTrueProperties, filterSimilarProperties=filterSimilarProperties, maxFractionSame=maxFractionSame, 
             recomputeTasksWithTaskSpecificInputs=recomputeTasksWithTaskSpecificInputs, computePriorFromTasks=computePriorFromTasks, verbose=verbose)
     except ZeroPropertiesFound:
@@ -247,7 +247,7 @@ def createSimilarTasksDf(
     for i,frontier in enumerate(allFrontiers):
         assert simDf.loc[i, "program"] == frontier.entries[0].program
 
-    return simDf, allFrontiers
+    return simDf, allFrontiers, sortedPropAndScores
 
 
 def getPriorDistributionsOfProperties(properties, propertySimTasksMatrix, valuesToInt):
