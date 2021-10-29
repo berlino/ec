@@ -1,0 +1,18 @@
+language: python
+python:
+  # We don't actually use the Travis Python, but this keeps it organized.
+  - "3.5"
+  - "3.6"
+install:
+  - sudo apt-get update
+  - wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh;
+  - bash miniconda.sh -b -p $HOME/miniconda
+  - export PATH="$HOME/miniconda/bin:$PATH"
+  - conda install -y anaconda-project
+  - anaconda-project add-packages python=$TRAVIS_PYTHON_VERSION
+
+script:
+  # Your test script goes here
+  - anaconda-project run python --version
+  - anaconda-project run python test_pregex.py 
+  - anaconda-project run python test_differentiate.py
