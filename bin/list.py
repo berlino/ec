@@ -24,5 +24,3 @@ if __name__ == '__main__':
         extras=list_options)
 
     main(args)
-    # testPropertySignatureExtractorHandwritten()
-    # test_josh_rich_primitives()
