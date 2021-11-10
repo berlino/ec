@@ -3,7 +3,9 @@ from dreamcoder.domains.list.runUtils import *
 from dreamcoder.domains.list.utilsBaselines import *
 from dreamcoder.domains.list.utilsProperties import *
 
-def iterative_propsim(args, tasks, baseGrammar, featureExtractor):
+VALUES_TO_INT = {"allFalse":0, "allTrue":1, "mixed":2}
+
+def iterative_propsim(args, tasks, baseGrammar, properties):
 
     #################################
     # Load sampled tasks
@@ -62,19 +64,18 @@ def iterative_propsim(args, tasks, baseGrammar, featureExtractor):
            tasksToSolve,
            tasks, 
            sampledFrontiers, 
-           featureExtractor, 
-           featureExtractorArgs, 
-           onlyUseTrueProperties, 
-           nSim, 
-           propPseudocounts, 
-           weightedSim, 
+           properties, 
+           args["onlyUseTrueProperties"], 
+           args["nSim"], 
+           args["propPseudocounts"], 
+           args["weightedSim"], 
            compressSimilar=False, 
            weightByPrior=False, 
-           recomputeTasksWithTaskSpecificInputs=taskSpecificInputs,
-           computePriorFromTasks=computePriorFromTasks, 
-           filterSimilarProperties=filterSimilarProperties, 
-           maxFractionSame=maxFractionSame, 
-           valuesToInt=valuesToInt,
+           recomputeTasksWithTaskSpecificInputs=args["taskSpecificInputs"],
+           computePriorFromTasks=args["computePriorFromTasks"], 
+           filterSimilarProperties=args["filterSimilarProperties"], 
+           maxFractionSame=args["maxFractionSame"], 
+           valuesToInt=VALUES_TO_INT,
            propSimIteration=propSimIteration,
            verbose=args["verbose"])
 
@@ -128,8 +129,7 @@ def main(args):
     tasks = get_tasks(args["dataset"])
     tasks = tasks[0:1] if args["singleTask"] else tasks
     prims = get_primitives(args["libraryName"])
-    featureExtractor = get_extractor(args["extractor"])
     baseGrammar = Grammar.uniform([p for p in prims])
-
-    iterative_propsim(args, tasks, baseGrammar, featureExtractor)
+    featureExtractor, properties = get_extractor(tasks, baseGrammar, args)
+    iterative_propsim(args, tasks, baseGrammar, properties)
     return

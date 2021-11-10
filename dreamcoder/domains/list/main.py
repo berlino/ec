@@ -24,11 +24,6 @@ from dreamcoder.domains.list.runUtils import *
 from dreamcoder.domains.list.utilsPlotting import *
 from dreamcoder.domains.list.utilsPropertySampling import *
 
-
-DATA_DIR = "data/prop_sig/"
-SAMPLED_PROPERTIES_DIR = "sampled_properties/"
-GRAMMARS_DIR = "grammars/"
-
 def list_options(parser):
 
     # parser.add_argument("--iterations", type=int, default=10)

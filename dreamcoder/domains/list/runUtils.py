@@ -10,6 +10,10 @@ from dreamcoder.task import Task
 from dreamcoder.type import Context, arrow, tbool, tlist, tint, t0, UnificationFailure
 from dreamcoder.utilities import flatten
 
+DATA_DIR = "data/prop_sig/"
+SAMPLED_PROPERTIES_DIR = "sampled_properties/"
+GRAMMARS_DIR = "grammars/"
+
 try:
     from dreamcoder.recognition import RecurrentFeatureExtractor
     class LearnedFeatureExtractor(RecurrentFeatureExtractor):
@@ -180,34 +184,21 @@ def get_primitives(libraryName):
     prims = primLibraries[libraryName]
     return prims
 
-def get_extractor(extractorName):
+def get_extractor(tasks, baseGrammar, args):
     extractor = {
         "dummy": DummyFeatureExtractor,
         "learned": LearnedFeatureExtractor,
         "prop_sig": PropertySignatureExtractor,
         "combined": CombinedExtractor
-        }[extractorName]
+        }[args["extractor"]]
 
-    if extractorName == "learned":
-        featureExtractorArgs = {"hidden":hidden}
+    if args["extractor"] == "learned":
+        raise NotImplementedError
 
-    elif extractorName == "prop_sig" or extractorName == "combined":
-        featureExtractorArgs = {
-            "propCPUs": propCPUs,
-            "propSolver": propSolver,
-            "propEnumerationTimeout": propEnumerationTimeout,
-            "propUseConjunction": propUseConjunction,
-            "propAddZeroToNinePrims": propAddZeroToNinePrims,
-            "propScoringMethod": propScoringMethod,
-            "propDreamTasks": propDreamTasks,
-            "propToUse": propToUse,
-            "propertyPrimitives": propertyPrimitives,
-            "primLibraries": primLibraries,
-            "propUseEmbeddings": propUseEmbeddings,
-            "propToUse": propToUse
-        }
+    elif args["extractor"] == "prop_sig" or extractorName == "combined":
+        featureExtractorArgs = args
 
-        if propToUse == "handwritten":
+        if args["propToUse"] == "handwritten":
             properties = getHandwrittenPropertiesFromTemplates(tasks)
             featureExtractor = extractor(tasksToSolve=tasks, allTasks=tasks, grammar=baseGrammar, cuda=False, featureExtractorArgs=featureExtractorArgs, properties=properties)
             print("Loaded {} properties from: {}".format(len(properties), "handwritten"))
@@ -257,4 +248,4 @@ def get_extractor(extractorName):
                 print("Saving sampled properties at: {}".format(savePath))
                 print("Saving sampled properties at: {}".format(savePath))
 
-        return featureExtractor
+        return featureExtractor, properties
