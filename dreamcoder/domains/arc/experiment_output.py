@@ -33,6 +33,7 @@ IO_NL_PSEUDO_BIGRAM_CHECKPOINT = "experimentOutputs/arc/2021-10-01T11:24:05.4228
 IO_BIGRAM_CHECKPOINT = "experimentOutputs/arc/2021-09-30T14:45:18.915411/arc_aic=1.0_arity=0_BO=True_CO=True_ES=1_ET=720_t_zero=1_HR=0.0_it=5_MF=10_noConsolidation=True_pc=10_RS=10000_RT=3600_RR=False_RW=False_solver=ocaml_STM=True_L=1.0_batch=200_TRR=randomShuffle_K=2_topkNotMAP=False_UET=3600_DSL=False_FTM=True.pickle"
 IO_NL_BIGRAM_CHECKPOINT = "experimentOutputs/arc/2021-09-30T14:38:38.039529/arc_aic=1.0_arity=0_BO=True_CO=True_ES=1_ET=720_t_zero=1_HR=0.0_it=5_MF=10_noConsolidation=True_pc=10_RS=10000_RT=3600_RR=False_RW=False_solver=ocaml_STM=True_L=1.0_batch=200_TRR=randomShuffle_K=2_topkNotMAP=False_UET=3600_DSL=False_FTM=True.pickle"
 IO_NL_PSEUDO_BIGRAM_CHECKPOINT = "experimentOutputs/arc/2021-10-02T01:56:55.896457/arc_aic=1.0_arity=0_BO=True_CO=True_ES=1_ET=720_t_zero=1_HR=0.5_it=5_MF=10_noCons=True_pc=10_RS=10000_RT=3600_RR=False_RW=False_STM=True_L=1.0_batch=200_TRR=randomShuffle_K=2_topkNotMAP=False_UET=3600_DSL=False_FTM=True.pickle"
+IO_CNN_NL_PSEUDO_BIGRAM_CHECKPOINT = "experimentOutputs/arc/2021-10-01T00:09:11.781052/arc_aic=1.0_arity=0_BO=True_CO=True_ES=1_ET=720_t_zero=1_HR=0.5_it=5_MF=10_noConsolidation=True_pc=10_RS=10000_RT=3600_RR=False_RW=False_solver=ocaml_STM=True_L=1.0_batch=200_TRR=randomShuffle_K=2_topkNotMAP=False_UET=3600_DSL=False_FTM=True.pickle"
 
 NL_TEST_TIME = 0.00452113151550293
 
@@ -54,6 +55,7 @@ class Result:
             self.task_to_program_to_solved = {}
 
         self.test_tasks_solved = list(self.task_to_program_to_solved.keys())
+        print("test tasks solved", self.test_tasks_solved)
         self.test_frontier_solutions = {t:Frontier([e for e in frontiers[-1].entries if self._is_solution(t, e.program)], t) for t,frontiers in self.result.frontiersOverTime.items() if t.name in testTasksWithNl}
 
     def _is_solution(self, task, program):
@@ -285,8 +287,8 @@ def conditional_primitive_marginals(result_a, result_b, use_best=False, num_mc_s
 
 def experiment_output_main(action):
 
-    paths = [IO_BIGRAM_CHECKPOINT, IO_NL_BIGRAM_CHECKPOINT, IO_NL_PSEUDO_BIGRAM_CHECKPOINT]
-    labels = ["IO", "IO + NL", "IO + NL (pseudo)"]
+    paths = [IO_BIGRAM_CHECKPOINT, IO_NL_BIGRAM_CHECKPOINT, IO_NL_PSEUDO_BIGRAM_CHECKPOINT, IO_CNN_NL_PSEUDO_BIGRAM_CHECKPOINT]
+    labels = ["IO", "IO + NL", "IO + NL (pseudo)", "IO (CNN) + NL (pseudo)"]
     results = {label: Result(path, label) for label,path in zip(labels, paths)}
     
     train_task_names, test_task_names, trainTasksWithNl, testTasksWithNl, grammar, tasks, request = load_relevant_data()
