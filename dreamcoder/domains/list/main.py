@@ -57,6 +57,8 @@ def list_options(parser):
             "josh_3",
             "josh_3.1",
             "josh_final",
+            "josh_fleet",
+            "josh_fleet0to9",
             "Lucas-old"])
     parser.add_argument("--extractor", default="prop_sig", choices=[
         "prop_sig",

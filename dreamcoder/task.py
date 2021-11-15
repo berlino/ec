@@ -12,7 +12,7 @@ EVALUATIONTABLE = {}
 
 
 class Task(object):
-    def __init__(self, name, request, examples, features=None, cache=False):
+    def __init__(self, name, request, examples, features=None, cache=False, program=None):
         '''request: the type of this task
         examples: list of tuples of (input, output). input should be a tuple, with one entry for each argument
         cache: should program evaluations be cached?
@@ -22,6 +22,8 @@ class Task(object):
         self.request = request
         self.name = name
         self.examples = examples
+        self.program = program
+        
         if len(self.examples) > 0:
             assert all(len(xs) == len(examples[0][0])
                        for xs, _ in examples), \
@@ -43,6 +45,14 @@ class Task(object):
 
     def __hash__(self): return hash(self.name)
 
+    def parse_program(self, primitives):
+        primitivesDict = {p.name:p for p in primitives}
+        self.program = Program.parse(self.program, primitives=primitivesDict)
+
+        ground_truth_correct = self.check(self.program, timeout=0.1, leaveHoldout=False, verbose=False)
+        assert ground_truth_correct
+        return
+
     def describe(self):
         description = ["%s : %s" % (self.name, self.request)]
         for xs, y in self.examples:
@@ -62,7 +72,7 @@ class Task(object):
         if not hasattr(self, 'supervisedSolution'): return None
         return self.supervisedSolution
 
-    def check(self, e, timeout=None, leaveHoldout=False):
+    def check(self, e, timeout=None, leaveHoldout=False, verbose=False):
         if timeout is not None:
             def timeoutCallBack(_1, _2): raise EvaluationTimeout()
         try:
@@ -79,6 +89,7 @@ class Task(object):
                 return False
 
             examples = self.examples[:-3] if leaveHoldout else self.examples
+            if verbose: print("\n{}: {}".format(self.name, self.program))
             for x, y in examples:
                 if self.cache and (x, e) in EVALUATIONTABLE:
                     p = EVALUATIONTABLE[(x, e)]
@@ -89,6 +100,11 @@ class Task(object):
                         p = None
                     if self.cache:
                         EVALUATIONTABLE[(x, e)] = p
+
+                if verbose:
+                    print("Expected: {} -> {}".format(x, y))
+                    print("Got: {} -> {}".format(x, p))
+
                 if p != y:
                     if timeout is not None:
                         signal.signal(signal.SIGVTALRM, lambda *_: None)

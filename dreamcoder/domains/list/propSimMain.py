@@ -5,7 +5,7 @@ from dreamcoder.domains.list.utilsProperties import *
 
 VALUES_TO_INT = {"allFalse":0, "allTrue":1, "mixed":2}
 
-def iterative_propsim(args, tasks, baseGrammar, properties):
+def iterative_propsim(args, tasks, baseGrammar, properties, initSampledFrontiers):
 
     #################################
     # Load sampled tasks
@@ -16,18 +16,8 @@ def iterative_propsim(args, tasks, baseGrammar, properties):
         print("\nLoading helmholtz tasks for iteration {}".format(propSimIteration))
 
         if propSimIteration == 0:
-            if args["helmholtzFrontiersFilename"] is not None:
-                if args["debug"]:
-                    initSampledFrontiers = loadEnumeratedTasks(dslName=args["primitives"], filename=args["helmholtzFrontiersFilename"], hmfSeed=args["hmfSeed"])
-                    randomFrontierIndices = random.sample(range(len(initSampledFrontiers)),k=1000)
-                    initSampledFrontiers = [f for i,f in enumerate(initSampledFrontiers) if i in randomFrontierIndices]
-                    fileName = "enumerationResults/propSim_2021-06-28 19:33:34.730379_t=1800.pkl"
-                    frontiers, times = dill.load(open(fileName, "rb"))
-                    tasksToSolve = [f.task for f in frontiers if len(f.entries) > 0]
-                else:
-                    tasksToSolve = tasks
-                    initSampledFrontiers = loadEnumeratedTasks(dslName=args["libraryName"], filename=args["helmholtzFrontiersFilename"], hmfSeed=args["hmfSeed"])
-                sampledFrontiers = {t: initSampledFrontiers for t in tasksToSolve}
+            tasksToSolve = tasks
+            sampledFrontiers = {t: initSampledFrontiers for t in tasksToSolve}
             
             task2FittedGrammar = {t:baseGrammar for t in tasksToSolve}
             print("Attempting to solve tasks: {}".format("\n".join([str(t) for t in tasksToSolve])))
@@ -84,25 +74,13 @@ def iterative_propsim(args, tasks, baseGrammar, properties):
         print("\nSolved {} tasks at iteration {}".format(len(tasksSolved), propSimIteration))
         fileName = "enumerationResults/propSim_2021-06-28 19:33:34.730379_t=1800.pkl"
         frontiers, times = dill.load(open(fileName, "rb"))
-        enumerationProxy(task2FittedGrammar, tasks, frontiers, baseGrammar, nSim, verbose=True)
 
         tasksToSolve = [t for t in tasksToSolve if t not in tasksSolved]
         print("{} still unsolved\n".format(len(tasksToSolve)))
         if len(tasksToSolve) == 0:
             break
 
-    enumerationProxy(taskFittedGrammars, tasks, frontiers, baseGrammar, nSim, verbose=True)
-    iterativePropSimGrammars = {}
-    for task2Grammar in taskFittedGrammars:
-        for task,g in task2Grammar.items():
-            iterativePropSimGrammars[task] = g
-
-    if save:
-        dill.dump(helmholtzGrammar, open(directory + "helmholtzFitted.pkl", "wb"))
-        dill.dump(uniformGrammar, open(directory + "uniformWeights.pkl", "wb"))
-        dill.dump(iterativePropSimGrammars, open(directory + "iterativePropSim.pkl", "wb"))
-
-    return
+    return taskFittedGrammars[0]
 
 def enumerate_from_grammars(args, allGrammars, modelNames):
 
@@ -130,6 +108,15 @@ def main(args):
     tasks = tasks[0:1] if args["singleTask"] else tasks
     prims = get_primitives(args["libraryName"])
     baseGrammar = Grammar.uniform([p for p in prims])
-    featureExtractor, properties = get_extractor(tasks, baseGrammar, args)
-    iterative_propsim(args, tasks, baseGrammar, properties)
+    # now that we've loaded the primitives we can parse the ground truth program string
+    for t in tasks:
+        t.parse_program(prims)
+
+    sampledFrontiers = loadEnumeratedTasks(dslName=args["libraryName"], filename=args["helmholtzFrontiersFilename"], hmfSeed=args["hmfSeed"])[:1000]
+    
+    _, properties = get_extractor(tasks, baseGrammar, args)
+    propsimGrammars = iterative_propsim(args, tasks, baseGrammar, properties, sampledFrontiers)
+    # editDistGrammars = getGrammarsFromEditDistSim(tasks, baseGrammar, sampledFrontiers, args["nSim"])
+
+    enumerationProxy(propsimGrammars, tasks, baseGrammar, args["nSim"], verbose=True)
     return

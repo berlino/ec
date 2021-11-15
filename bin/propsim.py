@@ -24,5 +24,4 @@ if __name__ == '__main__':
         CPUs=numberOfCPUs(),
         extras=list_options,
         )
-
     main(args)

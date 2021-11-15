@@ -1,8 +1,69 @@
 import dill
+import numpy as np
 import torch
 
 from dreamcoder.type import arrow, tlist, tint
 from dreamcoder.recognition import RecognitionModel
+
+ADD_P = 0.0001
+DEL_P = 0.0001
+LOG_ALPHABET = np.log(10+1)
+
+def _prefixEditDistance(got, expected):
+
+    # all of these get precomputed at compile time 
+    log_add_p = np.log(ADD_P);
+    log_del_p = np.log(DEL_P);
+    log_1madd_p = np.log(1.0-ADD_P);
+    log_1mdel_p = np.log(1.0-DEL_P);    
+    
+    
+    # Well we can always delete the whole thing and add on the remainder
+    # we don't add log_1mdel_p again here since we can't delete past the beginning
+    lp = log_del_p*len(got) + (log_add_p-LOG_ALPHABET)*len(expected) + log_1madd_p;
+    
+    # now as long as they are equal, we can take only down that far if we want
+    # here we index over mi, the length of the string that so far is equal
+    for mi in range(1, min(len(got), len(expected))):
+        if (got[mi-1] == expected[mi-1]):
+            lp = np.logaddexp(lp, log_del_p*(len(expected)-mi)                + log_1mdel_p + 
+                                (log_add_p-LOG_ALPHABET)*(len(expected)-mi) + log_1madd_p)
+        else:
+            break
+    
+    return lp
+
+def getGrammarsFromEditDistSim(tasks, baseGrammar, sampledFrontiers, nSim, weight=False, pseudoCounts=1):
+
+    task2Grammar = {}
+
+    for t in tasks:
+        weightedFrontiers = []
+        for frontier in sampledFrontiers:
+            p = frontier.topK(1).entries[0].program
+            try:
+                f = p.evaluate([])
+                similarity_score = 0.0
+                for x,y_expected in t.examples:
+                    y_got = t.predict(f, x)
+                    similarity_score += _prefixEditDistance(y_got, y_expected)
+                weightedFrontiers.append((frontier, similarity_score))
+            except IndexError:
+                # free variable
+                pass
+            except Exception as e:
+                # print("Exception during evaluation:", e)
+                pass
+
+        sortedFrontiers = sorted(weightedFrontiers, key=lambda el: el[1], reverse=True)[:nSim]
+        similarFrontiers, similarFrontierWeights = [el[0] for el in sortedFrontiers], [el[1] - (sortedFrontiers[-1][1] - 1.0) for el in sortedFrontiers]
+        # for f, w in zip(similarFrontiers, similarFrontierWeights):
+        #     print("{}: {}".format(f.topK(1).entries[0].program, w))
+        task2Grammar[t] = baseGrammar.insideOutside(similarFrontiers, pseudoCounts, iterations=1, 
+            frontierWeights=similarFrontierWeights if weight else None, weightByPrior=False)
+
+    return task2Grammar
+
 
 def getGrammarsFromNeuralRecognizer(extractor, tasks, baseGrammar, featureExtractorArgs, sampledFrontiers, save, saveDirectory, args):
 

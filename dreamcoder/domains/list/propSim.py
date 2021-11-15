@@ -1,13 +1,16 @@
 
+import dill
 import numpy as np
 import pandas as pd
 from dreamcoder.grammar import Grammar
+from dreamcoder.program import Program
 from dreamcoder.utilities import vprint
 
 from dreamcoder.domains.list.utilsProperties import createFrontiersWithInputsFromTask
 
 MAX_NUM_SIM_TASKS_TO_PRINT = 5
 THRESHOLD_POSTERIOR_SUM = 500
+NEURAL_RECOGNITION_MODEL_PATH = "data/prop_sig/recognitionModels/josh_rich_enumerated_1/learned_9740_enumeratedFrontiers_ep=True_RS=None_RT=7200.pkl"
 
 class ZeroPropertiesFound(Exception):
     pass
@@ -365,15 +368,19 @@ def getPropSimGrammars(
     return task2FittedGrammar, tasksSolved, task2SimilarFrontiers
 
 
-def enumerationProxy(task2FittedGrammar, train, frontiers, grammar, nSim, verbose=False):
+def enumerationProxy(task2FittedGrammar, train, grammar, nSim, task2groundTruthPrograms=None, neuralBaselinePath=NEURAL_RECOGNITION_MODEL_PATH, verbose=False):
     """
     Given a frontier of tasks prints out the logposterior of tasks in train using:
         - the RNN-encoded neural recogntion model
         - the unigram grammar fitted on nSim most similar tasks
     """
 
-    uniformGrammarPriors, logVariableGrammarPriors, fittedLogPosteriors, baselineLogPosteriors = 0.0, 0.0, 0.0, 0.0
-    taskToFrontier = {f.task:f for f in frontiers if len(f.entries) > 0}
+    if task2groundTruthPrograms is not None:
+        raise NotImplementedError
+
+    recognitionModel = dill.load(open(NEURAL_RECOGNITION_MODEL_PATH, "rb"))
+
+    uniformGrammarPriors, logVariableGrammarPriors, fittedLogPosteriors, neuralRecognitionLogPosteriors = 0.0, 0.0, 0.0, 0.0
 
     numTasks = 0
     fittedTasks = None
@@ -383,20 +390,16 @@ def enumerationProxy(task2FittedGrammar, train, frontiers, grammar, nSim, verbos
         fittedTasks = list(task2FittedGrammar.keys())
     for task in train:
         # if we have a fitted grammar for this task and a ground truth program we can score the grammar on
-        if task in taskToFrontier and (task in fittedTasks):
-
-            bestFrontier = taskToFrontier[task].topK(1)
-            program = bestFrontier.entries[0].program
+        if task in fittedTasks and task.program is not None:
             numTasks += 1
-
             vprint("\n-------------------------------------------------------------------------------", verbose)
             vprint(task.describe(), verbose)
-            vprint("Ground Truth Program: {}".format(program), verbose)
+            vprint("Ground Truth Program: {}".format(task.program), verbose)
             vprint("---------------------------------------------------------------------------------", verbose)
-            uniformGrammarPrior = grammar.logLikelihood(task.request, program)
+            uniformGrammarPrior = grammar.logLikelihood(task.request, task.program)
             vprint("Uniform Grammar Prior: {}".format(uniformGrammarPrior), verbose)
             logVariableGrammar = Grammar(2.0, [(0.0, p.infer(), p) for p in grammar.primitives], continuationType=None)
-            logVariableGrammarPrior = logVariableGrammar.logLikelihood(task.request, program)
+            logVariableGrammarPrior = logVariableGrammar.logLikelihood(task.request, task.program)
             vprint("Log Variable Program Prior: {}".format(logVariableGrammarPrior), verbose)
             vprint("---------------------------------------------------------------------------------", verbose)
 
@@ -404,22 +407,23 @@ def enumerationProxy(task2FittedGrammar, train, frontiers, grammar, nSim, verbos
                 toPrint = "PropSim Grammar LP ({} frontiers):".format(nSim)
                 for task2Grammar in task2FittedGrammar:
                     if task in task2Grammar:     
-                        fittedLogPosterior = task2Grammar[task].logLikelihood(task.request, program)
+                        fittedLogPosterior = task2Grammar[task].logLikelihood(task.request, task.program)
                         toPrint += " {} ->".format(fittedLogPosterior)
                     else:
                         toPrint += "solved"
                 vprint(toPrint, verbose)
             else:
                 if task in task2FittedGrammar:
-                    fittedLogPosterior = task2FittedGrammar[task].logLikelihood(task.request, program)
+                    fittedLogPosterior = task2FittedGrammar[task].logLikelihood(task.request, task.program)
                     vprint("ProSim Grammar LP ({} frontier): {}".format(nSim, fittedLogPosterior), verbose) 
-            baselineLogPosterior = bestFrontier.entries[0].logPosterior
-            vprint("Baseline LogPosterior: {}\n".format(baselineLogPosterior), verbose)
             
+            neuralGrammar = recognitionModel.grammarOfTask(task)
+            neuralRecognitionLogPosterior = neuralGrammar.logLikelihood(task.request, task.program).item()
+            vprint("Neural Recognition LogPosterior: {}\n".format(neuralRecognitionLogPosterior), verbose)
             
             uniformGrammarPriors += uniformGrammarPrior
             logVariableGrammarPriors += logVariableGrammarPrior
-            baselineLogPosteriors += baselineLogPosterior
+            neuralRecognitionLogPosteriors += neuralRecognitionLogPosterior
             fittedLogPosteriors += fittedLogPosterior
 
     if numTasks == 0:
@@ -430,7 +434,7 @@ def enumerationProxy(task2FittedGrammar, train, frontiers, grammar, nSim, verbos
 
     print("Mean Uniform Grammar Prior: {}".format(uniformGrammarPriors / numTasks))
     print("Mean Log Variable Grammar Prior: {}".format(logVariableGrammarPriors / numTasks))
-    print("Mean Baseline Log Posterior: {}".format(baselineLogPosteriors / numTasks))
+    print("Neural Recognition Log Posterior: {}".format(neuralRecognitionLogPosteriors / numTasks))
     print("Mean Fitted Log Posterior ({} frontiers): {}".format(nSim, fittedLogPosteriors / numTasks))
 
     return task2FittedGrammar

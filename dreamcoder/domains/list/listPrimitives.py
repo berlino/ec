@@ -97,6 +97,8 @@ def _single(x): return [x]
 
 def _slice(x): return lambda y: lambda l: l[x:y]
 
+def _sliceJr(x): return lambda y: lambda l: l[x-1:y]
+
 
 def _map(f): return lambda l: list(map(f, l))
 
@@ -105,6 +107,9 @@ def _zip(a): return lambda b: lambda f: list(map(lambda x,y: f(x)(y), a, b))
 
 
 def _mapi(f): return lambda l: list(map(lambda i_x: f(i_x[0])(i_x[1]), enumerate(l)))
+
+# 1-based indexing
+def _mapiJr(f): return lambda l: list(map(lambda i_x: f(i_x[0]+1)(i_x[1]), enumerate(l)))
 
 
 def _reduce(f): return lambda x0: lambda l: reduce(lambda a, x: f(a)(x), l, x0)
@@ -153,6 +158,9 @@ def _lt(x): return lambda y: x < y
 
 
 def _index(j): return lambda l: l[j]
+
+
+def _nth(j): return lambda l: l[j-1]
 
 
 def _replace(f): return lambda lnew: lambda lin: _flatten(
@@ -507,9 +515,9 @@ def josh_primitives(w):
             primitiveRecursion1
         ] + [Primitive(str(j), tint, j) for j in range(100)])
 
-    elif w == "rich_0_9":
+    elif w == "rich_0_10":
         return [
-            Primitive(str(j), tint, j) for j in range(10)
+            Primitive(str(j), tint, j) for j in range(11)
         ] + [
             Primitive("true", tbool, True),
             Primitive("false", tbool, False),
@@ -533,14 +541,15 @@ def josh_primitives(w):
             Primitive("range", arrow(tint, tint, tint, tlist(tint)), _rangeGeneral),
             Primitive("append", arrow(tlist(t0), t0, tlist(t0)), lambda xs: lambda x: xs + [x]),
             Primitive("cons", arrow(t0, tlist(t0), tlist(t0)), _cons),
-            Primitive("insert", arrow(t0, tint, tlist(t0), tlist(t0)), _insert),
+            Primitive("insert", arrow(t0, tint, tlist(t0), tlist(t0)), _insertJr),
             Primitive("++", arrow(tlist(t0), tlist(t0), tlist(t0)), _concat),
             Primitive("splice", arrow(tlist(t0), tint, tlist(t0), tlist(t0)), _splice),
             Primitive("first", arrow(tlist(t0), t0), lambda xs: xs[0]),
             Primitive("second", arrow(tlist(t0), t0), lambda xs: xs[1]),
             Primitive("third", arrow(tlist(t0), t0), lambda xs: xs[2]),
             Primitive("last", arrow(tlist(t0), t0), lambda xs: xs[-1]),
-            Primitive("index", arrow(tint, tlist(t0), t0), _index),
+            # Primitive("index", arrow(tint, tlist(t0), t0), _index),
+            Primitive("nth", arrow(tint, tlist(t0), t0), _nth),
             Primitive("replaceEl", arrow(tint, t0, tlist(t0), tlist(t0)), _replaceEl),
             Primitive("swap", arrow(tint, tint, tlist(t0), tlist(t0)), _swap),
             Primitive("cut_idx", arrow(tint, tlist(t0), tlist(t0)), _cutIdx),
@@ -551,7 +560,7 @@ def josh_primitives(w):
             Primitive("cut_slice", arrow(tint, tint, tlist(t0), tlist(t0)), _cutSlice),
             Primitive("take", arrow(tint, tlist(t0), tlist(t0)), _take),
             Primitive("takelast", arrow(tint, tlist(t0), tlist(t0)), _takelast),
-            Primitive("slice", arrow(tint, tint, tlist(t0), tlist(t0)), _slice),
+            Primitive("slice", arrow(tint, tint, tlist(t0), tlist(t0)), _sliceJr),
             Primitive("fold", arrow(tlist(t0), t1, arrow(t0, t1, t1), t1), _fold),
             Primitive("foldi", arrow(tlist(t0), t1, arrow(tint, t0, t1, t1), t1), _foldi),
             Primitive("filter", arrow(arrow(t0, tbool), tlist(t0), tlist(t0)), _filter),
@@ -559,7 +568,7 @@ def josh_primitives(w):
             Primitive("count", arrow(arrow(t0, tbool), tlist(t0), tint), _count),
             Primitive("find", arrow(arrow(t0, tbool), tlist(t0), tlist(tint)), _findAll),
             Primitive("map", arrow(arrow(t0, t1), tlist(t0), tlist(t1)), _map),
-            Primitive("mapi", arrow(arrow(tint, t0, t1), tlist(t0), tlist(t1)), _mapi),
+            Primitive("mapi", arrow(arrow(tint, t0, t1), tlist(t0), tlist(t1)), _mapiJr),
             Primitive("group", arrow(arrow(t0, t1), tlist(t0), tlist(tlist(t0))), _group),
             Primitive("is_in", arrow(tlist(t0), t0, tbool), lambda l: lambda x: x in l),
             Primitive("length", arrow(tlist(t0), tint), len),
@@ -599,6 +608,16 @@ def _insert(x):
         return f
     return g
 
+# insert x at index i in xs (one-based indexing)
+def _insertJr(x):
+    def g(i):
+        def f(xs):
+            if i > len(xs):
+                return xs
+            return xs[:i-1] + [x] + xs[i-1:]
+        return f
+    return g
+
 # append x to xs
 def _append(xs):
     def g(x):
@@ -616,35 +635,37 @@ def _splice(ys):
         return f
     return g
 
-# replace element at index i in xs with x
+# replace element at index i in xs with x. 1-based indexing
 def _replaceEl(i):
     def g(x):
         def f(xs):
-            return xs[:i] + [x] + xs[i+1:]
+            if i > len(xs):
+                return xs
+            return xs[:i-1] + [x] + xs[i:]
         return f
     return g
 
-# swap elements at indices i and j in xs
+# swap elements at indices i and j in xs. one-based indexing
 def _swap(i):
     def g(j):
         def f(xs):
             xsCopy = xs[::]
-            temp = xsCopy[i]
-            xsCopy[i] = xsCopy[j]
-            xsCopy[j] = temp
+            temp = xsCopy[i-1]
+            xsCopy[i-1] = xsCopy[j-1]
+            xsCopy[j-1] = temp
             return xsCopy
         return f
     return g
 
-# remove element at index i from xs (returns cs if x not in xs)
+# remove element at index i from xs (returns cs if x not in xs). one-based indexing
 def _cutIdx(i): 
     def g(xs):
-        if i >= len(xs):
+        if i > len(xs):
             return xs
-        elif i == len(xs)-1:
-            return xs[:i]
+        elif i == len(xs):
+            return xs[:i-1]
         else:
-            return xs[:i] + xs[i+1:]
+            return xs[:i-1] + xs[i:]
     return g
 
 # remove first occurence of x from xs (returns xs if x not in xs)
@@ -693,10 +714,10 @@ def _cutSlice(i):
         return f
     return g
 
-# take first n elements from xs
+# take first n elements from xs. one-based indexing
 def _take(n):
     def g(xs):
-        if n > len(xs)-1:
+        if n > len(xs):
             return xs
         else:
             return xs[:n]

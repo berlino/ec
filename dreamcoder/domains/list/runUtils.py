@@ -163,11 +163,10 @@ def get_tasks(dataset):
         "josh_3": lambda: joshTasks("3"),
         "josh_3.1": lambda: joshTasks("3.1"),
         "josh_final": lambda: joshTasks("final"),
+        "josh_fleet": lambda: joshTasks("fleet"),
+        "josh_fleet0to9": lambda: joshTasks("fleet0to9")
     }[dataset]()
 
-    if "josh" in dataset:
-        tasks = [t for t in tasks if int(t.name[:3]) < 81 and "_1" in t.name]
-    tasks = [t for t in tasks if (t.request == arrow(tlist(tint), tlist(tint)) and isinstance(t.examples[0][1],list) and isinstance(t.examples[0][0][0],list))]
     return tasks
 
 def get_primitives(libraryName):
@@ -177,7 +176,7 @@ def get_primitives(libraryName):
              "josh_3": josh_primitives("3")[0],
              "josh_3.1": josh_primitives("3.1")[0],
              "josh_final": josh_primitives("final"),
-             "josh_rich": josh_primitives("rich_0_9"),
+             "josh_rich": josh_primitives("rich_0_10"),
              "property_prims": handWrittenProperties(),
              "dc_list_domain": bootstrapTarget_extra()
     }

@@ -1,11 +1,25 @@
+import ast
 
-
+from dreamcoder.program import Program
 from dreamcoder.type import *
 from dreamcoder.task import Task
 from dreamcoder.utilities import eprint, hashable
 
 from random import randint, random, seed
 from itertools import product
+
+def replace_with_valid_prim_names(program_string):
+    primitive_name_to_valid_dsl_name = {
+        "<": "lt?",
+        ">": "gt?",
+        "replace": "replaceEl",
+        "==": "eq?",
+        "concat": "++",
+        "is_odd": "is-odd",
+    }
+    for old_str, new_str in primitive_name_to_valid_dsl_name.items():
+        program_string = program_string.replace(old_str, new_str)
+    return program_string
 
 def joshTasks(w):
     import os
@@ -21,6 +35,31 @@ def joshTasks(w):
         directory = "data/wave3.1/json"
     elif w == "final":
         directory = "data/final_wave"
+    elif w == "fleet" or w == "fleet0to9":
+        directory = "data/fleet_wave/json"
+        for filename in os.listdir(directory):
+          with open(directory + "/" + filename) as f:
+            lines = f.readlines()
+            # extract concept name
+            name = lines[0][lines[0].index("#")+2:lines[0].index("#")+6]
+
+            if w == "fleet0to9":
+              if int(name[1:4]) > 80:
+                continue
+
+            # extract program string
+            program_string = lines[0][lines[0].index(":")+2:lines[0].index("\n")]
+            program_string = replace_with_valid_prim_names(program_string)
+            # extract io examples
+            data = [l.strip().split(";") for l in lines[1:]]
+
+
+            task = Task(name,
+                        arrow(tlist(tint),tlist(tint)),
+                        [((ast.literal_eval("["+i+"]"),),ast.literal_eval("["+o+"]")) for i,o in data], program=program_string)
+            ts.append(task)
+        return list(sorted(ts,key=lambda t: t.name))
+
     else:
         assert False
     for fn in os.listdir(directory):
@@ -32,12 +71,17 @@ def joshTasks(w):
 
         with open(f"{directory}/{fn}") as handle:
             data = json.load(handle)
-
+            # replace primitive name with the name used for the same primitive in dreamcoder codebase 
+            program_string = replace_with_valid_prim_names(data.get("program"))
             task = Task(data.get("name",fn.split(".")[0][1:]),
                            arrow(tlist(tint),tlist(tint)),
                            [((e["i"],),e["o"])
-                            for e in data["data"]])
+                            for e in data["data"]], program=program_string)
+            # assert that ground truth program is correct for task
             ts.append(task)
+
+    tasks = [t for t in ts if int(t.name[:3]) < 81 and "_1" in t.name]
+    tasks = [t for t in tasks if (t.request == arrow(tlist(tint), tlist(tint)) and isinstance(t.examples[0][1],list) and isinstance(t.examples[0][0][0],list))]
     return list(sorted(ts,key=lambda t: t.name))
         
         
