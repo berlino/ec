@@ -1,0 +1,8 @@
+Program: (lambda (to_original_grid_overlay (find_majority_color $0) (lambda (lambda $0))))
+Program: (lambda (to_original_grid_overlay (find_majority_color_grid $0) (lambda (lambda $0)))
+Program: (lambda (majority_color_to_grid (find_majority_color_in_grid $0) (grid_to_block $0)))
+Program: (lambda (to_original_grid_overlay (find_majority_color_of_tiles $0) true true))
+Program: (lambda (to_original_grid_overlay (find_color_by_majority_tiles $0) (lambda (color_logical $0 $0 $0 $0))))
+Program: (lambda (to_original_grid_overlay (find_color_majority_tiles_grid $0) (lambda (lambda $0))))
+Program: (lambda (to_grid_overlay (find_majority_color_tiles $0) (lambda (find_same_color_blocks $0 true false)))
+Program: (lambda (to_output_grid (determine_majority_color $0) (lambda (color_to_grid $0 $0))))
