@@ -44,7 +44,7 @@ class Result:
     def __init__(self, path, label):
         self.label = label
         self.result = dill.load(open(path, "rb"))
-        train_task_names, test_task_names, trainTasksWithNl, testTasksWithNl, grammar, tasks, request = _load_relevant_data()
+        train_task_names, test_task_names, trainTasksWithNl, testTasksWithNl, grammar, tasks, request = load_relevant_data()
         
         print("\n{}".format(self.label))
         try:
@@ -135,7 +135,7 @@ def run_synthesized_programs_on_holdout(result, tasks, grammar, trainTasksWithNl
      task_to_program_to_solved = {r["task"]: {test_tasks_to_programs_with_nl[r["task"]][i][0]: (ll == 0.0) for i,ll in enumerate(r['log_likelihoods'])} for r in response}
      return {t: program_to_solved_dict for t,program_to_solved_dict in task_to_program_to_solved.items() if any(list(program_to_solved_dict.values()))}
 
-def _load_relevant_data():
+def load_relevant_data():
     # load train and test task names
     train_test_split_dict = json.load(open(LARC_DIR + TRAIN_TEST_SPLIT_FILENAME, "r"))
     train_task_names = [t for t in train_test_split_dict["train"]]
@@ -291,7 +291,7 @@ def experiment_output_main(action):
     labels = ["IO", "IO + NL", "IO + NL (pseudo)", "IO (CNN) + NL (pseudo)"]
     results = {label: Result(path, label) for label,path in zip(labels, paths)}
     
-    train_task_names, test_task_names, trainTasksWithNl, testTasksWithNl, grammar, tasks, request = _load_relevant_data()
+    train_task_names, test_task_names, trainTasksWithNl, testTasksWithNl, grammar, tasks, request = load_relevant_data()
 
     if action == "plot":
         plt.plot([0, NL_TEST_TIME, 720], [0, 1, 1], label="NL")

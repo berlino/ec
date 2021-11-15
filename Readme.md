@@ -44,7 +44,7 @@ opam install ppx_jane core re2 yojson vg cairo2 camlimages menhir ocaml-protoc z
 make clean; make
 ```
 ##### LARC Dataset 
-The program synthesis experiments use **LARC (Language-annotated Abstraction and Reasoning Corpus)** (Sec. 3 of the paper), a dataset containing human descriptions of the ARC[https://github.com/fchollet/ARC] (Chollet 2019)  inductive reasoning tasks gathered via a 2-participant communication game. The full language dataset collection procedure is described in the main paper and released separately. This repository also contains the following pre-processed versions of this dataset, which can be used directly to reproduce the results of the reported experiments:
+The program synthesis experiments use **LARC (Language-complete Abstraction and Reasoning Corpus)** (Sec. 3 of the paper), a dataset containing human descriptions of the ARC[https://github.com/fchollet/ARC] (Chollet 2019)  inductive reasoning tasks gathered via a 2-participant communication game. The full language dataset collection procedure is described in the main paper and released separately. This repository also contains the following pre-processed versions of this dataset, which can be used directly to reproduce the results of the reported experiments:
 
 1. ARC tasks. Our experiments use the training dataset (n=400 tasks) from the original ARC repository. JSON files containing the input/output examples for each task and a task_id are in `arc_data/data/training/<task_id>.json`.
 2. Human natural language task annotations. Sentence-parsed annotations for each task from the human experiment are in `data/arc/language/sentences/language.json`, in a dict mapping from task_id to an array of strings for each task.
