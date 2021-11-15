@@ -76,7 +76,7 @@ def makeTaskFromProgram(program, request, featureExtractor, differentOutputs=Tru
                 return None
     return task
 
-def enumerateFromOcamlGrammar(tasks, grammar, enumerationTimeout, special):
+def _enumerateFromOcamlGrammar(tasks, grammar, enumerationTimeout, special):
     requests = list({t.request for t in tasks})
     request = requests[0]
     assert len(requests) == 1
@@ -96,7 +96,7 @@ def enumerateHelmholtzOcaml(tasks, grammar, enumerationTimeout, CPUs, featureExt
        
     def parseAndMakeTaskFromProgram(entry, request, featureExtractor):
         program = Program.parse(entry["programs"][0])
-        task = makeTaskFromProgram(program, request, featureExtractor, differentOutputs=True, filterIdentityTask=True)
+        task = _makeTaskFromProgram(program, request, featureExtractor, differentOutputs=True, filterIdentityTask=True)
         if task is None:
             return None
         frontier = Frontier([FrontierEntry(program=Program.parse(p), logPrior=entry["ll"], logLikelihood=0.0) for p in entry["programs"]], task=task)
@@ -127,6 +127,7 @@ def enumerateAndSave(grammar, request, featureExtractor, dslName, numTasks, k, b
         totalNumTasksEnumerated = 0.0
         enumeratedFrontiersBatch = []
         for logPrior, context, p in grammar.enumeration(Context.EMPTY, [], request, upperBound, maximumDepth=99, lowerBound=lowerBound):
+            print(p)
             task = makeTaskFromProgram(p, request, featureExtractor, differentOutputs=True, filterIdentityTask=True)
             if task is not None:
                 frontier = Frontier([FrontierEntry(program=p,
@@ -143,7 +144,7 @@ def enumerateAndSave(grammar, request, featureExtractor, dslName, numTasks, k, b
         totalNumTasks[(lowerBound, upperBound)] = totalNumTasksEnumerated
         return
 
-    bounds = [((lowerBound/2.0), (lowerBound/2.0) + 0.5) for lowerBound in range(20,40)]
+    bounds = [((lowerBound/2.0), (lowerBound/2.0) + 0.5) for lowerBound in range(0,100)]
     totalNumTasks = {bound: 0 for bound in bounds}
 
     if CPUs > 1:
@@ -167,13 +168,19 @@ def sampleAndSave(recognitionModel, requests, dslName, numSamples, samplesPerSte
             del toWrite[:batchSize]
             print("Memory usage: {}".format(getMemoryUsageFraction()))
 
-def loadEnumeratedTasks(dslName, filename, hmfSeed=1, numExamples=11):
+def loadEnumeratedTasks(dslName, filename, primitives=None, hmfSeed=1, numExamples=11):
     with open("data/prop_sig/helmholtz_frontiers/{}_enumerated_{}/{}".format(dslName, hmfSeed, filename), "rb") as f:
         frontiers = dill.load(f)
 
         filteredFrontiers = []
         numTooLong, numWrongType = 0, 0
         for j,f in enumerate(frontiers):
+
+            try:
+                p = Program.parse(str(f.topK(1).entries[0].program), primitives={p.name:p for p in primitives})
+            except:
+                continue
+
             # assert every frontier is of the desired type
             assert f.task.request == arrow(tlist(tint), tlist(tint))
             # exclude examples where the output is too large
@@ -187,12 +194,13 @@ def loadEnumeratedTasks(dslName, filename, hmfSeed=1, numExamples=11):
             if len(examples) < numExamples:
                 numTooLong += 1
                 continue
-            else:
-                f.task.examples = examples[:numExamples]
-                filteredFrontiers.append(f)
+
+            f.task.examples = examples[:numExamples]
+            filteredFrontiers.append(f)
 
     print("Removed {} tasks cause they had too long outputs".format(numTooLong))
     print("Removed {} tasks cause they were the wrong type".format(numWrongType))
+    print("{} total frontiers".format(len(filteredFrontiers)))
     return filteredFrontiers
 
 #     bounds = [0.0]

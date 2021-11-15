@@ -8,11 +8,102 @@ from dreamcoder.domains.list.propertySignatureExtractor import PropertySignature
 from dreamcoder.recognition import DummyFeatureExtractor, RecognitionModel
 from dreamcoder.task import Task
 from dreamcoder.type import Context, arrow, tbool, tlist, tint, t0, UnificationFailure
-from dreamcoder.utilities import flatten
+from dreamcoder.utilities import flatten, numberOfCPUs
 
 DATA_DIR = "data/prop_sig/"
 SAMPLED_PROPERTIES_DIR = "sampled_properties/"
 GRAMMARS_DIR = "grammars/"
+
+def list_options(parser):
+
+    # parser.add_argument("--iterations", type=int, default=10)
+    # parser.add_argument("--useDSL", action="store_true", default=False)
+    parser.add_argument("--libraryName",  default="property_prims", choices=[
+        "josh_1",
+        "josh_2",
+        "josh_3",
+        "josh_3.1",
+        "josh_final",
+        "josh_rich",
+        "property_prims",
+        "dc_list_domain"])
+    parser.add_argument("--propSamplingPrimitives", default="same", choices=[
+        "same",
+        "josh_1",
+        "josh_2",
+        "josh_3",
+        "josh_3.1",
+        "josh_final",
+        "josh_rich",
+        "property_prims",
+        "list_prims"])
+    parser.add_argument(
+        "--dataset",
+        type=str,
+        default="josh_3",
+        choices=[
+            "josh_1",
+            "josh_2",
+            "josh_3",
+            "josh_3.1",
+            "josh_final",
+            "josh_fleet",
+            "josh_fleet0to9",
+            "Lucas-old"])
+    parser.add_argument("--extractor", default="prop_sig", choices=[
+        "prop_sig",
+        "learned",
+        "combined",
+        "dummy"
+        ])
+    parser.add_argument("--hidden", type=int, default=64)
+
+    # Arguments relating to propSim
+    parser.add_argument("--propSim", action="store_true", default=False)
+    parser.add_argument("--helmEnumerationTimeout", type=int, default=1)
+    parser.add_argument("--propNumIters", type=int, default=1)
+    parser.add_argument("--hmfSeed", type=int, default=1)
+    parser.add_argument("--numHelmFrontiers", type=int, default=None)
+    parser.add_argument("--maxFractionSame", type=float, default=1.0)
+    parser.add_argument("--helmholtzFrontiersFilename", type=str, default=None)
+    parser.add_argument("--propFilename", type=str, default=None)
+    parser.add_argument("--filterSimilarProperties", action="store_true", default=False)
+    parser.add_argument("--computePriorFromTasks", action="store_true", default=False)
+    parser.add_argument("--nSim", type=int, default=50)
+    parser.add_argument("--propPseudocounts", type=int, default=1)
+    parser.add_argument("--onlyUseTrueProperties", action="store_true", default=False)
+    parser.add_argument("--save", action="store_true", default=False)
+    parser.add_argument("--verbose", action="store_true", default=False)
+    parser.add_argument("--weightByPrior", action="store_true", default=False)
+    parser.add_argument("--weightedSim", action="store_true", default=False)
+    parser.add_argument("--taskSpecificInputs", action="store_true", default=False)
+    parser.add_argument("--earlyStopping", action="store_true", default=False)
+    parser.add_argument("--singleTask", action="store_true", default=False)
+    parser.add_argument("--debug", action="store_true", default=False)
+    parser.add_argument("--propCPUs", type=int, default=numberOfCPUs())
+    parser.add_argument("--propSolver",default="ocaml",type=str)
+    parser.add_argument("--propEnumerationTimeout",default=1,type=float)
+    parser.add_argument("--propUseConjunction", action="store_true", default=False)
+    parser.add_argument("--propAddZeroToNinePrims", action="store_true", default=False)
+    parser.add_argument("--propScoringMethod", default="unique_task_signature", choices=[
+        "per_task_discrimination",
+        "unique_task_signature",
+        "general_unique_task_signature",
+        "per_similar_task_discrimination",
+        "per_task_surprisal"
+        ])
+    parser.add_argument("--propDreamTasks", action="store_true", default=False)
+    parser.add_argument("--propToUse", default="handwritten", choices=[
+        "handwritten",
+        "preloaded",
+        "sample"
+        ])
+    parser.add_argument("--propSamplingGrammarWeights", default="uniform", choices=[
+        "uniform",
+        "fitted",
+        "random"
+        ])
+    parser.add_argument("--propUseEmbeddings", action="store_true", default=False)
 
 try:
     from dreamcoder.recognition import RecurrentFeatureExtractor

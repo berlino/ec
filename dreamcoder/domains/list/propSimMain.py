@@ -105,18 +105,23 @@ def main(args):
     # enumerate_from_grammars(args)
 
     tasks = get_tasks(args["dataset"])
-    tasks = tasks[0:1] if args["singleTask"] else tasks
+    tasks = tasks[0:10] if args["singleTask"] else tasks
     prims = get_primitives(args["libraryName"])
     baseGrammar = Grammar.uniform([p for p in prims])
     # now that we've loaded the primitives we can parse the ground truth program string
     for t in tasks:
         t.parse_program(prims)
 
-    sampledFrontiers = loadEnumeratedTasks(dslName=args["libraryName"], filename=args["helmholtzFrontiersFilename"], hmfSeed=args["hmfSeed"])[:1000]
-    
-    _, properties = get_extractor(tasks, baseGrammar, args)
-    propsimGrammars = iterative_propsim(args, tasks, baseGrammar, properties, sampledFrontiers)
-    # editDistGrammars = getGrammarsFromEditDistSim(tasks, baseGrammar, sampledFrontiers, args["nSim"])
 
-    enumerationProxy(propsimGrammars, tasks, baseGrammar, args["nSim"], verbose=True)
+    # sampledFrontiers = loadEnumeratedTasks(dslName=args["libraryName"], filename=args["helmholtzFrontiersFilename"], 
+    #   primitives=prims, hmfSeed=args["hmfSeed"])[:10000]
+    
+    featureExtractor, properties = get_extractor(tasks, baseGrammar, args)
+    # propsimGrammars = iterative_propsim(args, tasks, baseGrammar, properties, sampledFrontiers)
+    # editDistGrammars = getGrammarsFromEditDistSim(tasks, baseGrammar, sampledFrontiers, args["nSim"])
+    numTasks = 1000
+    k = 1
+    batchSize = 10
+    enumerateAndSave(baseGrammar, tasks[0].request, featureExtractor, args["dataset"], numTasks, k, batchSize, CPUs=1)
+    # enumerationProxy(propsimGrammars, tasks, baseGrammar, args["nSim"], verbose=True)
     return
