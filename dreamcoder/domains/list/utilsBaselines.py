@@ -1,5 +1,6 @@
 import dill
 import numpy as np
+import os
 import torch
 
 from dreamcoder.type import arrow, tlist, tint
@@ -87,7 +88,7 @@ def getGrammarsFromNeuralRecognizer(extractor, tasks, baseGrammar, featureExtrac
     
     # check if we alread have trained this model
     filename = "neural_ep={}_RS={}_RT={}_hidden={}_r={}_contextual={}.pkl".format(ep, rs, rt, featureExtractorArgs["hidden"], helmholtzRatio, args["contextual"])
-    path = saveDirectory + filename
+    path = saveDirectory + "/" + filename
     try:
         grammars = dill.load(open(path, 'rb'))
         print("Loaded recognizer grammars from: {}".format(path))
@@ -115,6 +116,8 @@ def getGrammarsFromNeuralRecognizer(extractor, tasks, baseGrammar, featureExtrac
         grammars[task] = grammar
 
     if save:
+        if not os.path.exists(saveDirectory):
+            os.makedirs(saveDirectory)
         with open(path, 'wb') as handle:
             print("Saved recognizer grammars at: {}".format(path))
             dill.dump(grammars, handle)

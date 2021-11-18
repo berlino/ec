@@ -97,14 +97,6 @@ def enumerate_from_grammars(args, allGrammars, modelNames):
 
 def main(args):
 
-    # Enumeration
-    # helmholtzGrammar = baseGrammar.insideOutside(initSampledFrontiers, 1, iterations=1, frontierWeights=None, weightByPrior=False)
-    # uniformGrammar = baseGrammar
-    # neuralGrammars = getGrammarsFromNeuralRecognizer(LearnedFeatureExtractor, tasks, baseGrammar, {"hidden": args["hidden"]}, initSampledFrontiers, args["save"], directory, args)
-    # allGrammars = [uniformGrammar, task2FittedGrammar]
-    # modelNames = ["uniformGrammar", "PropSim"]
-    # enumerate_from_grammars(args)
-
     tasks = get_tasks(args["dataset"])
     tasks = tasks[0:1] if args["singleTask"] else tasks
     prims = get_primitives(args["libraryName"])
@@ -119,9 +111,18 @@ def main(args):
     # frontiers = enumerateHelmholtzOcaml(tasks, baseGrammar, enumerationTimeout=180, CPUs=40, featureExtractor=featureExtractor, save=True, libraryName=args["libraryName"], dataset=args["dataset"], saveDirectory=None)
     sampledFrontiers = loadEnumeratedTasks(dslName=args["libraryName"], filename=args["helmholtzFrontiersFilename"], 
        primitives=prims, hmfSeed=args["hmfSeed"])[:10000]
+
+    datasetName = args["helmholtzFrontiersFilename"][:args["helmholtzFrontiersFilename"].index(".pkl")]
+    saveDirectory = "{}/recognitionModels/{}/{}".format(DATA_DIR, args["libraryName"], datasetName)
+    neuralGrammars = getGrammarsFromNeuralRecognizer(LearnedFeatureExtractor, tasks, baseGrammar, {"hidden": args["hidden"]}, sampledFrontiers, args["save"], saveDirectory, args)
    
     featureExtractor, properties = get_extractor(tasks, baseGrammar, args) 
-    propsimGrammars = iterative_propsim(args, tasks, baseGrammar, properties, sampledFrontiers)
+    # propsimGrammars = iterative_propsim(args, tasks, baseGrammar, properties, sampledFrontiers)
     # editDistGrammars = getGrammarsFromEditDistSim(tasks, baseGrammar, sampledFrontiers, args["nSim"])
-    enumerationProxy(propsimGrammars, tasks, baseGrammar, args["nSim"], verbose=True)
+
+    helmholtzGrammar = baseGrammar.insideOutside(sampledFrontiers, pseudoCounts=1)
+    grammars = [neuralGrammars, helmholtzGrammar]
+    modelNames = ["neural", "helmholtz"]
+    enumerationProxy(grammars, tasks, modelNames, verbose=True)
+    # enumerate_from_grammars(args, [propSimGrammars, editDistGrammars], ["propSimGrammars", "editDistGrammars"])
     return
