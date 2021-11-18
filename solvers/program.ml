@@ -463,9 +463,9 @@ let primitive_empty = primitive "empty" (tlist t0) [];;
 let primitive_range_general = primitive "range" (tint @> tint @> tint @> tlist tint) (range_general);;
 let primitive_sort = primitive "sort" (tlist tint @> tlist tint) (List.sort ~compare:(fun x y -> x - y));;
 let primitive_reverse = primitive "reverse" (tlist tint @> tlist tint) (List.rev);;
-let primitive_append = primitive "append"  (tlist t0 @> tlist t0 @> tlist t0) (@);;
+(* let primitive_append = primitive "append"  (tlist t0 @> tlist t0 @> tlist t0) (@);; *)
 let primitive_singleton = primitive "singleton"  (tint @> tlist tint) (fun x -> [x]);;
-let primitive_slice = primitive "slice" (tint @> tint @> tlist tint @> tlist tint) slice;;
+(* let primitive_slice = primitive "slice" (tint @> tint @> tlist tint @> tlist tint) slice;; *)
 let primitive_length = primitive "length" (tlist t0 @> tint) (List.length);;
 let primitive_map = primitive "map" ((t0 @> t1) @> (tlist t0) @> (tlist t1)) (fun f l -> List.map ~f:f l);;
 let primitive_fold_right = primitive "fold_right" ((tint @> tint @> tint) @> tint @> (tlist tint) @> tint) (fun f x0 l -> List.fold_right ~f:f ~init:x0 l);;
@@ -473,7 +473,7 @@ let primitive_mapi = primitive "mapi" ((tint @> t0 @> t1) @> (tlist t0) @> (tlis
     List.mapi l ~f:f);;
 let primitive_a2 = primitive "++" ((tlist t0) @> (tlist t0) @> (tlist t0)) (@);;
 let primitive_reducei = primitive "reducei" ((tint @> t1 @> t0 @> t1) @> t1 @> (tlist t0) @> t1) (fun f x0 l -> List.foldi ~f:f ~init:x0 l);;
-let primitive_filter = primitive "filter" ((tint @> tboolean) @> (tlist tint) @> (tlist tint)) (fun f l -> List.filter ~f:f l);;
+(* let primitive_filter = primitive "filter" ((tint @> tboolean) @> (tlist tint) @> (tlist tint)) (fun f l -> List.filter ~f:f l);; *)
 let primitive_equal = primitive "eq?" (tint @> tint @> tboolean) (fun (a : int) (b : int) -> a = b);;
 let primitive_equal0 = primitive "eq0" (tint @> tboolean) (fun (a : int) -> a = 0);;
 let primitive_not = primitive "not" (tboolean @> tboolean) (not);;
@@ -497,7 +497,6 @@ ignore(primitive "last-word" (tcharacter @> tstring @> tstring)
             List.rev s |> List.take_while ~f:(fun c' -> not (c = c')) |> List.rev));;
 ignore(primitive "replace-character" (tcharacter @> tcharacter @> tstring @> tstring) (fun c1 c2 s ->
     s |> List.map ~f:(fun c -> if c = c1 then c2 else c)));;
-
 
 
 let primitive_run   = primitive
@@ -1078,6 +1077,119 @@ ignore(primitive "+n9" (tint @> tint @> tint)
          (fun x y ->
             if x < 0 || y < 0 || x > 9 || y > 9 then raise (Failure "nan") else x + y));;
 
+(* Josh Rule rich DSL *)
+
+ignore(primitive "/" (tint @> tint @> tint)
+         (fun x y ->
+            if x < 0 || y <= 0 || x > 99 || y > 99 then raise (Failure "nan") else x / y));;
+ignore(primitive "lt?" (tint @> tint @> tboolean) (fun x y -> x < y)) ;;
+ignore(primitive "is-odd" (tint @> tboolean) (fun x -> (x mod 2 == 1))) ;;
+ignore(primitive "is-even" (tint @> tboolean) (fun x -> (x mod 2  == 0))) ;;
+ignore(primitive "repeat" (t0 @> tint @> tlist t0) (fun x n -> List.map ~f:(fun el -> x) (0 -- n))) ;;
+ignore(primitive "append" (tlist t0 @> t0 @> tlist t0) (fun l x -> l @ [x])) ;;
+ignore(primitive "insert" (t0 @> tint @> tlist t0 @> tlist t0) (
+         fun x i l -> 
+            match (i > List.length l) with
+               | true -> l;
+               | false -> (List.slice l 0 (i-1)) @ [x] @ (List.slice l (i-1) (List.length l));
+            )) ;;
+ignore(primitive "splice" (tlist t0 @> tint @> tlist t0 @> tlist t0) (
+         fun l_insert i l ->
+            match (i > List.length l) with
+               | true -> l;
+               | false -> (List.slice l 0 (i-1)) @ l_insert @ (List.slice l (i-1) (List.length l));
+            )) ;;
+ignore(primitive "first" (tlist t0 @> t0) (fun l -> List.nth_exn l 0)) ;;
+ignore(primitive "second" (tlist t0 @> t0) (fun l -> List.nth_exn l 1)) ;;
+ignore(primitive "third" (tlist t0 @> t0) (fun l -> List.nth_exn l 2)) ;;
+ignore(primitive "last" (tlist t0 @> t0) (fun l -> List.nth_exn l ((List.length l)-1))) ;;
+ignore(primitive "nth" (tint @> tlist t0 @> t0) (fun i l -> List.nth_exn l (i-1)));;
+ignore(primitive "replaceEl" (tint @> t0 @> tlist t0 @> tlist t0) (
+         fun i x l -> match (i > (List.length l)) with
+                | true -> l;
+    		| false -> l |> List.mapi ~f:(fun j el -> if ((i-1) = j) then x else el);
+	    )) ;;
+ignore(primitive "swap" (tint @> tint @> tlist t0 @> tlist t0) (
+         fun i j l -> match ((i > List.length l) || (j > List.length l)) with
+                | true -> l;
+                | false -> let to_replace = List.nth_exn l (i-1) in
+                           l |> List.mapi ~f:(fun k el -> if ((i-1) = k) then (List.nth_exn l (j-1)) else el) |>
+                                List.mapi ~f:(fun k el -> if ((j-1) = k) then to_replace else el);
+            )) ;;
+ignore(primitive "cut_idx" (tint @> tlist t0 @> tlist t0) (fun i l -> if (i > (List.length l)) then l else List.drop l (i-1))) ;;
+ignore(primitive "cut_val" (t0 @> tlist t0 @> tlist t0) (
+         fun x l -> match (List.findi l ~f:(fun i el -> el = x))  with
+                          | Some (i,el) -> List.drop l i;
+                          | None -> l;
+            )) ;;
+ignore(primitive "cut_vals" (t0 @> tlist t0 @> tlist t0) (
+         fun x l -> List.filter  ~f:(fun el -> el <> x) l
+         ));
+ignore(primitive "drop" (tint @> tlist t0 @> tlist t0) (
+         fun i l -> match (i >= (List.length l)) with
+               | true -> [];
+               | false -> List.slice l i (List.length l);
+         ));;
+ignore(primitive "droplast" (tint @> tlist t0 @> tlist t0) (
+         fun i l -> match (i >= (List.length l)) with
+               | true -> [];
+               | false -> List.slice l 0 ((List.length l) - i);
+         ));;
+ignore(primitive "cut_slice" (tint @> tint @> tlist t0 @> tlist t0) (
+         fun i j l -> if (i > j || j > (List.length l)) then raise (Failure "nan") else (List.filteri ~f:(fun k el -> (k < (i-1) || k > (j-1))) l);
+         ));
+ignore(primitive "take" (tint @> tlist t0 @> tlist t0) (
+         fun i l -> match (i >= (List.length l)) with
+               | true -> l;
+               | false -> List.slice l 0 i;
+         ));;
+ignore(primitive "takelast" (tint @> tlist t0 @> tlist t0) (
+         fun i l -> match (i >= (List.length l)) with
+               | true -> l;
+               | false -> List.slice l ((List.length l) - i) (List.length l);
+         ));;
+ignore(primitive "slice" (tint @> tint @> tlist t0 @> tlist t0) (
+         fun i j l -> if (i > j || j > (List.length l)) then raise (Failure "nan") else List.slice l (i-1) j;
+         ));
+ignore(primitive "foldi" (tlist t0 @> t1 @> (tint @> t0 @> t1 @> t1) @> t1) (fun l init_x f -> List.foldi l ~f:f ~init:init_x));;
+ignore(primitive "filter" ((t0 @> tboolean) @> tlist t0 @> tlist t0) (fun f l -> List.filter ~f:f l)) ;;
+ignore(primitive "filteri" ((tint @> t0 @> tboolean) @> tlist t0 @> tlist t0) (fun f i l -> List.filteri ~f:f l)) ;;
+ignore(primitive "count" ((t0 @> tboolean) @> tlist t0 @> tint) (fun f l -> List.length (List.filter ~f:f l))) ;;
+ignore(primitive "find" ((t0 @> tboolean) @> tlist t0 @> tlist tint) (
+         fun f l -> List.filter ~f:(fun x -> (f (List.nth_exn l x))) (0 -- (List.length l))
+         )) ;;
+ignore(primitive "group" ((t0 @> t1) @> tlist t0 @> tlist (tlist t0)) (
+         fun f l ->
+            let f_pairwise x y = f x = f y in
+            let rec grouping acc = function
+                | [] -> acc
+                | hd::tl -> let l1,l2 = List.partition_tf tl ~f:(f_pairwise hd) in
+                            grouping ((hd::l1)::acc) l2
+            in
+            grouping [] l
+         ));
+ignore(primitive "is_in" (tlist t0 @> t0 @> tboolean) (fun l x -> List.exists l ~f:(fun el -> el = x)));
+ignore(primitive "max" (tlist tint @> tint) (
+         fun l -> match l with
+                | [] -> []
+                | nonempty -> List.reduce_exn nonempty ~f:(fun x y -> max x y)
+    )) ;;
+ignore(primitive "min" (tlist tint @> tint) (
+         fun l -> match l with
+                | [] -> []
+                | nonempty -> List.reduce_exn nonempty ~f:(fun x y -> min x y)
+    )) ;;
+ignore(primitive "product" (tlist tint @> tint) (
+         fun l -> List.reduce_exn l ~f:(fun x y -> x * y)
+    )) ;;
+ignore(primitive "sum" (tlist tint @> tint) (
+         fun l -> match l with
+                | [] -> 0
+                | nonempty -> List.reduce_exn nonempty ~f:(fun x y -> x + y)
+    )) ;;
+ignore(primitive "unique" (tlist t0 @> tlist t0) (fun l -> List.dedup ~compare:(fun x y -> x - y) l));;
+ignore(primitive "flatten" ((tlist (tlist t0)) @> tlist t0) (List.concat)) ;;
+
 (*
 ignore(primitive "true" (tboolean) (None)) ;;
 ignore(primitive "false" (tboolean) (None)) ;;
@@ -1140,4 +1252,4 @@ ignore(primitive "sort" (tlist tint @> tlist tint) (None)) ;;
 ignore(primitive "reverse" (tlist t0 @> tlist t0) (None)) ;;
 ignore(primitive "flatten" ((tlist (tlist t0)) @> tlist t0) (None)) ;;
 ignore(primitive "zip" (tlist t0 @> tlist t1 @> (t0 @> t1 @> t2) @> tlist t2) (None)) ;;
-*)
+/*)
