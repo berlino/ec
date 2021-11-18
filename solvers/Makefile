@@ -30,6 +30,8 @@ task:
 	$(c) task.native; cp task.native test
 list:
 	$(c) list_synthesizer.native; cp list_synthesizer.native test
+jrulelist:
+	$(c) jrule_list.native; cp jrule_list.native test
 polynomial:
 	$(c) polynomial.native; cp polynomial.native test
 clean:

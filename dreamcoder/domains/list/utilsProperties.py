@@ -63,7 +63,7 @@ def convertToPropertyTasks(tasks, propertyRequest):
     return propertyTasks
 
 
-def makeTaskFromProgram(program, request, featureExtractor, differentOutputs=True, filterIdentityTask=True):
+def _makeTaskFromProgram(program, request, featureExtractor, differentOutputs=True, filterIdentityTask=True):
     task = featureExtractor.taskOfProgram(program, request)
     if task is None:
         return None
@@ -88,7 +88,7 @@ def _enumerateFromOcamlGrammar(tasks, grammar, enumerationTimeout, special):
     return response
 
 def enumerateHelmholtzOcaml(tasks, grammar, enumerationTimeout, CPUs, featureExtractor, save=False, libraryName=None, dataset=None, saveDirectory=None):
-    response = enumerateFromOcamlGrammar(tasks, grammar, enumerationTimeout)
+    response = _enumerateFromOcamlGrammar(tasks, grammar, enumerationTimeout, special="unique")
     print("Response length: {}".format(len(response)))
     frontiers = []
     print("First 200 characters of response: {}".format(response[:200]))
@@ -113,7 +113,7 @@ def enumerateHelmholtzOcaml(tasks, grammar, enumerationTimeout, CPUs, featureExt
         if saveDirectory is not None:
             path = saveDirectory
         else:
-            filename = "helmholtzFrontiers/{}_enumerated/{}_with_{}-inputs.pkl".format(libraryName, len(frontiers), dataset)
+            filename = "helmholtz_frontiers/{}_enumerated/{}_with_{}-inputs.pkl".format(libraryName, len(frontiers), dataset)
             path = DATA_DIR + filename
         dill.dump(frontiers, open(path, "wb"))
         print("Saving frontiers at: {}".format(path))
@@ -123,11 +123,15 @@ def enumerateHelmholtzOcaml(tasks, grammar, enumerationTimeout, CPUs, featureExt
 def enumerateAndSave(grammar, request, featureExtractor, dslName, numTasks, k, batchSize, CPUs=1):
 
     def enumerateWithinBounds(lowerBound, upperBound, totalNumTasks):
+        
+        taskCount = sum(totalNumTasks.values())
+        print("Have {} valid tasks".format(taskCount))
+        if taskCount >= numTasks:
+            return
 
         totalNumTasksEnumerated = 0.0
         enumeratedFrontiersBatch = []
         for logPrior, context, p in grammar.enumeration(Context.EMPTY, [], request, upperBound, maximumDepth=99, lowerBound=lowerBound):
-            print(p)
             task = makeTaskFromProgram(p, request, featureExtractor, differentOutputs=True, filterIdentityTask=True)
             if task is not None:
                 frontier = Frontier([FrontierEntry(program=p,
@@ -135,7 +139,7 @@ def enumerateAndSave(grammar, request, featureExtractor, dslName, numTasks, k, b
                                     task=task)
                 enumeratedFrontiersBatch.append(frontier)
                 totalNumTasksEnumerated += 1
-                print(totalNumTasksEnumerated, logPrior)
+                print("{} tasks within {}-{} bounds".format(totalNumTasksEnumerated, lowerBound, upperBound))
 
         if totalNumTasksEnumerated > 0:
             writePath = "data/prop_sig/{}_enumerated_{}/enumerated_{}_{}.pkl".format(dslName, k, lowerBound, upperBound)
