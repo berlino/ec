@@ -631,7 +631,9 @@ def _concat(xs): return lambda ys: xs + ys
 def _splice(ys):
     def g(i):
         def f(xs):
-            return xs[:i] + ys + xs[i:]
+            if i > len(xs):
+                return xs
+            return xs[:i-1] + ys + xs[i-1:]
         return f
     return g
 
@@ -708,9 +710,9 @@ def _cutSlice(i):
             if j < i:
                 raise ValueError
             elif j > len(xs):
-                return xs[:i]
+                return xs[:i-1]
             else:
-                return xs[:i] + xs[j+1:]
+                return xs[:i-1] + xs[j:]
         return f
     return g
 
@@ -742,13 +744,13 @@ def _count(f):
         return numElements
     return g
 
-# return indices of xs for which p is true
+# return indices of xs for which p is true. one-based indexing
 def _findAll(f):
     def g(xs):
         indices = []
         for i,el in enumerate(xs):
             if f(el):
-                indices.append(i)
+                indices.append(i+1)
         return indices
     return g
 
