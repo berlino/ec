@@ -25,7 +25,7 @@ def iterative_propsim(args, tasks, baseGrammar, properties, initSampledFrontiers
         else:
             sampledFrontiers = {}
             for t in tasksToSolve:
-                sampledFrontiers[t] = enumerateHelmholtzOcaml(tasks, task2FittedGrammar[t], args["enumerationTimeout"], args["CPUs"], featureExtractor, save=False, libraryName=args["libraryName"], dataset=dataset)
+                sampledFrontiers[t] = enumerateHelmholtzOcaml(tasks, task2FittedGrammar[t], args["enumerationTimeout"], args["CPUs"], featureExtractor, save=False)
                 print("Enumerated {} helmholtz tasks for task {}".format(len(sampledFrontiers[t]), t))
         # use subset (numHelmFrontiers) of helmholtz tasks
         for t in tasksToSolve:
@@ -105,23 +105,30 @@ def main(args):
     # modelNames = ["uniformGrammar", "PropSim"]
     # enumerate_from_grammars(args)
 
+    # Load tasks, DSL, features extractor and properties
     tasks = get_tasks(args["dataset"])
     tasks = tasks[0:1] if args["singleTask"] else tasks
     prims = get_primitives(args["libraryName"])
     baseGrammar = Grammar.uniform([p for p in prims])
+    featureExtractor, properties = get_extractor(tasks, baseGrammar, args) 
 
-    if args["libraryName"] == "josh_rich":
+    if "josh_rich" in args["libraryName"]:
         # now that we've loaded the primitives we can parse the ground truth program string
         for t in tasks:
+            # parses program string and also executes to check that I/O matches parsed program
             t.parse_program(prims)
 
-    # get frontiers to fit on
-    # frontiers = enumerateHelmholtzOcaml(tasks, baseGrammar, enumerationTimeout=180, CPUs=40, featureExtractor=featureExtractor, save=True, libraryName=args["libraryName"], dataset=args["dataset"], saveDirectory=None)
-    sampledFrontiers = loadEnumeratedTasks(dslName=args["libraryName"], filename=args["helmholtzFrontiersFilename"], 
-       primitives=prims, hmfSeed=args["hmfSeed"])[:10000]
-   
-    featureExtractor, properties = get_extractor(tasks, baseGrammar, args) 
-    propsimGrammars = iterative_propsim(args, tasks, baseGrammar, properties, sampledFrontiers)
+    # get helmholtz frontiers either by loading saved file, or by enumerating new ones
+    if args["helmholtzFrontiers"] is not None: 
+        datasetName = args["helmholtzFrontiers"][:args["helmholtzFrontiers"].index(".pkl")]
+        helmholtzFrontiers = loadEnumeratedTasks(filename=args["helmholtzFrontiers"], primitives=prims)
+    else:
+        datasetName = args["dataset"]
+        helmholtzFrontiers = enumerateHelmholtzOcaml(tasks, baseGrammar, enumerationTimeout=1, CPUs=40, featureExtractor=featureExtractor, save=True, libraryName=args["libraryName"], datasetName=datasetName)    
+
+    saveDirectory = DATA_DIR + "helmholtz_frontiers/"
+    neuralGrammars = getGrammarsFromNeuralRecognizer(LearnedFeatureExtractor, tasks, baseGrammar, {"hidden": args["hidden"]}, helmholtzFrontiers[:100], args["save"], saveDirectory, datasetName, args)
+    # propsimGrammars = iterative_propsim(args, tasks, baseGrammar, properties, sampledFrontiers)
     # editDistGrammars = getGrammarsFromEditDistSim(tasks, baseGrammar, sampledFrontiers, args["nSim"])
-    enumerationProxy(propsimGrammars, tasks, baseGrammar, args["nSim"], verbose=True)
+    enumerationProxy(neuralGrammars, tasks, baseGrammar, args["nSim"], verbose=True)
     return

@@ -87,7 +87,7 @@ def _enumerateFromOcamlGrammar(tasks, grammar, enumerationTimeout, special):
     response = helmholtzEnumeration(grammar, request, inputs, enumerationTimeout, _=None, special="unique", evaluationTimeout=0.004, maximumSize=99999999)
     return response
 
-def enumerateHelmholtzOcaml(tasks, grammar, enumerationTimeout, CPUs, featureExtractor, save=False, libraryName=None, dataset=None, saveDirectory=None):
+def enumerateHelmholtzOcaml(tasks, grammar, enumerationTimeout, CPUs, featureExtractor, save=False, libraryName=None, datasetName=None):
     response = _enumerateFromOcamlGrammar(tasks, grammar, enumerationTimeout, special="unique")
     print("Response length: {}".format(len(response)))
     frontiers = []
@@ -110,13 +110,9 @@ def enumerateHelmholtzOcaml(tasks, grammar, enumerationTimeout, CPUs, featureExt
     print("{} Frontiers after filtering".format(len(frontiers)))
     
     if save:
-        if saveDirectory is not None:
-            path = saveDirectory
-        else:
-            filename = "helmholtz_frontiers/{}_enumerated/{}_with_{}-inputs.pkl".format(libraryName, len(frontiers), dataset)
-            path = DATA_DIR + filename
-        dill.dump(frontiers, open(path, "wb"))
-        print("Saving frontiers at: {}".format(path))
+        savePath = "{}/helmholtz_frontiers/{}_enumerated/{}_with_{}-inputs.pkl".format(DATA_DIR, libraryName, len(frontiers), datasetName)
+        dill.dump(frontiers, open(savePath, "wb"))
+        print("Saving frontiers at: {}".format(savePath))
 
     return frontiers
 
@@ -172,8 +168,10 @@ def sampleAndSave(recognitionModel, requests, dslName, numSamples, samplesPerSte
             del toWrite[:batchSize]
             print("Memory usage: {}".format(getMemoryUsageFraction()))
 
-def loadEnumeratedTasks(dslName, filename, primitives=None, hmfSeed=1, numExamples=11):
-    with open("data/prop_sig/helmholtz_frontiers/{}_enumerated_{}/{}".format(dslName, hmfSeed, filename), "rb") as f:
+def loadEnumeratedTasks(filename, primitives=None, numExamples=11):
+    
+    path = "data/prop_sig/helmholtz_frontiers/{}".format(filename)
+    with open(path, "rb") as f:
         frontiers = dill.load(f)
 
         filteredFrontiers = []

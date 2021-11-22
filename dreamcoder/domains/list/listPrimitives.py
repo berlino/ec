@@ -515,10 +515,14 @@ def josh_primitives(w):
             primitiveRecursion1
         ] + [Primitive(str(j), tint, j) for j in range(100)])
 
-    elif w == "rich_0_10":
-        return [
-            Primitive(str(j), tint, j) for j in range(11)
-        ] + [
+    elif "rich" in w:
+        if w == "rich_0_99":
+            integers = [Primitive(str(j), tint, j) for j in range(100)]
+        elif w == "rich_0_10":
+            integers = [Primitive(str(j), tint, j) for j in range(11)]
+        else:
+            raise Exception("primitives name should be one of: josh_rich_0_10 or josh_rich_0_99")
+        return integers + [
             Primitive("true", tbool, True),
             Primitive("false", tbool, False),
             Primitive("empty", tlist(t0), []),

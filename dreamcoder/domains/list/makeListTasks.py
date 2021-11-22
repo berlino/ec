@@ -35,7 +35,7 @@ def joshTasks(w):
         directory = "data/wave3.1/json"
     elif w == "final":
         directory = "data/final_wave"
-    elif w == "fleet" or w == "fleet0to9":
+    elif w == "fleet_0_99" or w == "fleet_0_10":
         directory = "data/fleet_wave/json"
         for filename in os.listdir(directory):
           with open(directory + "/" + filename) as f:
@@ -43,7 +43,7 @@ def joshTasks(w):
             # extract concept name
             name = lines[0][lines[0].index("#")+2:lines[0].index("#")+6]
 
-            if w == "fleet0to9":
+            if w == "fleet_0_10":
               if int(name[1:4]) > 80:
                 continue
 

@@ -24,7 +24,8 @@ def list_options(parser):
         "josh_3",
         "josh_3.1",
         "josh_final",
-        "josh_rich",
+        "josh_rich_0_10",
+        "josh_rich_0_99",
         "property_prims",
         "dc_list_domain"])
     parser.add_argument("--propSamplingPrimitives", default="same", choices=[
@@ -34,7 +35,8 @@ def list_options(parser):
         "josh_3",
         "josh_3.1",
         "josh_final",
-        "josh_rich",
+        "josh_rich_0_10",
+        "josh_rich_0_99",
         "property_prims",
         "list_prims"])
     parser.add_argument(
@@ -47,8 +49,8 @@ def list_options(parser):
             "josh_3",
             "josh_3.1",
             "josh_final",
-            "josh_fleet",
-            "josh_fleet0to9",
+            "josh_fleet_0_99",
+            "josh_fleet_0_10",
             "Lucas-old"])
     parser.add_argument("--extractor", default="prop_sig", choices=[
         "prop_sig",
@@ -62,10 +64,10 @@ def list_options(parser):
     parser.add_argument("--propSim", action="store_true", default=False)
     parser.add_argument("--helmEnumerationTimeout", type=int, default=1)
     parser.add_argument("--propNumIters", type=int, default=1)
-    parser.add_argument("--hmfSeed", type=int, default=1)
+    parser.add_argument("--hmfSeed", type=int, default=None)
     parser.add_argument("--numHelmFrontiers", type=int, default=None)
     parser.add_argument("--maxFractionSame", type=float, default=1.0)
-    parser.add_argument("--helmholtzFrontiersFilename", type=str, default=None)
+    parser.add_argument("--helmholtzFrontiers", type=str, default=None)
     parser.add_argument("--propFilename", type=str, default=None)
     parser.add_argument("--filterSimilarProperties", action="store_true", default=False)
     parser.add_argument("--computePriorFromTasks", action="store_true", default=False)
@@ -254,8 +256,8 @@ def get_tasks(dataset):
         "josh_3": lambda: joshTasks("3"),
         "josh_3.1": lambda: joshTasks("3.1"),
         "josh_final": lambda: joshTasks("final"),
-        "josh_fleet": lambda: joshTasks("fleet"),
-        "josh_fleet0to9": lambda: joshTasks("fleet0to9")
+        "josh_fleet_0_99": lambda: joshTasks("fleet_0_99"),
+        "josh_fleet_0_10": lambda: joshTasks("fleet_0_10")
     }[dataset]()
 
     return tasks
@@ -267,7 +269,8 @@ def get_primitives(libraryName):
              "josh_3": josh_primitives("3")[0],
              "josh_3.1": josh_primitives("3.1")[0],
              "josh_final": josh_primitives("final"),
-             "josh_rich": josh_primitives("rich_0_10"),
+             "josh_rich_0_10": josh_primitives("rich_0_10"),
+             "josh_rich_0_99": josh_primitives("rich_0_99"),
              "property_prims": handWrittenProperties(),
              "dc_list_domain": bootstrapTarget_extra()
     }

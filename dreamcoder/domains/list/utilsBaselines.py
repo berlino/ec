@@ -65,7 +65,7 @@ def getGrammarsFromEditDistSim(tasks, baseGrammar, sampledFrontiers, nSim, weigh
     return task2Grammar
 
 
-def getGrammarsFromNeuralRecognizer(extractor, tasks, baseGrammar, featureExtractorArgs, sampledFrontiers, save, saveDirectory, args):
+def getGrammarsFromNeuralRecognizer(extractor, tasks, baseGrammar, featureExtractorArgs, sampledFrontiers, save, saveDirectory, datasetName, args):
 
     recognitionModel = RecognitionModel(
     featureExtractor=extractor(tasks, grammar=baseGrammar, testingTasks=[], cuda=torch.cuda.is_available(), featureExtractorArgs=featureExtractorArgs),
@@ -83,11 +83,12 @@ def getGrammarsFromNeuralRecognizer(extractor, tasks, baseGrammar, featureExtrac
     sampledFrontiers = [f for i,f in enumerate(sampledFrontiers) if i not in excludeIdx]
     print("Can't get featuresOfTask for {} tasks. Now have {} frontiers".format(len(excludeIdx), len(sampledFrontiers)))
 
+    # get name of neural recognition model
     ep, CPUs, helmholtzRatio, rs, rt = args.pop("earlyStopping"), args["CPUs"], args.pop("helmholtzRatio"), args.pop("recognitionSteps"), args.pop("recognitionTimeout")
-    
-    # check if we alread have trained this model
-    filename = "neural_ep={}_RS={}_RT={}_hidden={}_r={}_contextual={}.pkl".format(ep, rs, rt, featureExtractorArgs["hidden"], helmholtzRatio, args["contextual"])
+    filename = "{}_neural_ep={}_RS={}_RT={}_hidden={}_r={}_contextual={}.pkl".format(datasetName, ep, rs, rt, featureExtractorArgs["hidden"], helmholtzRatio, args["contextual"])
     path = saveDirectory + filename
+
+    # check if we alread have trained this model
     try:
         grammars = dill.load(open(path, 'rb'))
         print("Loaded recognizer grammars from: {}".format(path))
@@ -98,8 +99,8 @@ def getGrammarsFromNeuralRecognizer(extractor, tasks, baseGrammar, featureExtrac
 
 
     trainedRecognizer = recognitionModel.trainRecognizer(
-    frontiers=sampledFrontiers, 
-    helmholtzFrontiers=[],
+    frontiers = [],
+    helmholtzFrontiers=sampledFrontiers,
     helmholtzRatio=helmholtzRatio,
     CPUs=CPUs,
     lrModel=False, 
@@ -112,6 +113,7 @@ def getGrammarsFromNeuralRecognizer(extractor, tasks, baseGrammar, featureExtrac
     grammars = {}
     for task in tasks:
         grammar = trainedRecognizer.grammarOfTask(task).untorch()
+        print("neural grammar\n", grammar)
         grammars[task] = grammar
 
     if save:
