@@ -29,6 +29,21 @@ def plotFrontiers(fileNames, modelNames, save=True):
         plt.savefig("enumerationResults/enumerationTimes.png")
     return
 
+def plotProxyResults(modelToLogPosteriors, save=True):
+
+    plt.rcParams["axes.prop_cycle"] = plt.cycler("color", plt.cm.jet(np.linspace(0,1, len(modelToLogPosteriors.keys()))))
+
+    for modelName, logPosteriors in modelToLogPosteriors.items():
+        logPosteriors = sorted([-lp for lp in logPosteriors])
+        plt.plot(logPosteriors, [i / len(logPosteriors) for i in range(len(logPosteriors))], label=modelName, alpha=0.6)
+
+    plt.ylim(bottom=0, top=1)
+    plt.legend()
+    plt.show()
+    if save:
+        plt.savefig("enumerationResults/enumerationProxy.png")
+    return
+
 
 def plotNumSampledPropertiesVersusMdl(propertiesFilename):
     enumeratedProperties = dill.load(open(DATA_DIR + SAMPLED_PROPERTIES_DIR + propertiesFilename, "rb"))

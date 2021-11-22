@@ -66,10 +66,10 @@ def getGrammarsFromEditDistSim(tasks, baseGrammar, sampledFrontiers, nSim, weigh
     return task2Grammar
 
 
-def getGrammarsFromNeuralRecognizer(extractor, tasks, baseGrammar, featureExtractorArgs, sampledFrontiers, save, saveDirectory, datasetName, args):
+def getGrammarsFromNeuralRecognizer(extractor, tasks, testingTasks, baseGrammar, featureExtractorArgs, sampledFrontiers, save, saveDirectory, datasetName, args):
 
     recognitionModel = RecognitionModel(
-    featureExtractor=extractor(tasks, grammar=baseGrammar, testingTasks=[], cuda=torch.cuda.is_available(), featureExtractorArgs=featureExtractorArgs),
+    featureExtractor=extractor(tasks, grammar=baseGrammar, testingTasks=testingTasks, cuda=torch.cuda.is_available(), featureExtractorArgs=featureExtractorArgs),
     grammar=baseGrammar,
     cuda=torch.cuda.is_available(),
     contextual=False,

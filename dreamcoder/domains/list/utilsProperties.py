@@ -294,7 +294,7 @@ def enumerationProxy(task2FittedGrammars, tasks, modelNames, verbose=False):
         None
     """
 
-    logPosteriors = {modelName:0.0 for modelName in modelNames}
+    modelToLogPosteriors = {modelName:[] for modelName in modelNames}
     tasksWithGtPrograms = [t for t in tasks if t.program is not None]
     for task in tasksWithGtPrograms:
         vprint("\n-------------------------------------------------------------------------------", verbose)
@@ -304,12 +304,12 @@ def enumerationProxy(task2FittedGrammars, tasks, modelNames, verbose=False):
         for task2grammar, modelName in zip(task2FittedGrammars, modelNames):
             taskGrammar = task2grammar if isinstance(task2grammar, Grammar) else task2grammar[task]
             logPosterior = taskGrammar.logLikelihood(task.request, task.program)
-            logPosteriors[modelName] += logPosterior
+            modelToLogPosteriors[modelName].append(logPosterior)
             vprint("{}: {}".format(modelName, logPosterior), verbose)
 
-    for modelName, logPosterior in logPosteriors.items():
-        vprint("Mean {} Log posterior: {}".format(modelName, logPosterior / len(tasksWithGtPrograms)), verbose)
-    return
+    for modelName, logPosteriors in modelToLogPosteriors.items():
+        vprint("Mean {} Log posterior: {}".format(modelName, sum(logPosteriors) / len(logPosteriors)), verbose)
+    return modelToLogPosteriors
 
 # def enumerationProxy(task2FittedGrammar, train, grammar, nSim, task2groundTruthPrograms=None, neuralBaselinePath=NEURAL_RECOGNITION_MODEL_PATH, verbose=False):
 #     """
