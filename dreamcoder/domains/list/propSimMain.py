@@ -42,8 +42,9 @@ def iterative_propsim(args, tasks, baseGrammar, properties, initSampledFrontiers
         try:
              propSimFilename = "propSim_propToUse={}_nSim={}_weightedSim={}_taskSpecificInputs={}_seed={}.pkl".format(
                 args["propToUse"], args["nSim"], args["weightedSim"], args["taskSpecificInputs"], args["seed"])
-             directory = DATA_DIR + "grammars/{}_primitives/enumerated_{}:{}".format(args["libraryName"], args["hmfSeed"], args["helmholtzFrontiersFilename"].split(":")[0])
-             directory += ":{}/".format(args["numHelmFrontiers"]) if args["numHelmFrontiers"] is not None else "/"
+             # directory = DATA_DIR + "grammars/{}_primitives/enumerated_{}:{}".format(args["libraryName"], args["hmfSeed"], args["helmholtzFrontiers"].split(":")[0])
+             # directory += ":{}/".format(args["numHelmFrontiers"]) if args["numHelmFrontiers"] is not None else "/"
+             directory = DATA_DIR
              path = directory + propSimFilename
              propSimGrammars = dill.load(open(path, "rb"))
         except FileNotFoundError:
@@ -96,7 +97,8 @@ def enumerate_from_grammars(args, allGrammars, modelNames):
     return
 
 def main(args):
-
+       
+    print("cuda: {}".format(torch.cuda.is_available())) 
     # Enumeration
     # helmholtzGrammar = baseGrammar.insideOutside(initSampledFrontiers, 1, iterations=1, frontierWeights=None, weightByPrior=False)
     # uniformGrammar = baseGrammar
@@ -124,11 +126,19 @@ def main(args):
         helmholtzFrontiers = loadEnumeratedTasks(filename=args["helmholtzFrontiers"], primitives=prims)
     else:
         datasetName = args["dataset"]
-        helmholtzFrontiers = enumerateHelmholtzOcaml(tasks, baseGrammar, enumerationTimeout=1, CPUs=40, featureExtractor=featureExtractor, save=True, libraryName=args["libraryName"], datasetName=datasetName)    
+        helmholtzFrontiers = enumerateHelmholtzOcaml(tasks, baseGrammar, enumerationTimeout=1800, CPUs=40, featureExtractor=featureExtractor, save=True, libraryName=args["libraryName"], datasetName=datasetName)    
 
+    helmholtzFrontiers = helmholtzFrontiers
     saveDirectory = DATA_DIR + "helmholtz_frontiers/"
-    neuralGrammars = getGrammarsFromNeuralRecognizer(LearnedFeatureExtractor, tasks, baseGrammar, {"hidden": args["hidden"]}, helmholtzFrontiers[:100], args["save"], saveDirectory, datasetName, args)
-    # propsimGrammars = iterative_propsim(args, tasks, baseGrammar, properties, sampledFrontiers)
+    neuralGrammars = getGrammarsFromNeuralRecognizer(LearnedFeatureExtractor, tasks, baseGrammar, {"hidden": args["hidden"]}, helmholtzFrontiers, args["save"], saveDirectory, datasetName, args)
+ 
+    featureExtractor, properties = get_extractor(tasks, baseGrammar, args) 
+    propsimGrammars = iterative_propsim(args, tasks, baseGrammar, properties, helmholtzFrontiers)
     # editDistGrammars = getGrammarsFromEditDistSim(tasks, baseGrammar, sampledFrontiers, args["nSim"])
-    enumerationProxy(neuralGrammars, tasks, baseGrammar, args["nSim"], verbose=True)
+
+    helmholtzGrammar = baseGrammar.insideOutside(helmholtzFrontiers, pseudoCounts=1)
+    grammars = [neuralGrammars, propsimGrammars, helmholtzGrammar]
+    modelNames = ["neural", "propsim", "helmholtz"]
+    enumerationProxy(grammars, tasks, modelNames, verbose=True)
+    # enumerate_from_grammars(args, [propSimGrammars, editDistGrammars], ["propSimGrammars", "editDistGrammars"])
     return
