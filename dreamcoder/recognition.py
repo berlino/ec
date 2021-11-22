@@ -1163,7 +1163,7 @@ class RecognitionModel(nn.Module):
                         if totalGradientSteps > steps:
                             break # Stop iterating, then print epoch and loss, then break to finish.
 
-                    if j % 1000 == 0:
+                    if totalGradientSteps % 100 == 0:
 
                         if holdout:
                             # calculate hold out losses
@@ -1367,6 +1367,7 @@ class RecurrentFeatureExtractor(nn.Module):
             "ENDOFINPUT"  # delimits the ending of an input - we might have multiple inputs
         ]
         lexicon += self.specialSymbols
+        print("lexicon\n", lexicon)
         encoder = nn.Embedding(len(lexicon), H)
         self.encoder = encoder
 

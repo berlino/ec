@@ -86,12 +86,9 @@ def getGrammarsFromNeuralRecognizer(extractor, tasks, testingTasks, baseGrammar,
 
     # get name of neural recognition model
     ep, CPUs, helmholtzRatio, rs, rt = args.pop("earlyStopping"), args["CPUs"], args.pop("helmholtzRatio"), args.pop("recognitionSteps"), args.pop("recognitionTimeout")
-    filename = "{}_neural_ep={}_RS={}_RT={}_hidden={}_r={}_contextual={}.pkl".format(datasetName, ep, rs, rt, featureExtractorArgs["hidden"], helmholtzRatio, args["contextual"])
+    filename = "{}_neural_ep={}_RS={}_RT={}_hidden={}_r={}_contextual={}_0_99.pkl".format(datasetName, ep, rs, rt, featureExtractorArgs["hidden"], helmholtzRatio, args["contextual"])
     path = saveDirectory + filename
-
-    # check if we alread have trained this model
-    filename = "neural_ep={}_RS={}_RT={}_hidden={}_r={}_contextual={}.pkl".format(ep, rs, rt, featureExtractorArgs["hidden"], helmholtzRatio, args["contextual"])
-    path = saveDirectory + "/" + filename
+    
     try:
         grammars = dill.load(open(path, 'rb'))
         print("Loaded recognizer grammars from: {}".format(path))

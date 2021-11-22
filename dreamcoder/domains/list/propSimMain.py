@@ -123,13 +123,14 @@ def main(args):
 
     # get helmholtz frontiers either by loading saved file, or by enumerating new ones
     if args["helmholtzFrontiers"] is not None: 
-        datasetName = args["helmholtzFrontiers"][:args["helmholtzFrontiers"].index(".pkl")]
         dslDirectory, pklName = args["helmholtzFrontiers"].split("/")
+        datasetName = pklName[:pklName.index(".pkl")]
         helmholtzFrontiers = loadEnumeratedTasks(filename=args["helmholtzFrontiers"], primitives=prims)
     else:
         datasetName = args["dataset"]
         helmholtzFrontiers = enumerateHelmholtzOcaml(tasks, baseGrammar, enumerationTimeout=1800, CPUs=40, featureExtractor=featureExtractor, save=True, libraryName=args["libraryName"], datasetName=datasetName)    
-
+ 
+    helmholtzFrontiers = helmholtzFrontiers
     saveDirectory = "{}helmholtz_frontiers/{}/".format(DATA_DIR, dslDirectory)
     testingTasks = get_tasks("josh_fleet_0_99")
     neuralGrammars = getGrammarsFromNeuralRecognizer(LearnedFeatureExtractor, tasks, testingTasks, baseGrammar, {"hidden": args["hidden"]}, helmholtzFrontiers, args["save"], saveDirectory, datasetName, args)
