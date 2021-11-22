@@ -35,7 +35,7 @@ def joshTasks(w):
         directory = "data/wave3.1/json"
     elif w == "final":
         directory = "data/final_wave"
-    elif w == "fleet_0_99" or w == "fleet_0_10":
+    elif w == "fleet_0_99" or w == "fleet_0_10" or w == "fleet_10_99":
         directory = "data/fleet_wave/json"
         for filename in os.listdir(directory):
           with open(directory + "/" + filename) as f:
@@ -45,6 +45,9 @@ def joshTasks(w):
 
             if w == "fleet_0_10":
               if int(name[1:4]) > 80:
+                continue
+            elif w == "fleet_10_99":
+              if int(name[1:4]) <= 80 or int(name[1:4]) >= 90:
                 continue
 
             # extract program string

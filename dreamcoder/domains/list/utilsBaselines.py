@@ -86,11 +86,11 @@ def getGrammarsFromNeuralRecognizer(extractor, tasks, testingTasks, baseGrammar,
 
     # get name of neural recognition model
     ep, CPUs, helmholtzRatio, rs, rt = args.pop("earlyStopping"), args["CPUs"], args.pop("helmholtzRatio"), args.pop("recognitionSteps"), args.pop("recognitionTimeout")
-    filename = "{}_neural_ep={}_RS={}_RT={}_hidden={}_r={}_contextual={}_0_99.pkl".format(datasetName, ep, rs, rt, featureExtractorArgs["hidden"], helmholtzRatio, args["contextual"])
+    filename = "{}_neural_ep={}_RS={}_RT={}_hidden={}_r={}_contextual={}_0_99".format(datasetName, ep, rs, rt, featureExtractorArgs["hidden"], helmholtzRatio, args["contextual"])
     path = saveDirectory + filename
     
     try:
-        grammars = dill.load(open(path, 'rb'))
+        grammars = dill.load(open("{}_grammars.pkl".format(path), 'rb'))
         print("Loaded recognizer grammars from: {}".format(path))
         return grammars
     except FileNotFoundError:
@@ -111,7 +111,7 @@ def getGrammarsFromNeuralRecognizer(extractor, tasks, testingTasks, baseGrammar,
     defaultRequest=arrow(tlist(tint), tlist(tint)))
 
     grammars = {}
-    for task in tasks:
+    for task in tasks + testingTasks:
         grammar = trainedRecognizer.grammarOfTask(task).untorch()
         print("neural grammar\n", grammar)
         grammars[task] = grammar
@@ -119,9 +119,11 @@ def getGrammarsFromNeuralRecognizer(extractor, tasks, testingTasks, baseGrammar,
     if save:
         if not os.path.exists(saveDirectory):
             os.makedirs(saveDirectory)
-        with open(path, 'wb') as handle:
+        with open("{}_grammars.pkl".format(path), 'wb') as handle:
             print("Saved recognizer grammars at: {}".format(path))
             dill.dump(grammars, handle)
+        with open("{}_recognizer.pkl".format(path), 'wb') as handle:
+            dill.dump(trainedRecognizer, handle)
 
     return grammars
 

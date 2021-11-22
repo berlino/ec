@@ -50,6 +50,7 @@ def list_options(parser):
             "josh_3.1",
             "josh_final",
             "josh_fleet_0_99",
+            "josh_fleet_10_99",
             "josh_fleet_0_10",
             "Lucas-old"])
     parser.add_argument("--extractor", default="prop_sig", choices=[
@@ -257,7 +258,8 @@ def get_tasks(dataset):
         "josh_3.1": lambda: joshTasks("3.1"),
         "josh_final": lambda: joshTasks("final"),
         "josh_fleet_0_99": lambda: joshTasks("fleet_0_99"),
-        "josh_fleet_0_10": lambda: joshTasks("fleet_0_10")
+        "josh_fleet_0_10": lambda: joshTasks("fleet_0_10"),
+        "josh_fleet_10_99": lambda: joshTasks("fleet_10_99")
     }[dataset]()
 
     return tasks

@@ -130,7 +130,7 @@ def main(args):
         datasetName = args["dataset"]
         helmholtzFrontiers = enumerateHelmholtzOcaml(tasks, baseGrammar, enumerationTimeout=1800, CPUs=40, featureExtractor=featureExtractor, save=True, libraryName=args["libraryName"], datasetName=datasetName)    
  
-    helmholtzFrontiers = helmholtzFrontiers
+    helmholtzFrontiers = helmholtzFrontiers[:100]
     saveDirectory = "{}helmholtz_frontiers/{}/".format(DATA_DIR, dslDirectory)
     testingTasks = get_tasks("josh_fleet_0_99")
     neuralGrammars = getGrammarsFromNeuralRecognizer(LearnedFeatureExtractor, tasks, testingTasks, baseGrammar, {"hidden": args["hidden"]}, helmholtzFrontiers, args["save"], saveDirectory, datasetName, args)
