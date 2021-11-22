@@ -90,8 +90,9 @@ def getGrammarsFromNeuralRecognizer(extractor, tasks, testingTasks, baseGrammar,
     path = saveDirectory + filename
     
     try:
-        grammars = dill.load(open("{}_grammars.pkl".format(path), 'rb'))
-        print("Loaded recognizer grammars from: {}".format(path))
+        with open("{}_recognizer.pkl".format(path), 'rb') as handle:
+            recognizer = dill.load(handle)
+        grammars = {t: recognizer.grammarOfTask(t).untorch() for t in tasks}
         return grammars
     except FileNotFoundError:
         print("Couldn't find: {}".format(path))
