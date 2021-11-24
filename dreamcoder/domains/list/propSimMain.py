@@ -1,3 +1,4 @@
+from dreamcoder.domains.list.makeListTasks import filter_task_examples
 from dreamcoder.domains.list.propSim import *
 from dreamcoder.domains.list.runUtils import *
 from dreamcoder.domains.list.utilsBaselines import *
@@ -133,6 +134,8 @@ def main(args):
     helmholtzFrontiers = helmholtzFrontiers[:100]
     saveDirectory = "{}helmholtz_frontiers/{}/".format(DATA_DIR, dslDirectory)
     testingTasks = get_tasks("josh_fleet_0_99")
+    tasks = filter_task_examples(tasks, 3, how="longest")
+ 
     neuralGrammars = getGrammarsFromNeuralRecognizer(LearnedFeatureExtractor, tasks, testingTasks, baseGrammar, {"hidden": args["hidden"]}, helmholtzFrontiers, args["save"], saveDirectory, datasetName, args)
  
     featureExtractor, properties = get_extractor(tasks, baseGrammar, args) 
@@ -143,6 +146,6 @@ def main(args):
     grammars = [neuralGrammars, propsimGrammars, helmholtzGrammar, baseGrammar]
     modelNames = ["neural", "propsim", "helmholtz", "uniform"]
     modelToLogPosteriors = enumerationProxy(grammars, tasks, modelNames, verbose=True)
-    plotProxyResults(modelToLogPosteriors, save=False)
+    plotProxyResults(modelToLogPosteriors, save=True)
     # enumerate_from_grammars(args, [propSimGrammars, editDistGrammars], ["propSimGrammars", "editDistGrammars"])
     return

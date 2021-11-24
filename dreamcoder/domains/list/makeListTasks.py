@@ -87,7 +87,21 @@ def joshTasks(w):
     tasks = [t for t in tasks if (t.request == arrow(tlist(tint), tlist(tint)) and isinstance(t.examples[0][1],list) and isinstance(t.examples[0][0][0],list))]
     return list(sorted(ts,key=lambda t: t.name))
         
-        
+def filter_task_examples(tasks, n, how):
+
+    for t in tasks:
+        if how == "shortest":
+            examples = sorted(t.examples[::], key=lambda io: len(io[0][0]))
+        elif how == "longest":
+            examples = sorted(t.examples[::], key=lambda io: len(io[0][0]), reverse=True)
+        elif how == "random":
+            examples = t.examples[::]
+            random.shuffle(examples)
+        else:
+            raise Exception("option: {} is invalid as a method for filtering task examples")
+        print("Examples before: {}\nExamples after: {}".format(t.examples, examples[:n]))
+        t.examples = examples[:n]
+    return tasks
 
 # Excluded routines either impossible or astronomically improbable
 # I'm cutting these off at ~20 nats in learned grammars.
