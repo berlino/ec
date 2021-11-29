@@ -31,6 +31,8 @@ def joshTasks(w):
         directory = "data/wave2"
     elif w == "3":
         directory = "data/wave3/json"
+    elif w == "3_long_inputs":
+        directory = "data/wave3_long_inputs/json"
     elif w == "3.1":
         directory = "data/wave3.1/json"
     elif w == "final":
@@ -55,7 +57,6 @@ def joshTasks(w):
             program_string = replace_with_valid_prim_names(program_string)
             # extract io examples
             data = [l.strip().split(";") for l in lines[1:]]
-
 
             task = Task(name,
                         arrow(tlist(tint),tlist(tint)),
@@ -83,8 +84,7 @@ def joshTasks(w):
             # assert that ground truth program is correct for task
             ts.append(task)
 
-    tasks = [t for t in ts if int(t.name[:3]) < 81 and "_1" in t.name]
-    tasks = [t for t in tasks if (t.request == arrow(tlist(tint), tlist(tint)) and isinstance(t.examples[0][1],list) and isinstance(t.examples[0][0][0],list))]
+    # tasks = [t for t in tasks if (t.request == arrow(tlist(tint), tlist(tint)) and isinstance(t.examples[0][1],list) and isinstance(t.examples[0][0][0],list))]
     return list(sorted(ts,key=lambda t: t.name))
         
 def filter_task_examples(tasks, n, how):
