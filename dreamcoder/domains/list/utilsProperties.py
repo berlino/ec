@@ -20,6 +20,7 @@ from dreamcoder.utilities import *
 from dreamcoder.domains.list.property import Property
 
 DATA_DIR = "data/prop_sig/"
+MAX_OUTPUT_LENGTH = 1000
 
 def createFrontiersWithInputsFromTask(frontiers, task):
     
@@ -29,8 +30,17 @@ def createFrontiersWithInputsFromTask(frontiers, task):
     for frontier in frontiers:
         func = frontier.entries[0].program.evaluate([])
         try:
-            newExamples = [(i,task.predict(func,i)) for i,o in task.examples]
-        except:
+            newExamples = []
+            for i,_ in task.examples:
+                o = task.predict(func, i)
+                if len(o) > MAX_OUTPUT_LENGTH:
+                    print("Output too long")
+                    print("Program: {}".format(frontier.entries[0].program))
+                    print("input: {}".format(i))
+                    raise ValueError()
+                newExamples.append((i,o))
+        except Exception as e:
+            print(e)
             continue
         newTask = Task(frontier.task.name, frontier.task.request, newExamples, features=None, cache=False)
         newFrontier = Frontier(frontier.entries, newTask)

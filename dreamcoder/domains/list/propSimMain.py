@@ -109,9 +109,9 @@ def main(args):
     # modelNames = ["uniformGrammar", "PropSim"]
     # enumerate_from_grammars(args)
 
-    # Load tasks, DSL, features extractor and properties
+    # Load tasks, DSL and grammar
     tasks = get_tasks(args["dataset"])
-    tasks = tasks[0:1] if args["singleTask"] else tasks
+    tasks = tasks[13:14] + tasks[72:73] if args["singleTask"] else tasks
     prims = get_primitives(args["libraryName"])
     baseGrammar = Grammar.uniform([p for p in prims])
 
@@ -130,21 +130,24 @@ def main(args):
         datasetName = args["dataset"]
         featureExtractor, _ = get_extractor(tasks, baseGrammar, args) 
         helmholtzFrontiers = enumerateHelmholtzOcaml(tasks, baseGrammar, enumerationTimeout=1800, CPUs=40, featureExtractor=featureExtractor, save=True, libraryName=args["libraryName"], datasetName=datasetName)    
+
+    # load/generate recognition model conditional grammar 
+    helmholtzFrontiers = helmholtzFrontiers
+    saveDirectory = "{}helmholtz_frontiers/{}/".format(DATA_DIR, dslDirectory) 
+    neuralGrammars = getGrammarsFromNeuralRecognizer(LearnedFeatureExtractor, tasks, tasks, baseGrammar, {"hidden": args["hidden"]}, helmholtzFrontiers, args["save"], saveDirectory, datasetName, args)
  
-    helmholtzFrontiers = helmholtzFrontiers[:100]
-    saveDirectory = "{}helmholtz_frontiers/{}/".format(DATA_DIR, dslDirectory)
-    testingTasks = get_tasks("josh_3_long_inputs")
- 
-    neuralGrammars = getGrammarsFromNeuralRecognizer(LearnedFeatureExtractor, tasks, testingTasks, baseGrammar, {"hidden": args["hidden"]}, helmholtzFrontiers, args["save"], saveDirectory, datasetName, args)
- 
-    _, properties = get_extractor(testingTasks, baseGrammar, args) 
-    propsimGrammars = iterative_propsim(args, testingTasks, baseGrammar, properties, helmholtzFrontiers)
+    # load/generate propSim conditional grammar
+    _, properties = get_extractor(tasks, baseGrammar, args) 
+    propsimGrammars = iterative_propsim(args, tasks, baseGrammar, properties, helmholtzFrontiers)
     # editDistGrammars = getGrammarsFromEditDistSim(tasks, baseGrammar, sampledFrontiers, args["nSim"])
 
+    # generate helmholtzfitted grammar
     helmholtzGrammar = baseGrammar.insideOutside(helmholtzFrontiers, pseudoCounts=1)
-    grammars = [neuralGrammars, propsimGrammars, helmholtzGrammar, baseGrammar]
-    modelNames = ["neural", "propsim", "helmholtz", "uniform"]
-    modelToLogPosteriors = enumerationProxy(grammars, testingTasks, modelNames, verbose=True)
+    
+    # enumeration proxy
+    grammars = [neuralGrammars, helmholtzGrammar, propsimGrammars, baseGrammar]
+    modelNames = ["neural", "helmholtzFitted", "propsim", "uniform"]
+    modelToLogPosteriors = enumerationProxy(grammars, tasks, modelNames, verbose=True)
     plotProxyResults(modelToLogPosteriors, save=True)
     # enumerate_from_grammars(args, [propSimGrammars, editDistGrammars], ["propSimGrammars", "editDistGrammars"])
     return

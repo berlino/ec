@@ -9,6 +9,7 @@ from dreamcoder.recognition import RecognitionModel
 ADD_P = 0.0001
 DEL_P = 0.0001
 LOG_ALPHABET = np.log(10+1)
+MAX_INPUT_LENGTH = float("inf")
 
 def _prefixEditDistance(got, expected):
 
@@ -92,7 +93,13 @@ def getGrammarsFromNeuralRecognizer(extractor, tasks, testingTasks, baseGrammar,
     try:
         with open("{}_recognizer.pkl".format(path), 'rb') as handle:
             recognizer = dill.load(handle)
-        grammars = {t: recognizer.grammarOfTask(t).untorch() for t in tasks}
+            print("Loaded {}".format(path))
+       
+        # change the maximum allowed length of input lists. every input list has special tokens LIST_START and LIST_END hence the +2
+        recognizer.featureExtractor.maximumLength = MAX_INPUT_LENGTH + 2
+        grammars = {}
+        for t in tasks:
+            grammars[t] = recognizer.grammarOfTask(t).untorch()
         return grammars
     except FileNotFoundError:
         print("Couldn't find: {}".format(path))

@@ -31,7 +31,7 @@ def joshTasks(w):
         directory = "data/wave2"
     elif w == "3":
         directory = "data/wave3/json"
-    elif w == "3_long_inputs":
+    elif w == "3_long_inputs_0_10":
         directory = "data/wave3_long_inputs/json"
     elif w == "3.1":
         directory = "data/wave3.1/json"
@@ -77,7 +77,10 @@ def joshTasks(w):
             data = json.load(handle)
             # replace primitive name with the name used for the same primitive in dreamcoder codebase 
             program_string = replace_with_valid_prim_names(data.get("program"))
-            task = Task(data.get("name",fn.split(".")[0][1:]),
+            name = data.get("name",fn.split(".")[0][1:])
+            if ("0_10" in w) and (int(name[0:3]) > 80):
+                continue
+            task = Task(name,
                            arrow(tlist(tint),tlist(tint)),
                            [((e["i"],),e["o"])
                             for e in data["data"]], program=program_string)

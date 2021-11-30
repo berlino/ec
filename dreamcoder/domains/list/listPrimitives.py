@@ -6,6 +6,8 @@ from collections import OrderedDict
 import math
 from functools import reduce
 
+MAX_OUTPUT_LENGTH = 1000
+
 def _plusNatural(x):
     def g(y):
         if y < 0 or x < 0: raise ValueError()
@@ -139,7 +141,11 @@ def _a1(x): return x + 1
 def _d1(x): return x - 1
 
 
-def _mod(x): return lambda y: x % y
+def _mod(x): 
+    def g(y): 
+        if y <= 0: raise ValueError()
+        return x % y
+    return g
 
 
 def _isEven(x): return x % 2 == 0
@@ -590,7 +596,12 @@ def josh_primitives(w):
 
 
 # list repeating x n times
-def _repeat(x): return lambda n: [x for i in range(n)]
+def _repeat(x): 
+    def g(n): 
+        if n > MAX_OUTPUT_LENGTH:
+            raise ValueError()
+        return [x for i in range(n)]
+    return g
 
 # list of numbers from i to j, inclusive, counting by n
 def _rangeGeneral(i): 
