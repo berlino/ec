@@ -47,8 +47,8 @@ class Task(object):
 
     def parse_program(self, primitives):
         primitivesDict = {p.name:p for p in primitives}
-        self.program = Program.parse(self.program, primitives=primitivesDict)
-
+        if isinstance(self.program, str):
+            self.program = Program.parse(self.program, primitives=primitivesDict)
         ground_truth_correct = self.check(self.program, timeout=0.1, leaveHoldout=False, verbose=False)
         assert ground_truth_correct
         return

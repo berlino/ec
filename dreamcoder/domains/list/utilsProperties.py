@@ -319,7 +319,8 @@ def enumerationProxy(task2FittedGrammars, tasks, modelNames, verbose=False):
 
     for modelName, logPosteriors in modelToLogPosteriors.items():
         vprint("Mean {} Log posterior: {}".format(modelName, sum(logPosteriors) / len(logPosteriors)), verbose)
-    return modelToLogPosteriors
+
+    return {modelName: {t: logPosterior for t,logPosterior in zip(tasksWithGtPrograms, logPosteriors)} for modelName,logPosteriors in modelToLogPosteriors.items()}
 
 # def enumerationProxy(task2FittedGrammar, train, grammar, nSim, task2groundTruthPrograms=None, neuralBaselinePath=NEURAL_RECOGNITION_MODEL_PATH, verbose=False):
 #     """

@@ -67,7 +67,7 @@ def getGrammarsFromEditDistSim(tasks, baseGrammar, sampledFrontiers, nSim, weigh
     return task2Grammar
 
 
-def getGrammarsFromNeuralRecognizer(extractor, tasks, testingTasks, baseGrammar, featureExtractorArgs, sampledFrontiers, save, saveDirectory, datasetName, args):
+def getGrammarsFromNeuralRecognizer(extractor, tasks, testingTasks, baseGrammar, featureExtractorArgs, sampledFrontiers, save, saveDirectory, datasetName, args, pklFile=None):
 
     recognitionModel = RecognitionModel(
     featureExtractor=extractor(tasks, grammar=baseGrammar, testingTasks=testingTasks, cuda=torch.cuda.is_available(), featureExtractorArgs=featureExtractorArgs),
@@ -76,22 +76,18 @@ def getGrammarsFromNeuralRecognizer(extractor, tasks, testingTasks, baseGrammar,
     contextual=False,
     previousRecognitionModel=False,
     )
-
-    # count how many tasks can be tokenized
-    excludeIdx = []
-    for i,f in enumerate(sampledFrontiers):
-        if recognitionModel.featureExtractor.featuresOfTask(f.task) is None:
-            excludeIdx.append(i)
-    sampledFrontiers = [f for i,f in enumerate(sampledFrontiers) if i not in excludeIdx]
-    print("Can't get featuresOfTask for {} tasks. Now have {} frontiers".format(len(excludeIdx), len(sampledFrontiers)))
-
-    # get name of neural recognition model
-    ep, CPUs, helmholtzRatio, rs, rt = args.pop("earlyStopping"), args["CPUs"], args.pop("helmholtzRatio"), args.pop("recognitionSteps"), args.pop("recognitionTimeout")
-    filename = "{}_neural_ep={}_RS={}_RT={}_hidden={}_r={}_contextual={}_0_99".format(datasetName, ep, rs, rt, featureExtractorArgs["hidden"], helmholtzRatio, args["contextual"])
-    path = saveDirectory + filename
     
     try:
-        with open("{}_recognizer.pkl".format(path), 'rb') as handle:
+        if pklFile is not None:
+            name = pklFile
+        else:
+            # get name of neural recognition model
+            ep, CPUs, helmholtzRatio, rs, rt = args.pop("earlyStopping"), args["CPUs"], args.pop("helmholtzRatio"), args.pop("recognitionSteps"), args.pop("recognitionTimeout")
+            filename = "{}_neural_ep={}_RS={}_RT={}_hidden={}_r={}_contextual={}_0_99".format(datasetName, ep, rs, rt, featureExtractorArgs["hidden"], helmholtzRatio, args["contextual"])
+            path = saveDirectory + filename
+            name = "{}_recognizer.pkl".format(path)
+
+        with open(name, 'rb') as handle:
             recognizer = dill.load(handle)
             print("Loaded {}".format(path))
        
@@ -102,9 +98,16 @@ def getGrammarsFromNeuralRecognizer(extractor, tasks, testingTasks, baseGrammar,
             grammars[t] = recognizer.grammarOfTask(t).untorch()
         return grammars
     except FileNotFoundError:
-        print("Couldn't find: {}".format(path))
+        print("Couldn't find: {}".format(name))
         print("Trained recognizer not found, training now ...")
 
+    # count how many tasks can be tokenized
+    excludeIdx = []
+    for i,f in enumerate(sampledFrontiers):
+        if recognitionModel.featureExtractor.featuresOfTask(f.task) is None:
+            excludeIdx.append(i)
+    sampledFrontiers = [f for i,f in enumerate(sampledFrontiers) if i not in excludeIdx]
+    print("Can't get featuresOfTask for {} tasks. Now have {} frontiers".format(len(excludeIdx), len(sampledFrontiers)))
 
     trainedRecognizer = recognitionModel.trainRecognizer(
     frontiers = [],

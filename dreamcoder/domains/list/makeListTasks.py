@@ -80,6 +80,8 @@ def joshTasks(w):
             name = data.get("name",fn.split(".")[0][1:])
             if ("0_10" in w) and (int(name[0:3]) > 80):
                 continue
+            if (w == "3_long_inputs_0_10") and (int(name[0:3]) in [73,76,77]):
+                continue
             task = Task(name,
                            arrow(tlist(tint),tlist(tint)),
                            [((e["i"],),e["o"])
