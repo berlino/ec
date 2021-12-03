@@ -333,8 +333,7 @@ def getPropSimGrammars(
     task2Frontiers = sampledFrontiers
 
     if not isinstance(properties, dict):
-        properties = {t: properties for t in tasksToSolve}
-    task2Properties = properties
+        task2Properties = {t: properties for t in tasksToSolve}
 
     propertySimTasksMatrix, propertyToPriorDistribution = None, None
     # we can get away with computing once for all tasks if the below conditions are True
