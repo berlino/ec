@@ -12,7 +12,7 @@ EVALUATIONTABLE = {}
 
 
 class Task(object):
-    def __init__(self, name, request, examples, features=None, cache=False, program=None):
+    def __init__(self, name, request, examples, features=None, cache=False, program=None, num_holdout=0):
         '''request: the type of this task
         examples: list of tuples of (input, output). input should be a tuple, with one entry for each argument
         cache: should program evaluations be cached?
@@ -21,10 +21,12 @@ class Task(object):
         self.features = features
         self.request = request
         self.name = name
-        self.examples = examples
         self.program = program
+
+        self.examples = examples if num_holdout == 0 else examples[:-num_holdout]
+        self.holdout_examples = [] if num_holdout == 0 else examples[-num_holdout:]
         
-        if len(self.examples) > 0:
+        if len(self.examples + self.holdout_examples) > 0:
             assert all(len(xs) == len(examples[0][0])
                        for xs, _ in examples), \
                 "(for task %s) FATAL: Number of arguments varies." % name
@@ -34,7 +36,8 @@ class Task(object):
             return self.name
         else:
             return self.name + " (%s)"%self.supervision
-
+    
+    # used to send examples to ocaml side, do not want to include holdout examples
     def __repr__(self):
         return "Task(name={self.name}, request={self.request}, examples={self.examples}"\
             .format(self=self)
@@ -55,7 +58,7 @@ class Task(object):
 
     def describe(self):
         description = ["%s : %s" % (self.name, self.request)]
-        for xs, y in self.examples:
+        for xs, y in self.examples + self.holdout_examples:
             if len(xs) == 1:
                 description.append("f(%s) = %s" % (xs[0], y))
             else:
@@ -88,7 +91,7 @@ class Task(object):
                 eprint("Exception during evaluation:", e)
                 return False
 
-            examples = self.examples[:-3] if leaveHoldout else self.examples
+            examples = self.examples if leaveHoldout else self.examples + self.holdout_examples
             if verbose: print("\n{}: {}".format(self.name, self.program))
             for x, y in examples:
                 if self.cache and (x, e) in EVALUATIONTABLE:
@@ -149,6 +152,7 @@ class Task(object):
         return {
             "name": self.name,
             "request": str(self.request),
+            # do not send holdout examples to ocaml side
             "examples": [{"inputs": x, "output": y} for x, y in self.examples]
         }
 

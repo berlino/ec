@@ -60,7 +60,7 @@ def joshTasks(w):
 
             task = Task(name,
                         arrow(tlist(tint),tlist(tint)),
-                        [((ast.literal_eval("["+i+"]"),),ast.literal_eval("["+o+"]")) for i,o in data], program=program_string)
+                        [((ast.literal_eval("["+i+"]"),),ast.literal_eval("["+o+"]")) for i,o in data], program=program_string, num_holdout=3)
             ts.append(task)
         return list(sorted(ts,key=lambda t: t.name))
 
