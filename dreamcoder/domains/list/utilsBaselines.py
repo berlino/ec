@@ -89,37 +89,38 @@ def getGrammarsFromNeuralRecognizer(extractor, tasks, testingTasks, baseGrammar,
 
         with open(name, 'rb') as handle:
             recognizer = dill.load(handle)
-            print("Loaded {}".format(path))
+            print("Loaded {}".format(name))
        
         # change the maximum allowed length of input lists. every input list has special tokens LIST_START and LIST_END hence the +2
-        recognizer.featureExtractor.maximumLength = MAX_INPUT_LENGTH + 2
+        trainedRecognizer.featureExtractor.maximumLength = MAX_INPUT_LENGTH + 2
         grammars = {}
         for t in tasks:
             grammars[t] = recognizer.grammarOfTask(t).untorch()
         return grammars
+
     except FileNotFoundError:
         print("Couldn't find: {}".format(name))
         print("Trained recognizer not found, training now ...")
 
-    # count how many tasks can be tokenized
-    excludeIdx = []
-    for i,f in enumerate(sampledFrontiers):
-        if recognitionModel.featureExtractor.featuresOfTask(f.task) is None:
-            excludeIdx.append(i)
-    sampledFrontiers = [f for i,f in enumerate(sampledFrontiers) if i not in excludeIdx]
-    print("Can't get featuresOfTask for {} tasks. Now have {} frontiers".format(len(excludeIdx), len(sampledFrontiers)))
+        # count how many tasks can be tokenized
+        excludeIdx = []
+        for i,f in enumerate(sampledFrontiers):
+            if recognitionModel.featureExtractor.featuresOfTask(f.task) is None:
+                excludeIdx.append(i)
+        sampledFrontiers = [f for i,f in enumerate(sampledFrontiers) if i not in excludeIdx]
+        print("Can't get featuresOfTask for {} tasks. Now have {} frontiers".format(len(excludeIdx), len(sampledFrontiers)))
 
-    trainedRecognizer = recognitionModel.trainRecognizer(
-    frontiers = [],
-    helmholtzFrontiers=sampledFrontiers,
-    helmholtzRatio=helmholtzRatio,
-    CPUs=CPUs,
-    lrModel=False, 
-    earlyStopping=ep, 
-    holdout=ep,
-    steps=rs,
-    timeout=rt,
-    defaultRequest=arrow(tlist(tint), tlist(tint)))
+        trainedRecognizer = recognitionModel.trainRecognizer(
+        frontiers = [],
+        helmholtzFrontiers=sampledFrontiers,
+        helmholtzRatio=helmholtzRatio,
+        CPUs=CPUs,
+        lrModel=False, 
+        earlyStopping=ep, 
+        holdout=ep,
+        steps=rs,
+        timeout=rt,
+        defaultRequest=arrow(tlist(tint), tlist(tint)))
 
     grammars = {}
     for task in tasks + testingTasks:

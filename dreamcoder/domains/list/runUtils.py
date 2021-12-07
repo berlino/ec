@@ -113,8 +113,8 @@ def list_options(parser):
 try:
     from dreamcoder.recognition import RecurrentFeatureExtractor
     class LearnedFeatureExtractor(RecurrentFeatureExtractor):
+        
         H = 64
-
         special = None
 
         def tokenize(self, examples):
@@ -147,6 +147,7 @@ try:
             return tokenized
 
         def __init__(self, tasks, testingTasks=[], cuda=False, grammar=None, featureExtractorArgs=None):
+            self.featureExtractorArgs = featureExtractorArgs
             self.lexicon = set(flatten((t.examples for t in tasks + testingTasks), abort=lambda x: isinstance(
                 x, str))).union({"LIST_START", "LIST_END", "?"})
 
@@ -282,16 +283,22 @@ def get_primitives(libraryName):
     prims = primLibraries[libraryName]
     return prims
 
-def get_extractor(tasks, baseGrammar, args):
+def get_extractor_class(extractorName):
     extractor = {
         "dummy": DummyFeatureExtractor,
         "learned": LearnedFeatureExtractor,
         "prop_sig": PropertySignatureExtractor,
         "combined": CombinedExtractor
-        }[args["extractor"]]
+        }[extractorName]
+    return extractor
 
-    if args["extractor"] == "learned":
-        raise NotImplementedError
+def get_extractor(tasks, baseGrammar, args):
+
+    extractorName = args.pop("extractor")
+    extractor = get_extractor_class(extractorName)
+
+    if extractorName == "learned":
+        return extractor(tasks=tasks, testingTasks=[], cuda=args["cuda"], grammar=baseGrammar, featureExtractorArgs=args)
 
     elif args["extractor"] == "prop_sig" or extractorName == "combined":
         featureExtractorArgs = args

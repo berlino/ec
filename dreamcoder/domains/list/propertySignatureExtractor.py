@@ -28,7 +28,7 @@ class PropertySignatureExtractor(nn.Module):
     
     def __init__(self, 
         tasksToSolve=[],
-        allTasks=None,
+        testingTasks=None,
         cuda=False, 
         H=64,
         embedSize=16,
@@ -54,7 +54,7 @@ class PropertySignatureExtractor(nn.Module):
         self.featureExtractorArgs = featureExtractorArgs
         self.grammar = grammar
 
-        self.allTasks = allTasks
+        self.allTasks = tasksToSolve + testingTasks
         self.tasksToSolve = tasksToSolve
         print("useEmbeddings: {}".format(self.useEmbeddings))
 
@@ -100,6 +100,7 @@ class PropertySignatureExtractor(nn.Module):
         if cuda:
             self.CUDA=True
             self.cuda()  # I think this should work?
+        self.device = torch.device("cuda") if cuda else torch.device("cpu")
 
         newProperties = self._getProperties()
         self.properties = newProperties if properties is None else newProperties + properties
@@ -256,7 +257,7 @@ class PropertySignatureExtractor(nn.Module):
             # propertyValue = getPropertyValue(propertyName, propertyProgram, t)
             booleanPropertyValues.append(taskPropertyValueToInt[propertyValue])
         
-        booleanPropSig = torch.LongTensor(booleanPropertyValues)
+        booleanPropSig = torch.tensor(booleanPropertyValues, device=self.device)
         self.booleanPropSig = booleanPropSig
 
         if self.useEmbeddings:
