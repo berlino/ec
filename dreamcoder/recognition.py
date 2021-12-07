@@ -888,7 +888,7 @@ class RecognitionModel(nn.Module):
             helmholtzRatio = 1.
 
         # Should we sample programs or use the enumerated programs?
-        randomHelmholtz = len(helmholtzFrontiers) == 0
+        self.randomHelmholtz = len(helmholtzFrontiers) == 0
         
         class HelmholtzEntry:
             def __init__(self, frontier, owner):
@@ -933,7 +933,7 @@ class RecognitionModel(nn.Module):
         
         helmholtzIndex = [0]
         def getHelmholtz():
-            if randomHelmholtz:
+            if self.randomHelmholtz:
                 if helmholtzIndex[0] >= len(helmholtzFrontiers):
                     updateHelmholtzTasks()
                     helmholtzIndex[0] = 0
@@ -949,12 +949,20 @@ class RecognitionModel(nn.Module):
 
             helmholtzIndex[0] += 1
             if helmholtzIndex[0] >= len(helmholtzFrontiers):
+                print("Ran out of enumerated helmholtz tasks, sampling the rest")
+                self.randomHelmholtz = True
+                helmholtzTasks = []
+                updateHelmholtzTasks()
                 helmholtzIndex[0] = 0
-                random.shuffle(helmholtzFrontiers)
-                if self.featureExtractor.recomputeTasks:
-                    for fp in helmholtzFrontiers:
-                        fp.clear()
-                    return getHelmholtz() # because we just cleared everything
+                return getHelmholtz()
+
+            # if helmholtzIndex[0] >= len(helmholtzFrontiers):
+            #     helmholtzIndex[0] = 0
+            #     random.shuffle(helmholtzFrontiers)
+            #     if self.featureExtractor.recomputeTasks:
+            #         for fp in helmholtzFrontiers:
+            #             fp.clear()
+            #         return getHelmholtz() # because we just cleared everything
             assert f.task is not None
             return f.makeFrontier()
             
@@ -963,7 +971,7 @@ class RecognitionModel(nn.Module):
             if updateCPUs > 1: eprint("Updating Helmholtz tasks with",updateCPUs,"CPUs",
                                       "while using",getThisMemoryUsage(),"memory")
             
-            if randomHelmholtz:
+            if self.randomHelmholtz:
                 newFrontiers = self.sampleManyHelmholtz(requests, helmholtzBatch, CPUs)
                 newEntries = []
                 for f in newFrontiers:
@@ -1134,10 +1142,6 @@ class RecognitionModel(nn.Module):
                             self.frontierBiasOptimal(frontier, auxiliary=auxLoss, vectorized=vectorized) if biasOptimal \
                             else self.frontierKL(frontier, auxiliary=auxLoss, vectorized=vectorized)
                     if loss is None:
-                        print(frontier)
-                        print(frontier.task.describe())
-                        print(self.featureExtractor.featuresOfTask(frontier.task))
-                        print("loss is None")
                         if not dreaming:
                             eprint("ERROR: Could not extract features during experience replay.")
                             eprint("Task is:",frontier.task)
@@ -1191,9 +1195,10 @@ class RecognitionModel(nn.Module):
                                 return bestModel
                             epCount += 1
                         eprint("\n(ID=%d): " % self.id, "Epoch", i, "Loss", mean(losses))
+                        eprint("(ID=%d): " % self.id, "\tvs MDL (w/o neural net)", mean(descriptionLengths))
+
                         if realLosses and dreamLosses:
                             eprint("(ID=%d): " % self.id, "\t\t(real loss): ", mean(realLosses), "\t(dream loss):", mean(dreamLosses))
-                        eprint("(ID=%d): " % self.id, "\tvs MDL (w/o neural net)", mean(descriptionLengths))
                         if realMDL and dreamMDL:
                             eprint("\t\t(real MDL): ", mean(realMDL), "\t(dream MDL):", mean(dreamMDL))
                         eprint("(ID=%d): " % self.id, "\t%d cumulative gradient steps. %f steps/sec"%(totalGradientSteps,
