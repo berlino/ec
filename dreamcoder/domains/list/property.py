@@ -60,8 +60,11 @@ def getTaskPropertyValues(f, task):
     for x,y in task.examples:
         try:
             value = task.predict(f, [x[0], y])
-            values.append(value)
+            # handwritten properties return None when there is an error
+            if value is not None:
+                values.append(value)
         except Exception as e:
+            print(e)
             pass
     return values
 
@@ -145,14 +148,14 @@ def getTaskPropertyValue(f, task):
     """
 
     taskPropertyValue = "mixed"
-    try:
-        exampleValues = [task.predict(f,[x[0], y]) for x,y in task.examples]
-        if all([value is False for value in exampleValues]):
-            taskPropertyValue = "allFalse"
-        elif all([value is True for value in exampleValues]):
-            taskPropertyValue = "allTrue"
 
-    except Exception as e:
+    exampleValues = getTaskPropertyValues(f, task)
+    if all([value is False for value in exampleValues]):
+        taskPropertyValue = "allFalse"
+    elif all([value is True for value in exampleValues]):
+        taskPropertyValue = "allTrue"
+
+    else:
         # print(str(e))
         # print("Task name: {}".format(task.name))
         # print("Task example input: {}".format(task.examples[0][0][0]))
