@@ -2219,10 +2219,9 @@ def process_hl_data():
 
 if __name__ == "__main__":
 
-    ## Generating new data for BIG-bench
-
+    ## Generating new data with variable input lengths
     for i, c in enumerate(model_comparison_wave_3_long(), 1):
-        process("/tmp",
+        process("data/wave3_long_inputs/",
                 i,
                 c,
                 n_trials=10,
