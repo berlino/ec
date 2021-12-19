@@ -300,12 +300,12 @@ def get_extractor(tasks, baseGrammar, args):
     if extractorName == "learned":
         return extractor(tasks=tasks, testingTasks=[], cuda=args["cuda"], grammar=baseGrammar, featureExtractorArgs=args)
 
-    elif args["extractor"] == "prop_sig" or extractorName == "combined":
+    elif extractorName == "prop_sig" or extractorName == "combined":
         featureExtractorArgs = args
 
         if args["propToUse"] == "handwritten":
             properties = getHandwrittenPropertiesFromTemplates(tasks)
-            featureExtractor = extractor(tasksToSolve=tasks, allTasks=tasks, grammar=baseGrammar, cuda=False, featureExtractorArgs=featureExtractorArgs, properties=properties)
+            featureExtractor = extractor(tasksToSolve=tasks, testingTasks=tasks, grammar=baseGrammar, cuda=False, featureExtractorArgs=featureExtractorArgs, properties=properties)
             print("Loaded {} properties from: {}".format(len(properties), "handwritten"))
         
         elif propToUse == "preloaded":
@@ -316,7 +316,7 @@ def get_extractor(tasks, baseGrammar, args):
                 properties = list(properties.values())[0]
                 # filter properties that are only on inputs
                 properties = [p for p in properties if "$0" in p.name]
-            featureExtractor = extractor(tasksToSolve=tasks, allTasks=tasks, grammar=baseGrammar, cuda=False, featureExtractorArgs=featureExtractorArgs, properties=properties)
+            featureExtractor = extractor(tasksToSolve=tasks, testingTasks=tasks, grammar=baseGrammar, cuda=False, featureExtractorArgs=featureExtractorArgs, properties=properties)
             print("Loaded {} properties from: {}".format(len(properties), propFilename))
         
         elif propToUse == "sample":
@@ -332,7 +332,7 @@ def get_extractor(tasks, baseGrammar, args):
 
                 grammar = getPropertySamplingGrammar(baseGrammar, propSamplingGrammarWeights, frontiers, pseudoCounts=1, seed=args["seed"])
                 try:
-                    featureExtractor = extractor(tasksToSolve=tasksToSolve, allTasks=tasks, grammar=grammar, cuda=False, featureExtractorArgs=featureExtractorArgs, propertyRequest=propertyRequest)
+                    featureExtractor = extractor(tasksToSolve=tasksToSolve, testingTasks=tasks, grammar=grammar, cuda=False, featureExtractorArgs=featureExtractorArgs, propertyRequest=propertyRequest)
                     for task in tasksToSolve:
                         allProperties[task] = allProperties.get(task, []) + featureExtractor.properties[task]
                 # assertion triggered if 0 properties enumerated

@@ -47,7 +47,7 @@ def iterative_propsim(args, tasks, baseGrammar, properties, initSampledFrontiers
             args["propToUse"], args["nSim"], args["weightedSim"], args["taskSpecificInputs"], args["seed"])
             # directory = DATA_DIR + "grammars/{}_primitives/enumerated_{}:{}".format(args["libraryName"], args["hmfSeed"], args["helmholtzFrontiers"].split(":")[0])
             # directory += ":{}/".format(args["numHelmFrontiers"]) if args["numHelmFrontiers"] is not None else "/"
-            path = "{}_{}".format(saveDir, propSimFilename)
+            path = "{}_{}_{}".format(saveDir, args["dataset"], propSimFilename)
             task2FittedGrammar = dill.load(open(path, "rb"))
             # we don't save this so assume 0 tasks solved
             tasksSolved = []
@@ -116,28 +116,29 @@ def main(args):
     if args["helmholtzFrontiers"] is not None: 
         dslDirectory, pklName = args["helmholtzFrontiers"].split("/")
         datasetName = pklName[:pklName.index(".pkl")]
-        saveDir = "{}helmholtz_frontiers/{}/{}_".format(DATA_DIR, dslDirectory, datasetName)
-        helmholtzFrontiers = loadEnumeratedTasks(filename=args["helmholtzFrontiers"], primitives=prims)[:100]
+        saveDir = "{}helmholtz_frontiers/{}/{}_{}".format(DATA_DIR, dslDirectory, datasetName, args["dataset"])
+        helmholtzFrontiers = loadEnumeratedTasks(filename=args["helmholtzFrontiers"], primitives=prims)
     else:
         datasetName = args["dataset"]
-        featureExtractor, _ = get_extractor(tasks, baseGrammar, args) 
+        featureExtractor, _ = get_extractor(tasks, baseGrammar, args)
         helmholtzFrontiers = enumerateHelmholtzOcaml(tasks, baseGrammar, enumerationTimeout=1800, CPUs=40, featureExtractor=featureExtractor, save=True, libraryName=args["libraryName"], datasetName=datasetName)    
 
     # # load/generate recognition model conditional grammar 
     # neuralGrammars = getGrammarsFromNeuralRecognizer(LearnedFeatureExtractor, tasks, tasks, baseGrammar, {"hidden": args["hidden"]}, helmholtzFrontiers, args["save"], saveDir, datasetName, args)
-    neuralGrammars = dill.load(open("data/prop_sig/helmholtz_frontiers/josh_rich_0_10_enumerated/13742_with_josh_fleet_0_10-inputs_neural_ep=False_RS=10000_RT=3600_hidden=64_r=0.0_contextual=False_josh_fleet_0_10_grammars.pkl", "rb"))
-    neuralPropsigGrammars = dill.load(open("data/prop_sig/helmholtz_frontiers/josh_rich_0_10_enumerated/13742_with_josh_fleet_0_10-inputs_prop_sig_neural_ep=False_RS=10000_RT=3600_hidden=64_r=0.0_contextual=False_josh_fleet_0_10_grammars.pkl", "rb"))
+    neuralGrammars = dill.load(open("data/prop_sig/helmholtz_frontiers/josh_rich_0_10_enumerated/13742_with_josh_fleet_0_10-inputs_neural_ep=False_RS=10000_RT=3600_hidden=64_r=0.0_contextual=False_josh_3_long_inputs_0_10_grammars.pkl", "rb"))
+    neuralPropsigGrammars = dill.load(open("data/prop_sig/helmholtz_frontiers/josh_rich_0_10_enumerated/13742_with_josh_fleet_0_10-inputs_prop_sig_neural_ep=False_RS=10000_RT=3600_hidden=64_r=0.0_contextual=False_josh_3_long_inputs_0_10_grammars.pkl", "rb"))
  
     # load/generate propSim conditional grammar
-    _, properties = get_extractor(tasks, baseGrammar, args) 
-    propsimGrammars = iterative_propsim(args, tasks, baseGrammar, properties, helmholtzFrontiers, saveDir=saveDir)
+    # _, properties = get_extractor(get_tasks("josh_fleet_0_10"), baseGrammar, args)
+    # propsimGrammars = iterative_propsim(args, tasks, baseGrammar, properties, helmholtzFrontiers, saveDir=saveDir)
+    propsimGrammars = dill.load(open("data/prop_sig/helmholtz_frontiers/josh_rich_0_10_enumerated/13742_with_josh_fleet_0_10-inputs__propSim_propToUse=handwritten_nSim=50_weightedSim=False_taskSpecificInputs=True_seed=0_grammars.pkl", "rb"))
     # editDistGrammars = getGrammarsFromEditDistSim(tasks, baseGrammar, sampledFrontiers, args["nSim"])
 
     # generate helmholtzfitted grammar
     helmholtzGrammar = baseGrammar.insideOutside(helmholtzFrontiers, pseudoCounts=1)
     
-    grammars = [neuralGrammars, propsimGrammars, neuralPropsigGrammars, helmholtzGrammar, baseGrammar]
-    modelNames = ["neural", "propsimGrammars", "neuralPropsig", "helmholtzFitted", "uniform"]
+    grammars = [propsimGrammars, neuralGrammars, neuralPropsigGrammars, helmholtzGrammar, baseGrammar]
+    modelNames = ["propsimGrammars", "neural", "neuralPropsig", "helmholtzFitted", "uniform"]
 
     if args["enumerationProxy"]:
         modelToLogPosteriors = enumerationProxy(grammars, tasks, modelNames, verbose=True)
