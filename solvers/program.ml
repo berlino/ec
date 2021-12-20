@@ -1190,6 +1190,11 @@ ignore(primitive "sum" (tlist tint @> tint) (
 ignore(primitive "unique" (tlist t0 @> tlist t0) (fun l -> List.dedup ~compare:(fun x y -> x - y) l));;
 ignore(primitive "flatten" ((tlist (tlist t0)) @> tlist t0) (List.concat)) ;;
 
+(*Automatic properties primitives *)
+ignore(primitive "toutput_to_tlist" (toutput @> tlist tint) (fun l -> l));;
+ignore(primitive "tinput_to_tlist" (tinput @> tlist tint) (fun l -> l));;
+
+
 (*
 ignore(primitive "true" (tboolean) (None)) ;;
 ignore(primitive "false" (tboolean) (None)) ;;

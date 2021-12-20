@@ -68,8 +68,7 @@ def getTaskPropertyValues(f, task):
             value = task.predict(f, [x[0], y])
             values.append(value)
         except Exception as e:
-            print(e)
-            pass
+            values.append(None)
     return values
 
 

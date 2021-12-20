@@ -61,7 +61,7 @@ def main(args):
         "josh_3.1": josh_primitives("3.1")[0],
         "josh_final": josh_primitives("final"),
         "property_prims": handWrittenProperties(),
-        "list_prims": bootstrapTarget_extra()
+        "dc_list_domain": bootstrapTarget_extra()
     }
     propertyPrimitives = nameToPrimitives[args["libraryName"]]
     if args["libraryName"] != "property_prims":
@@ -107,23 +107,18 @@ def main(args):
     featureExtractor = PropertySignatureExtractor(tasksToSolve=tasks, testingTasks=[], H=64, embedSize=16, helmholtzTimeout=0.001, helmholtzEvaluationTimeout=0.001,
             cuda=False, featureExtractorArgs=args, propertyGrammar=propertyGrammar,  grammar=grammar)
 
-    # helmholtzFrontiers = loadEnumeratedTasks(filename=args["helmholtzFrontiers"], primitives=dslPrimitives, numExamples=8)[:10000]
-    # # for f in helmholtzFrontiers:
-    # #     f.task = Task(f.task.name, f.task.request, f.task.examples, features=f.task.features, cache=f.task.cache, program=None, num_holdout=3)
-    # # dill.dump(helmholtzFrontiers, open("data/prop_sig/helmholtz_frontiers/josh_3_enumerated_1/79497_with_josh_3-inputs_2.pkl", "wb"))
+    helmholtzFrontiers = loadEnumeratedTasks(filename=args["helmholtzFrontiers"], primitives=dslPrimitives, numExamples=8)[:1000]
+    propertySimTasksMatrix = getPropertySimTasksMatrix([f.task for f in helmholtzFrontiers], featureExtractor.properties, VALUES_TO_INT)
+    propertyToPriorDistribution = getPriorDistributionsOfProperties(propertySimTasksMatrix, VALUES_TO_INT)
+    for i,p in enumerate(featureExtractor.properties):
+        p.setPropertyValuePriors(propertyToPriorDistribution[:, i], VALUES_TO_INT)
 
-
-    # propertySimTasksMatrix = getPropertySimTasksMatrix([f.task for f in helmholtzFrontiers], featureExtractor.properties, VALUES_TO_INT)
-    # propertyToPriorDistribution = getPriorDistributionsOfProperties(propertySimTasksMatrix, VALUES_TO_INT)
-    # for i,p in enumerate(featureExtractor.properties):
-    #     p.setPropertyValuePriors(propertyToPriorDistribution[:, i], VALUES_TO_INT)
-
-    # for t in tasks:
-    #     propertyScores = [(p, p.getPropertyValuePrior(p.getValue(t))) for p in featureExtractor.properties]
-    #     sortedPropertyScores = sorted([(p,score) for p,score in propertyScores], key=lambda el: el[1])
-    #     print("\n{}".format(t.describe()))
-    #     for p,score in sortedPropertyScores[:5]:
-    #         print(p.name, score, p.getValue(t))
+    for t in tasks:
+        propertyScores = [(p, p.getPropertyValuePrior(p.getValue(t))) for p in featureExtractor.properties]
+        sortedPropertyScores = sorted([(p,score) for p,score in propertyScores], key=lambda el: el[1])
+        print("\n{}".format(t.describe()))
+        for p,score in sortedPropertyScores[:5]:
+            print(p.name, score, p.getValue(t))
 
 if __name__ == "__main__":
     import argparse
