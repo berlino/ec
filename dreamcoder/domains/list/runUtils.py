@@ -13,6 +13,7 @@ from dreamcoder.utilities import flatten, numberOfCPUs
 DATA_DIR = "data/prop_sig/"
 SAMPLED_PROPERTIES_DIR = "sampled_properties/"
 GRAMMARS_DIR = "grammars/"
+PROP_RETURN_TYPES = [tbool]
 
 def list_options(parser):
 
@@ -317,12 +318,9 @@ def get_extractor(tasks, baseGrammar, args):
             print("Loaded {} properties from: {}".format(len(properties), propFilename))
         
         elif propToUse == "sample":
-            # only used if property sampling grammar weights are "fitted"
-            fileName = "enumerationResults/neuralRecognizer_2021-05-18 15:27:58.504808_t=600.pkl"
-            frontiers, times = dill.load(open(fileName, "rb"))
             allProperties = {}
             tasksToSolve = tasks[0:1]
-            returnTypes = [tbool]
+            returnTypes = PROP_RETURN_TYPES
 
             for returnType in returnTypes:
                 propertyRequest = arrow(tlist(tint), tlist(tint), returnType)

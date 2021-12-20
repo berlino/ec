@@ -12,6 +12,8 @@ OUTPUT_STR = "$0"
 MIN_LOG_PRIOR = -11
 DATA_DIR = "data/prop_sig/"
 SAMPLED_PROPERTIES_DIR = "sampled_properties/"
+# only used if property sampling grammar weights are "fitted"
+FRONTIERS_PKL = "enumerationResults/neuralRecognizer_2021-05-18 15:27:58.504808_t=600.pkl"
 
 def updateSavedPropertiesWithNewCacheTable(properties, propertiesPath):
 
@@ -36,6 +38,7 @@ def getPropertySamplingGrammar(baseGrammar, grammarName, frontiers, pseudoCounts
         random.seed(seed)
         grammar = baseGrammar.randomWeights(r=lambda oldWeight: -1 * random.uniform(0,5))
     elif grammarName == "fitted":
+        frontiers, times = dill.load(open(FRONTIERS_PKL, "rb"))
         frontiersToFitOn = [f for f in frontiers if (len(f.entries) > 0 and baseGrammar.logLikelihood(f.task.request, f.topK(1).entries[0].program) > MIN_LOG_PRIOR)]
         print("Fitting on {} frontiers with logPrior > {}".format(len(frontiersToFitOn), MIN_LOG_PRIOR))
         grammar = baseGrammar.insideOutside(frontiersToFitOn, pseudoCounts=pseudoCounts)

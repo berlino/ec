@@ -111,10 +111,6 @@ def main(args):
         for t in tasks:
             # parses program string and also executes to check that I/O matches parsed program
             t.parse_program(prims)
-    
-    print(baseGrammar)
-    print(tasks[0].describe())
-    print(tasks[0].program)
 
     # get helmholtz frontiers either by loading saved file, or by enumerating new ones
     if args["helmholtzFrontiers"] is not None: 
@@ -133,19 +129,23 @@ def main(args):
     # neuralPropsigGrammars = dill.load(open("data/prop_sig/helmholtz_frontiers/josh_rich_0_10_enumerated/13742_with_josh_fleet_0_10-inputs_prop_sig_neural_ep=False_RS=10000_RT=3600_hidden=64_r=0.0_contextual=False_josh_fleet_0_10_grammars.pkl", "rb"))
  
     # # load/generate propSim conditional grammar
-    # _, properties = get_extractor(tasks, baseGrammar, args) 
-    # propsimGrammars = iterative_propsim(args, tasks, baseGrammar, properties, helmholtzFrontiers, saveDir=saveDir)
+    _, handwrittenProperties = get_extractor(tasks, baseGrammar, args)
+    propsimGrammarsAutomatic = iterative_propsim(args, tasks, baseGrammar, properties, helmholtzFrontiers, saveDir=saveDir)
+
+    args["propToUse"] = "handwritten"
+    _, automaticProperties = get_extractor(tasks, baseGrammar, args)
+    propsimGrammarsHandwritten = iterative_propsim(args, tasks, baseGrammar, properties, helmholtzFrontiers, saveDir=saveDir)    
     # # editDistGrammars = getGrammarsFromEditDistSim(tasks, baseGrammar, sampledFrontiers, args["nSim"])
 
     # # generate helmholtzfitted grammar
     # helmholtzGrammar = baseGrammar.insideOutside(helmholtzFrontiers, pseudoCounts=1)
     
-    # grammars = [neuralGrammars, propsimGrammars, neuralPropsigGrammars, helmholtzGrammar, baseGrammar]
-    # modelNames = ["neural", "propsimGrammars", "neuralPropsig", "helmholtzFitted", "uniform"]
+    grammars = [propsimGrammarsAutomatic, propsimGrammarsHandwritten, helmholtzGrammar, baseGrammar]
+    modelNames = ["propsimGrammarsHandwritten", "propsimGrammarsAutomatic", "helmholtzFitted", "uniform"]
 
-    # if args["enumerationProxy"]:
-    #     modelToLogPosteriors = enumerationProxy(grammars, tasks, modelNames, verbose=True)
-    #     plotProxyResults(modelToLogPosteriors, save=True)
-    # else:
-    #     enumerateFromGrammars(args, tasks, grammars, modelNames, args["save"])
-    # return
+    if args["enumerationProxy"]:
+        modelToLogPosteriors = enumerationProxy(grammars, tasks, modelNames, verbose=True)
+        plotProxyResults(modelToLogPosteriors, save=True)
+    else:
+        enumerateFromGrammars(args, tasks, grammars, modelNames, args["save"])
+    return
