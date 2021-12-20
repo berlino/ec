@@ -87,9 +87,6 @@ def list_options(parser):
     parser.add_argument("--debug", action="store_true", default=False)
     parser.add_argument("--propCPUs", type=int, default=numberOfCPUs())
     parser.add_argument("--propSolver",default="ocaml",type=str)
-    parser.add_argument("--propEnumerationTimeout",default=1,type=float)
-    parser.add_argument("--propUseConjunction", action="store_true", default=False)
-    parser.add_argument("--propAddZeroToNinePrims", action="store_true", default=False)
     parser.add_argument("--propScoringMethod", default="unique_task_signature", choices=[
         "per_task_discrimination",
         "unique_task_signature",

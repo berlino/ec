@@ -21,9 +21,6 @@ class Property:
     def __str__(self):
         return self.name
 
-    # def __eq__(self, other):
-    #     return self.name == other.name
-
     def updateCachedTaskEvaluations(self, task, value):
         key = task.describe()
         if key in self.cachedTaskEvaluations and (self.cachedTaskEvaluations[key] != value):
@@ -44,6 +41,15 @@ class Property:
     def getTaskSignature(self, tasks):
         return [self.getValue(task) for task in tasks]
 
+    def setPropertyValuePriors(self, propertyToPriorDistribution, valuesToInt):
+        self.valuePriors = {key: propertyToPriorDistribution[valuesToInt[key]] for key in valuesToInt.keys()}
+        return
+
+    def getPropertyValuePrior(self, value):
+        if self.valuePriors is None:
+            raise Exception("property value priors not set")
+        else:
+            return self.valuePriors[value]
 
 def getTaskPropertyValues(f, task):
     """
@@ -60,9 +66,7 @@ def getTaskPropertyValues(f, task):
     for x,y in task.examples:
         try:
             value = task.predict(f, [x[0], y])
-            # handwritten properties return None when there is an error
-            if value is not None:
-                values.append(value)
+            values.append(value)
         except Exception as e:
             print(e)
             pass
@@ -148,13 +152,12 @@ def getTaskPropertyValue(f, task):
     """
 
     taskPropertyValue = "mixed"
-
     exampleValues = getTaskPropertyValues(f, task)
+    
     if all([value is False for value in exampleValues]):
         taskPropertyValue = "allFalse"
     elif all([value is True for value in exampleValues]):
         taskPropertyValue = "allTrue"
-
     else:
         # print(str(e))
         # print("Task name: {}".format(task.name))

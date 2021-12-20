@@ -253,16 +253,15 @@ def createSimilarTasksDf(
     return simDf, allFrontiers, sortedPropAndScores
 
 
-def getPriorDistributionsOfProperties(properties, propertySimTasksMatrix, valuesToInt):
+def getPriorDistributionsOfProperties(propertySimTasksMatrix, valuesToInt):
     """
     Calculates the prior distribution of each property from propertySimTasksMatrix.
 
     Args:
-        properties (list(Property)): List of properties
         propertySimTasksMatrix (np.ndarray): 2d numpy array of size (len(allFrontiers), len(properties))
 
     Returns:
-
+        probs: (len(set(values_to_int.keys())), len(properties))
     """
 
     def getDistributionOfVector(vector, uniqueValues, pseudoCounts=1):
@@ -274,7 +273,7 @@ def getPriorDistributionsOfProperties(properties, propertySimTasksMatrix, values
         return normalizedCounts
 
     # matrix of size (number of unique values, properties) with probalities of property values
-    uniqueValues = set(value for value in valuesToInt.values())
+    uniqueValues = sorted(list(set(value for value in valuesToInt.values())))
     probs = np.zeros((len(uniqueValues), propertySimTasksMatrix.shape[1]))
     for i in range(propertySimTasksMatrix.shape[1]):
         probs[:, i] = getDistributionOfVector(propertySimTasksMatrix[:, i], uniqueValues)
@@ -289,9 +288,9 @@ def _getSimTaskMatrixAndPropertyPriors(allTasks, frontiers, properties, valuesTo
     print("Finished Creating Similar Task Matrix with size: {}".format(propertySimTasksMatrix.shape))
     if computePriorFromTasks:
         propertyValsMatrix = getPropertySimTasksMatrix(allTasks, properties, valuesToInt)
-        propertyToPriorDistribution = getPriorDistributionsOfProperties(properties, propertyValsMatrix, valuesToInt)
+        propertyToPriorDistribution = getPriorDistributionsOfProperties(propertyValsMatrix, valuesToInt)
     else:
-        propertyToPriorDistribution = getPriorDistributionsOfProperties(properties, propertySimTasksMatrix, valuesToInt)
+        propertyToPriorDistribution = getPriorDistributionsOfProperties(propertySimTasksMatrix, valuesToInt)
         print("propertyToPriorDistribution", propertyToPriorDistribution.shape)
     return propertySimTasksMatrix, propertyToPriorDistribution
 

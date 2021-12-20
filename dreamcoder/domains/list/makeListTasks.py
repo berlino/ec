@@ -8,6 +8,8 @@ from dreamcoder.utilities import eprint, hashable
 from random import randint, random, seed
 from itertools import product
 
+NUM_HOLDOUT = 3
+
 def replace_with_valid_prim_names(program_string):
     primitive_name_to_valid_dsl_name = {
         "<": "lt?",
@@ -60,7 +62,7 @@ def joshTasks(w):
 
             task = Task(name,
                         arrow(tlist(tint),tlist(tint)),
-                        [((ast.literal_eval("["+i+"]"),),ast.literal_eval("["+o+"]")) for i,o in data], program=program_string, num_holdout=3)
+                        [((ast.literal_eval("["+i+"]"),),ast.literal_eval("["+o+"]")) for i,o in data], program=program_string, num_holdout=NUM_HOLDOUT)
             ts.append(task)
         return list(sorted(ts,key=lambda t: t.name))
 
@@ -85,7 +87,7 @@ def joshTasks(w):
             task = Task(name,
                            arrow(tlist(tint),tlist(tint)),
                            [((e["i"],),e["o"])
-                            for e in data["data"]], program=program_string)
+                            for e in data["data"]], program=program_string, num_holdout=NUM_HOLDOUT)
             # assert that ground truth program is correct for task
             ts.append(task)
 

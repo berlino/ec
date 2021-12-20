@@ -36,6 +36,7 @@ class PropertySignatureExtractor(nn.Module):
         helmholtzTimeout=0.25,
         # What should be the timeout for running a Helmholtz program?
         helmholtzEvaluationTimeout=0.01,
+        propertyGrammar=None,
         grammar=None,
         featureExtractorArgs={},
         propertyRequest=arrow(tlist(tint), tlist(tint), tbool),
@@ -53,6 +54,7 @@ class PropertySignatureExtractor(nn.Module):
         self.useEmbeddings = featureExtractorArgs["propUseEmbeddings"]
         self.featureExtractorArgs = featureExtractorArgs
         self.grammar = grammar
+        self.propertyGrammar = propertyGrammar
 
         self.allTasks = tasksToSolve + testingTasks
         self.tasksToSolve = tasksToSolve
@@ -180,7 +182,7 @@ class PropertySignatureExtractor(nn.Module):
 
         
         elif self.featureExtractorArgs["propToUse"] == "sample":
-            self.propertyGrammar = self._getPropertyGrammar()
+            self.propertyGrammar = self.propertyGrammar if self.propertyGrammar is not None else self._getPropertyGrammar()
             properties, likelihoodModel = enumerateProperties(self.featureExtractorArgs, self.propertyGrammar, self.propertyTasksToSolve, self.propertyRequest, allTasks=self.propertyAllTasks)
             print("Loaded {} properties by enumerating for {}s".format(len(properties), self.featureExtractorArgs["propEnumerationTimeout"]))
             for p in properties:
