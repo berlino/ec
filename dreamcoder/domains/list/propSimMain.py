@@ -132,18 +132,18 @@ def main(args):
     # neuralPropsigGrammars = dill.load(open("data/prop_sig/helmholtz_frontiers/josh_rich_0_10_enumerated/13742_with_josh_fleet_0_10-inputs_prop_sig_neural_ep=False_RS=10000_RT=3600_hidden=64_r=0.0_contextual=False_josh_fleet_0_10_grammars.pkl", "rb"))
  
     # # load/generate propSim conditional grammar
-    _, handwrittenProperties = get_extractor(tasks, baseGrammar, args)
-    propsimGrammarsAutomatic = iterative_propsim(args, tasks, baseGrammar, handwrittenProperties, helmholtzFrontiers, saveDir=saveDir)
+    _, automaticProperties = get_extractor(tasks, baseGrammar, args)
+    propsimGrammarsAutomatic = iterative_propsim(args, tasks, baseGrammar, automaticProperties, helmholtzFrontiers, saveDir=saveDir)
 
     args["propToUse"] = "handwritten"
-    _, automaticProperties = get_extractor(tasks, baseGrammar, args)
-    propsimGrammarsHandwritten = iterative_propsim(args, tasks, baseGrammar, automaticProperties, helmholtzFrontiers, saveDir=saveDir)    
+    _, handwrittenProperties = get_extractor(tasks, baseGrammar, args)
+    propsimGrammarsHandwritten = iterative_propsim(args, tasks, baseGrammar, handwrittenProperties, helmholtzFrontiers, saveDir=saveDir)    
     # # editDistGrammars = getGrammarsFromEditDistSim(tasks, baseGrammar, sampledFrontiers, args["nSim"])
 
     # generate helmholtzfitted grammar
     helmholtzGrammar = baseGrammar.insideOutside(helmholtzFrontiers, pseudoCounts=1) 
     grammars = [propsimGrammarsAutomatic, propsimGrammarsHandwritten, helmholtzGrammar, baseGrammar]
-    modelNames = ["propsimGrammarsHandwritten", "propsimGrammarsAutomatic", "helmholtzFitted", "uniform"]
+    modelNames = ["propsimGrammarsAutomatic", "propsimGrammarsHandwritten", "helmholtzFitted", "uniform"]
 
     if args["enumerationProxy"]:
         modelToLogPosteriors = enumerationProxy(grammars, tasks, modelNames, verbose=True)

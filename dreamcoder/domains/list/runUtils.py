@@ -326,7 +326,7 @@ def get_extractor(tasks, baseGrammar, args):
             propertyRequest = arrow(tlist(tint), tlist(tint), tbool)
             propertyGrammar = getPropertySamplingGrammar(baseGrammar, args["propSamplingGrammarWeights"], args, pseudoCounts=1, seed=args["seed"])
             try:        
-                featureExtractor = extractor(tasksToSolve=tasksToSolve, testingTasks=[], grammar=baseGrammar, propertyGrammar=propertyGrammar, cuda=False, featureExtractorArgs=featureExtractorArgs, propertyRequest=propertyRequest)
+                featureExtractor = extractor(tasksToSolve=tasksToSolve, testingTasks=tasks, grammar=baseGrammar, propertyGrammar=propertyGrammar, cuda=False, featureExtractorArgs=featureExtractorArgs, propertyRequest=propertyRequest)
             except AssertionError:
                 raise Exception("0 properties found")
 
