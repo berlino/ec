@@ -2,11 +2,15 @@ import dill
 import numpy as np
 import random
 
+from dreamcoder.domains.list.handwrittenProperties import tinput, toutput
 from dreamcoder.domains.list.property import Property
-from dreamcoder.domains.list.utilsProperties import convertToPropertyTasks
 from dreamcoder.domains.list.propSim import getPropertySimTasksMatrix
+from dreamcoder.domains.list.utilsProperties import convertToPropertyTasks
 from dreamcoder.enumeration import multicoreEnumeration
+from dreamcoder.grammar import Grammar
 from dreamcoder.likelihoodModel import TaskDiscriminationScore, UniqueTaskSignatureScore, TaskSurprisalScore
+from dreamcoder.program import Primitive
+from dreamcoder.type import *
 
 OUTPUT_STR = "$0"
 MIN_LOG_PRIOR = -11
@@ -32,8 +36,32 @@ def updateSavedPropertiesWithNewCacheTable(properties, propertiesPath):
     print("Updating cache table and rewriting properties at: {}".format(propertiesPath))
     return
 
+def addPropSpecificPrimitives(args, propertyGrammar):
 
-def getPropertySamplingGrammar(baseGrammar, grammarName, frontiers, pseudoCounts=1, seed=0):
+    propertyPrimitives = propertyGrammar.primitives
+    if args["libraryName"] != "property_prims":
+        toutputToList = Primitive("toutput_to_tlist", arrow(toutput, tlist(tint)), lambda x: x)
+        tinputToList = Primitive("tinput_to_tlist", arrow(tinput, tlist(tint)), lambda x: x)
+        propertyPrimitives = propertyPrimitives + [tinputToList, toutputToList]
+
+    if args["propAddZeroToNinePrims"]:
+        for i in range(10):
+            if str(i) not in [primitive.name for primitive in propertyPrimitives]:
+                propertyPrimitives.append(Primitive(str(i), tint, i))
+    else:
+        zeroToNinePrimitives = set([str(i) for i in range(10)])
+        propertyPrimitives = [p for p in propertyPrimitives if p.name not in zeroToNinePrimitives]
+
+    if args["propUseConjunction"]:
+        propertyPrimitives.append(Primitive("and", arrow(tbool, tbool, tbool), lambda a: lambda b: a and b))
+
+    expression2likelihood = propertyGrammar.expression2likelihood
+    productions = [(expression2likelihood.get(p, 0.0), p) for p in propertyPrimitives]
+    propertyGrammar = Grammar.fromProductions(productions)
+    return propertyGrammar
+
+def getPropertySamplingGrammar(baseGrammar, grammarName, args, pseudoCounts=1, seed=0):
+
     if grammarName == "random":
         random.seed(seed)
         grammar = baseGrammar.randomWeights(r=lambda oldWeight: -1 * random.uniform(0,5))
@@ -46,6 +74,8 @@ def getPropertySamplingGrammar(baseGrammar, grammarName, frontiers, pseudoCounts
         grammar = baseGrammar
     else:
         raise Exception("Provided sampling grammar weights argument: {} is invalid".format(grammarName))
+
+    grammar = addPropSpecificPrimitives(args, grammar)
     return grammar
 
 

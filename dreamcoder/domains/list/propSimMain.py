@@ -117,11 +117,14 @@ def main(args):
         dslDirectory, pklName = args["helmholtzFrontiers"].split("/")
         datasetName = pklName[:pklName.index(".pkl")]
         saveDir = "{}helmholtz_frontiers/{}/{}_".format(DATA_DIR, dslDirectory, datasetName)
-        helmholtzFrontiers = loadEnumeratedTasks(filename=args["helmholtzFrontiers"], primitives=prims)[:100]
+        helmholtzFrontiers = loadEnumeratedTasks(filename=args["helmholtzFrontiers"], primitives=prims, numExamples=8)
     else:
         datasetName = args["dataset"]
         featureExtractor, _ = get_extractor(tasks, baseGrammar, args) 
-        helmholtzFrontiers = enumerateHelmholtzOcaml(tasks, baseGrammar, enumerationTimeout=1800, CPUs=40, featureExtractor=featureExtractor, save=True, libraryName=args["libraryName"], datasetName=datasetName)    
+        helmholtzFrontiers = enumerateHelmholtzOcaml(tasks, baseGrammar, enumerationTimeout=1800, CPUs=40, featureExtractor=featureExtractor, save=True, libraryName=args["libraryName"], datasetName=datasetName)
+    
+    helmholtzFrontiers = helmholtzFrontiers[:10000]
+    print("Loaded {} helmholtz frontiers".format(len(helmholtzFrontiers)))
 
     # # # load/generate recognition model conditional grammar 
     # # neuralGrammars = getGrammarsFromNeuralRecognizer(LearnedFeatureExtractor, tasks, tasks, baseGrammar, {"hidden": args["hidden"]}, helmholtzFrontiers, args["save"], saveDir, datasetName, args)
@@ -130,16 +133,15 @@ def main(args):
  
     # # load/generate propSim conditional grammar
     _, handwrittenProperties = get_extractor(tasks, baseGrammar, args)
-    propsimGrammarsAutomatic = iterative_propsim(args, tasks, baseGrammar, properties, helmholtzFrontiers, saveDir=saveDir)
+    propsimGrammarsAutomatic = iterative_propsim(args, tasks, baseGrammar, handwrittenProperties, helmholtzFrontiers, saveDir=saveDir)
 
     args["propToUse"] = "handwritten"
     _, automaticProperties = get_extractor(tasks, baseGrammar, args)
-    propsimGrammarsHandwritten = iterative_propsim(args, tasks, baseGrammar, properties, helmholtzFrontiers, saveDir=saveDir)    
+    propsimGrammarsHandwritten = iterative_propsim(args, tasks, baseGrammar, automaticProperties, helmholtzFrontiers, saveDir=saveDir)    
     # # editDistGrammars = getGrammarsFromEditDistSim(tasks, baseGrammar, sampledFrontiers, args["nSim"])
 
-    # # generate helmholtzfitted grammar
-    # helmholtzGrammar = baseGrammar.insideOutside(helmholtzFrontiers, pseudoCounts=1)
-    
+    # generate helmholtzfitted grammar
+    helmholtzGrammar = baseGrammar.insideOutside(helmholtzFrontiers, pseudoCounts=1) 
     grammars = [propsimGrammarsAutomatic, propsimGrammarsHandwritten, helmholtzGrammar, baseGrammar]
     modelNames = ["propsimGrammarsHandwritten", "propsimGrammarsAutomatic", "helmholtzFitted", "uniform"]
 

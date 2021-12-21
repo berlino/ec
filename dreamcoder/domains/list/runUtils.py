@@ -1,3 +1,4 @@
+import dill
 import torch.nn as nn
 import torch
 
@@ -5,6 +6,7 @@ from dreamcoder.domains.list.handwrittenProperties import handWrittenProperties,
 from dreamcoder.domains.list.listPrimitives import basePrimitives, primitives, McCarthyPrimitives, bootstrapTarget_extra, no_length, josh_primitives
 from dreamcoder.domains.list.makeListTasks import make_list_bootstrap_tasks, sortBootstrap, EASYLISTTASKS, joshTasks
 from dreamcoder.domains.list.propertySignatureExtractor import PropertySignatureExtractor
+from dreamcoder.domains.list.utilsPropertySampling import getPropertySamplingGrammar
 from dreamcoder.recognition import DummyFeatureExtractor, RecognitionModel
 from dreamcoder.task import Task
 from dreamcoder.type import Context, arrow, tbool, tlist, tint, t0, UnificationFailure
@@ -101,8 +103,8 @@ def list_options(parser):
         "preloaded",
         "sample"
         ])
-    parser.add_argument("--propSamplingGrammarWeights", default="uniform", choices=[
-        "uniform",
+    parser.add_argument("--propSamplingGrammarWeights", default="same", choices=[
+        "same",
         "fitted",
         "random"
         ])
@@ -292,21 +294,21 @@ def get_extractor_class(extractorName):
 
 def get_extractor(tasks, baseGrammar, args):
 
-    extractorName = args.pop("extractor")
+    extractorName = args["extractor"]
     extractor = get_extractor_class(extractorName)
 
     if extractorName == "learned":
         return extractor(tasks=tasks, testingTasks=[], cuda=args["cuda"], grammar=baseGrammar, featureExtractorArgs=args)
 
-    elif args["extractor"] == "prop_sig" or extractorName == "combined":
+    elif extractorName == "prop_sig" or extractorName == "combined":
         featureExtractorArgs = args
 
         if args["propToUse"] == "handwritten":
             properties = getHandwrittenPropertiesFromTemplates(tasks)
-            featureExtractor = extractor(tasksToSolve=tasks, allTasks=tasks, grammar=baseGrammar, cuda=False, featureExtractorArgs=featureExtractorArgs, properties=properties)
+            featureExtractor = extractor(tasksToSolve=tasks, testingTasks=[], grammar=baseGrammar, cuda=False, featureExtractorArgs=featureExtractorArgs, properties=properties)
             print("Loaded {} properties from: {}".format(len(properties), "handwritten"))
         
-        elif propToUse == "preloaded":
+        elif args["propToUse"] == "preloaded":
             assert propFilename is not None
             properties = dill.load(open(DATA_DIR + SAMPLED_PROPERTIES_DIR + propFilename, "rb"))
             if isinstance(properties, dict):
@@ -314,25 +316,22 @@ def get_extractor(tasks, baseGrammar, args):
                 properties = list(properties.values())[0]
                 # filter properties that are only on inputs
                 properties = [p for p in properties if "$0" in p.name]
-            featureExtractor = extractor(tasksToSolve=tasks, allTasks=tasks, grammar=baseGrammar, cuda=False, featureExtractorArgs=featureExtractorArgs, properties=properties)
+            featureExtractor = extractor(tasksToSolve=tasks, testingTasks=[], grammar=baseGrammar, cuda=False, featureExtractorArgs=featureExtractorArgs, properties=properties)
             print("Loaded {} properties from: {}".format(len(properties), propFilename))
         
-        elif propToUse == "sample":
+        elif args["propToUse"] == "sample":
             allProperties = {}
             tasksToSolve = tasks[0:1]
-            returnTypes = PROP_RETURN_TYPES
 
-            for returnType in returnTypes:
-                propertyRequest = arrow(tlist(tint), tlist(tint), returnType)
+            propertyRequest = arrow(tlist(tint), tlist(tint), tbool)
+            propertyGrammar = getPropertySamplingGrammar(baseGrammar, args["propSamplingGrammarWeights"], args, pseudoCounts=1, seed=args["seed"])
+            try:        
+                featureExtractor = extractor(tasksToSolve=tasksToSolve, testingTasks=[], grammar=baseGrammar, propertyGrammar=propertyGrammar, cuda=False, featureExtractorArgs=featureExtractorArgs, propertyRequest=propertyRequest)
+            except AssertionError:
+                raise Exception("0 properties found")
 
-                grammar = getPropertySamplingGrammar(baseGrammar, propSamplingGrammarWeights, frontiers, pseudoCounts=1, seed=args["seed"])
-                try:
-                    featureExtractor = extractor(tasksToSolve=tasksToSolve, allTasks=tasks, grammar=grammar, cuda=False, featureExtractorArgs=featureExtractorArgs, propertyRequest=propertyRequest)
-                    for task in tasksToSolve:
-                        allProperties[task] = allProperties.get(task, []) + featureExtractor.properties[task]
-                # assertion triggered if 0 properties enumerated
-                except AssertionError:
-                    print("0 properties found")
+            for task in tasksToSolve:
+                allProperties[task] = allProperties.get(task, []) + featureExtractor.properties
             
             for task in tasksToSolve:
                 print("Found {} properties for task {}".format(len(allProperties.get(task, [])), task))
@@ -340,12 +339,18 @@ def get_extractor(tasks, baseGrammar, args):
                     print("program: {} \nreturnType: {} \nprior: {:.2f} \nscore: {:.2f}".format(p, p.request.returns(), p.logPrior, p.score))
                     print("-------------------------------------------------------------")
 
-            if save:
-                filename = "sampled_properties_weights={}_sampling_timeout={}s_return_types={}_seed={}.pkl".format(
-                    propSamplingGrammarWeights, int(featureExtractorArgs["propEnumerationTimeout"]), returnTypes, args["seed"])
+            if args["save"]:
+                filename = "sampled_properties_weights={}_sampling_timeout={}s_seed={}.pkl".format(
+                    args["propSamplingGrammarWeights"], int(featureExtractorArgs["propEnumerationTimeout"]), args["seed"])
                 savePath = DATA_DIR + SAMPLED_PROPERTIES_DIR + filename
                 dill.dump(allProperties, open(savePath, "wb"))
                 print("Saving sampled properties at: {}".format(savePath))
                 print("Saving sampled properties at: {}".format(savePath))
+                
+            properties = set()
+            for values in allProperties.values():
+                for p in values:
+                    properties.add(p)
+            properties = list(properties)
 
         return featureExtractor, properties
