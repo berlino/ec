@@ -98,7 +98,7 @@ def enumerateProperties(args, propertyGrammar, tasksToSolve, propertyRequest, al
                                                  enumerationTimeout= args["propEnumerationTimeout"], CPUs=args["propCPUs"],
                                                  evaluationTimeout=0.1,
                                                  testing=True, likelihoodModel=likelihoodModel)
-    print(frontiers)
+    
     # def parseAndScore(entry, propertyTask, likelihoodModel):
     #    program = Program.parse(entry["programs"][0])
     #    keep, propScore = likelihoodModel.score(program, propertyTask, str(program), propertyTask.request)

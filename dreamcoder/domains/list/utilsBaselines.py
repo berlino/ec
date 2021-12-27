@@ -69,7 +69,7 @@ def getGrammarsFromEditDistSim(tasks, baseGrammar, sampledFrontiers, nSim, weigh
 
 def getGrammarsFromNeuralRecognizer(extractor, tasks, testingTasks, baseGrammar, featureExtractorArgs, sampledFrontiers, save, saveDirectory, datasetName, args, pklFile=None):
 
-    recognitionModel = RecognitionModel(
+    recognizer = RecognitionModel(
     featureExtractor=extractor(tasks, grammar=baseGrammar, testingTasks=testingTasks, cuda=torch.cuda.is_available(), featureExtractorArgs=featureExtractorArgs),
     grammar=baseGrammar,
     cuda=torch.cuda.is_available(),
@@ -105,12 +105,12 @@ def getGrammarsFromNeuralRecognizer(extractor, tasks, testingTasks, baseGrammar,
         # count how many tasks can be tokenized
         excludeIdx = []
         for i,f in enumerate(sampledFrontiers):
-            if recognitionModel.featureExtractor.featuresOfTask(f.task) is None:
+            if recognizer.featureExtractor.featuresOfTask(f.task) is None:
                 excludeIdx.append(i)
         sampledFrontiers = [f for i,f in enumerate(sampledFrontiers) if i not in excludeIdx]
         print("Can't get featuresOfTask for {} tasks. Now have {} frontiers".format(len(excludeIdx), len(sampledFrontiers)))
 
-        trainedRecognizer = recognitionModel.trainRecognizer(
+        trainedRecognizer = recognizer.trainRecognizer(
         frontiers = [],
         helmholtzFrontiers=sampledFrontiers,
         helmholtzRatio=helmholtzRatio,

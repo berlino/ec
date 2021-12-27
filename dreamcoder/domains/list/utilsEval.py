@@ -1,6 +1,7 @@
 import datetime
 import dill
 
+from dreamcoder.domains.list.utilsPlotting import plotFrontiers
 from dreamcoder.enumeration import multicoreEnumeration
 from dreamcoder.grammar import Grammar
 
@@ -30,17 +31,20 @@ def enumerateFromGrammar(grammars, tasks, modelName, enumerationTimeout, solver,
         print("Saved enumeration results at: {}".format(savePath))
     return bottomUpFrontiers, allRecognitionTimes
 
-def enumerateFromGrammars(args, tasks, allGrammars, modelNames, save):
+def enumerateFromGrammars(args, tasks, allGrammars, modelNames, save, plotName):
 
     enumerationTimeout, solver, maximumFrontier, CPUs = args.pop("enumerationTimeout"), args.pop("solver"), args.pop("maximumFrontier"), args.pop("CPUs")
-
+    
+    enumerationResults = []
     for g, modelName in zip(allGrammars, modelNames):
          print("grammar for first task: {}".format(g if isinstance(g, Grammar) else list(g.values())[0]))
          bottomUpFrontiers, allRecognitionTimes = enumerateFromGrammar(g, tasks, modelName, enumerationTimeout, solver, CPUs, maximumFrontier, leaveHoldout=True, save=save)
+         enumerationResults.append((bottomUpFrontiers, allRecognitionTimes))
          nonEmptyFrontiers = [f for f in bottomUpFrontiers if not f.empty]
          numTasksSolved = len([f.task for f in nonEmptyFrontiers if f.task.check(f.topK(1).entries[0].program, timeout=1.0, leaveHoldout=False)])
          print("Enumerating from {} grammars for {} seconds: {} / {} actually true for holdout example".format(modelName, enumerationTimeout, numTasksSolved, len(nonEmptyFrontiers)))
-
+    
+    plotFrontiers(modelNames, enumerationResults=enumerationResults, save=True, plotName=plotName)
     return
 
 def enumerationProxy(task2FittedGrammars, tasks, modelNames, verbose=False):

@@ -8,25 +8,31 @@ DATA_DIR = "data/prop_sig/"
 ENUMERATION_RESULTS_DIR = "enumerationResults/"
 SAMPLED_PROPERTIES_DIR = "sampled_properties/"
 
-def plotFrontiers(fileNames, modelNames, save=True):
+def plotFrontiers(modelNames, fileNames=None, enumerationResults=None, save=True, plotName="enumerationTimes"):
+
+    if enumerationResults is None:
+        if fileNames is None:
+            assert Exception("You must either provide the filenames of the pickled enumeration results or the results themselves")
+        else:
+            enumerationResults = [(frontiers, times) for fileName in dill.load(open(ENUMERATION_RESULTS_DIR + fileName, "rb"))]    
 
     plt.rcParams["axes.prop_cycle"] = plt.cycler("color", plt.cm.jet(np.linspace(0,1, len(modelNames))))
 
-    for fileName, modelName in zip(fileNames, modelNames):
-        frontiers, times = dill.load(open(ENUMERATION_RESULTS_DIR + fileName, "rb"))
-
+    for enumerationResult, modelName in zip(enumerationResults, modelNames):
+        
+        frontiers, times = enumerationResult
         satisfiesHoldout = lambda f: f.task.check(f.topK(1).entries[0].program, timeout=1.0, leaveHoldout=False)
 
         nonEmptyFrontiers = [f for f in frontiers if len(f.entries) > 0]
         logPosteriors = sorted([-f.bestPosterior.logPosterior for f in nonEmptyFrontiers if satisfiesHoldout(f)])
-        print("{}: {} / {}".format(fileName, len(logPosteriors), len(nonEmptyFrontiers)))
+        print("{}: {} / {}".format(modelName, len(logPosteriors), len(nonEmptyFrontiers)))
         plt.plot(logPosteriors, [i / len(frontiers) for i in range(len(logPosteriors))], label=modelName, alpha=0.6)
 
     plt.ylim(bottom=0, top=1)
     plt.legend()
     plt.show()
     if save:
-        plt.savefig("enumerationResults/enumerationTimes.png")
+        plt.savefig("enumerationResults/{}.png".format(plotName))
     return
 
 def plotProxyResults(modelToLogPosteriors, save=True):

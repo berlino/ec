@@ -3,7 +3,7 @@ from dreamcoder.grammar import *
 from dreamcoder.program import *
 
 from itertools import chain
-import time
+from time import time
 
 
 class FragmentGrammar(object):
@@ -330,7 +330,8 @@ class FragmentGrammar(object):
                              if f not in bestGrammar.primitives
                              and defragment(f) not in bestGrammar.primitives]
                 eprint("Proposed %d fragments." % len(fragments))
-
+                for f in fragments:
+                    eprint("Fragment: {}".format(f))
                 candidateGrammars = [
                     FragmentGrammar.uniform(
                         bestGrammar.primitives +
@@ -376,6 +377,7 @@ class FragmentGrammar(object):
                 eprint(
                     "\t(<uses> in rewritten frontiers: %f)" %
                     (bestGrammar.expectedUses(frontiers).actualUses[concretePrimitive]))
+                break
         else:
             eprint("Skipping fragment proposals")
 

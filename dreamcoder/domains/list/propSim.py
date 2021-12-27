@@ -1,10 +1,11 @@
-
 import dill
 import numpy as np
 import pandas as pd
+from dreamcoder.compression import induceGrammar
 from dreamcoder.grammar import Grammar
+from dreamcoder.fragmentGrammar import FragmentGrammar
 from dreamcoder.program import Program
-from dreamcoder.utilities import vprint
+from dreamcoder.utilities import vprint, numberOfCPUs
 
 from dreamcoder.domains.list.utilsProperties import createFrontiersWithInputsFromTask
 
@@ -87,11 +88,6 @@ def getTaskSimilarFrontier(
         frontiersToUse.append(matchingFrontiers[idx])
         frontierWeights.append(simDf.loc[idx, "score"])
        
-        if nSim == (-1):
-            totalPosteriorSum += simDf.loc[idx, "score"]
-            if totalPosteriorSum > THRESHOLD_POSTERIOR_SUM:
-                return frontiersToUse, frontierWeights, solved
-
     return frontiersToUse, frontierWeights, solved
 
 
@@ -339,29 +335,55 @@ def getPropSimGrammars(
     if not recomputeTasksWithTaskSpecificInputs and computePriorFromTasks and propSimIteration == 0:
         propertySimTasksMatrix, propertyToPriorDistribution = _getSimTaskMatrixAndPropertyPriors(allTasks, sampledFrontiers[tasksToSolve[0]], properties, valuesToInt, True)
 
-    for taskIdx,task in enumerate(allTasks):
-        # use the sampled programs to create new specs with the same inputs as the task we want to solve
+    for taskIdx,task in enumerate(allTasks):    
         if task in tasksToSolve:
             similarFrontiers, weights, solved = getTaskSimilarFrontier(task2Frontiers[task], task2Properties[task], propertySimTasksMatrix, valuesToInt, allTasks, taskIdx, task2Grammar[task], 
                 filterSimilarProperties=filterSimilarProperties, maxFractionSame=maxFractionSame, nSim=nSim, propertyToPriorDistribution=propertyToPriorDistribution, 
                 onlyUseTrueProperties=onlyUseTrueProperties, recomputeTasksWithTaskSpecificInputs=recomputeTasksWithTaskSpecificInputs, computePriorFromTasks=computePriorFromTasks, verbose=verbose)
-            task2SimilarFrontiers[task] = similarFrontiers
-        else:
-            continue
 
-        if compressSimilar:
-            if len([f for f in similarFrontiers if not f.empty]) == 0:
-                eprint("No compression frontiers; not inducing a grammar this iteration.")
+            task2SimilarFrontiers[task] = similarFrontiers
+            
+            print("{} similar frontiers".format(len(similarFrontiers)))
+            if compressSimilar:
+                if len([f for f in similarFrontiers if not f.empty]) == 0:
+                    eprint("No compression frontiers; not inducing a grammar this iteration.")
+                else:
+                    print(similarFrontiers)
+                    maxScore = weights[0]
+                    for w,f in zip(weights, similarFrontiers):
+                        assert len(f.entries) == 1
+                        print("max score: {}, w: {}".format(maxScore, w))
+                        f.entries[0].logLikelihood = 0.0
+                    print(similarFrontiers)
+                    taskGrammar, fHelmFrontiers = FragmentGrammar.induceFromFrontiers(
+                        task2Grammar[task],
+                        similarFrontiers,
+                        _=None,
+                        topK=1,
+                        topk_use_only_likelihood=False,
+                        pseudoCounts=1.0,
+                        aic=1.0,
+                        structurePenalty=0.001,
+                        a=0,
+                        CPUs=1)
+                    """
+                    taskGrammar, compressionFrontiers = induceGrammar(task2Grammar[task], similarFrontiers,
+                                                      topK=2,
+                                                      pseudoCounts=1, a=3,
+                                                      aic=1.0, structurePenalty=1.5,
+                                                      topk_use_only_likelihood=False,
+                                                      backend='ocaml', CPUs=numberOfCPUs(), iteration=0)
+                    vprint("\nCompression frontiers for task {}: {}".format(compressionFrontiers, task), verbose)
+                    """
             else:
-                raise NotImplementedError
-        else:
-            weights = weights if weightedSim else None
-            vprint(similarFrontiers[:nSim][0].task.describe(), verbose)
-            taskGrammar = task2Grammar[task].insideOutside(similarFrontiers[:nSim], pseudoCounts, iterations=1, frontierWeights=weights, weightByPrior=weightByPrior)
+                weights = weights if weightedSim else None
+                vprint(similarFrontiers[0].task.describe(), verbose)
+                taskGrammar = task2Grammar[task].insideOutside(similarFrontiers, pseudoCounts, iterations=1, frontierWeights=weights, weightByPrior=weightByPrior)
+            
             vprint("\nGrammar after fitting for task {}:\n{}".format(task, taskGrammar), verbose)
             task2FittedGrammar[task] = taskGrammar
-        if solved:
-            tasksSolved.add(task)
+            if solved:
+                tasksSolved.add(task)
 
     return task2FittedGrammar, tasksSolved, task2SimilarFrontiers
 
