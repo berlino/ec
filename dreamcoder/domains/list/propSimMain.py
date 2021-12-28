@@ -120,20 +120,6 @@ def main(args):
         helmholtzFrontiers = enumerateHelmholtzOcaml(tasks, baseGrammar, enumerationTimeout=1800, CPUs=40, featureExtractor=featureExtractor, save=True, libraryName=args["libraryName"], datasetName=datasetName)
     
     helmholtzFrontiers = helmholtzFrontiers[:args["numHelmFrontiers"]]
-    """
-    print(helmholtzFrontiers)
-    fragmentGrammar, fHelmFrontiers = FragmentGrammar.induceFromFrontiers(
-            baseGrammar,
-            helmholtzFrontiers,
-            _=None,
-            topK=1,
-            topk_use_only_likelihood=False,
-            pseudoCounts=1.0,
-            aic=1.0,
-            structurePenalty=0.001,
-            a=0,
-            CPUs=args["CPUs"])
-     """
     
     # # load/generate recognition model conditional grammar 
     # neuralGrammars = getGrammarsFromNeuralRecognizer(LearnedFeatureExtractor, tasks, tasks, baseGrammar, {"hidden": args["hidden"]}, helmholtzFrontiers, args["save"], saveDir, datasetName, args)
@@ -147,9 +133,9 @@ def main(args):
     args["propToUse"] = "handwritten"
     _, handwrittenProperties = get_extractor(tasks, baseGrammar, args)
     propsimGrammarsHandwritten = iterative_propsim(args, tasks, baseGrammar, handwrittenProperties, helmholtzFrontiers, saveDir=saveDir)    
-    # args["weightedSim"] = True
-    # args["nSim"] = -1
-    #propsimGrammarsHandwrittenWeightedAll = iterative_propsim(args, tasks, baseGrammar, handwrittenProperties, helmholtzFrontiers, saveDir=saveDir)
+    args["weightedSim"] = True
+    args["nSim"] = -1
+    propsimGrammarsHandwrittenWeightedAll = iterative_propsim(args, tasks, baseGrammar, handwrittenProperties, helmholtzFrontiers, saveDir=saveDir)
     
     # # editDistGrammars = getGrammarsFromEditDistSim(tasks, baseGrammar, sampledFrontiers, args["nSim"])
     # generate helmholtzfitted grammar
