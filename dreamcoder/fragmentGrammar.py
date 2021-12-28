@@ -5,6 +5,7 @@ from dreamcoder.program import *
 from itertools import chain
 from time import time
 
+MAX_NEW_PRIMITIVES = 2
 
 class FragmentGrammar(object):
     def __init__(self, logVariable, productions):
@@ -323,7 +324,8 @@ class FragmentGrammar(object):
             restrictedFrontiers = restrictFrontiers()
             bestScore, _ = grammarScore(bestGrammar)
             eprint("Starting score", bestScore)
-            while True:
+            count = 0
+            while count < MAX_NEW_PRIMITIVES:
                 restrictedFrontiers = restrictFrontiers()
                 fragments = [f
                              for f in proposeFragmentsFromFrontiers(restrictedFrontiers, a, CPUs=CPUs)
@@ -377,7 +379,7 @@ class FragmentGrammar(object):
                 eprint(
                     "\t(<uses> in rewritten frontiers: %f)" %
                     (bestGrammar.expectedUses(frontiers).actualUses[concretePrimitive]))
-                break
+                count += 1
         else:
             eprint("Skipping fragment proposals")
 

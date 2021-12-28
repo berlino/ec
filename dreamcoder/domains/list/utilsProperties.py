@@ -122,8 +122,8 @@ def enumerateHelmholtzOcaml(tasks, grammar, enumerationTimeout, CPUs, featureExt
         savePath = "{}/helmholtz_frontiers/{}_enumerated/{}_with_{}-inputs.pkl".format(DATA_DIR, libraryName, len(frontiers), datasetName)
         dill.dump(frontiers, open(savePath, "wb"))
         print("Saving frontiers at: {}".format(savePath))
-
-    return frontiers
+        return frontiers, savePath
+    return frontiers, None
 
 def enumerateAndSave(grammar, request, featureExtractor, dslName, numTasks, k, batchSize, CPUs=1):
 
