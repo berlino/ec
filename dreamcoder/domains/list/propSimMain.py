@@ -39,8 +39,8 @@ def iterative_propsim(args, tasks, baseGrammar, properties, initSampledFrontiers
         #################################
 
         try:
-            propSimFilename = "propSim_propToUse={}_numHelmFrontiers_{}_nSim={}_weightedSim={}_taskSpecificInputs={}_compressSimilar={}_seed={}_grammars.pkl".format(
-            args["propToUse"], args["numHelmFrontiers"], args["nSim"], args["weightedSim"], args["taskSpecificInputs"], args["compressSimilar"], args["seed"])
+            propSimFilename = "propSim_propToUse={}_numHelmFrontiers_{}_nSim={}_weightedSim={}_taskSpecificInputs={}_compressSimilar={}_equalWprop={}_seed={}_grammars.pkl".format(
+            args["propToUse"], args["numHelmFrontiers"], args["nSim"], args["weightedSim"], args["taskSpecificInputs"], args["compressSimilar"], args["equalWeightProperties"], args["seed"])
             # directory = DATA_DIR + "grammars/{}_primitives/enumerated_{}:{}".format(args["libraryName"], args["hmfSeed"], args["helmholtzFrontiers"].split(":")[0])
             # directory += ":{}/".format(args["numHelmFrontiers"]) if args["numHelmFrontiers"] is not None else "/"
             path = "{}_{}".format(saveDir, propSimFilename)
@@ -69,6 +69,7 @@ def iterative_propsim(args, tasks, baseGrammar, properties, initSampledFrontiers
                maxFractionSame=args["maxFractionSame"], 
                valuesToInt=VALUES_TO_INT,
                propSimIteration=propSimIteration,
+               weightByPropertyPrior=not args["equalWeightProperties"],
                verbose=args["verbose"])
 
             if args["save"]:
@@ -118,7 +119,7 @@ def main(args):
         datasetName = args["dataset"]
         # this is only used for its taskOfProgram method to generate synthetic tasks
         featureExtractor = LearnedFeatureExtractor(tasks=tasks, testingTasks=[], cuda=args["cuda"], grammar=baseGrammar, featureExtractorArgs=args)
-        helmholtzFrontiers, saveDir = enumerateHelmholtzOcaml(tasks, baseGrammar, enumerationTimeout=10, CPUs=40, featureExtractor=featureExtractor, save=True, libraryName=args["libraryName"], datasetName=datasetName)
+        helmholtzFrontiers, saveDir = enumerateHelmholtzOcaml(tasks, baseGrammar, enumerationTimeout=1, CPUs=40, featureExtractor=featureExtractor, save=True, libraryName=args["libraryName"], datasetName=datasetName)
     
     helmholtzFrontiers = helmholtzFrontiers[:args["numHelmFrontiers"]]
     
@@ -128,18 +129,29 @@ def main(args):
     # neuralPropsigGrammars = dill.load(open("data/prop_sig/helmholtz_frontiers/josh_rich_0_10_enumerated/13742_with_josh_fleet_0_10-inputs_prop_sig_neural_ep=False_RS=10000_RT=3600_hidden=64_r=0.0_contextual=False_josh_fleet_0_10_grammars.pkl", "rb"))
     
     # load/generate propSim conditional grammar
+    args["equalWeightProperties"] = True
+    _, automaticProperties = get_extractor(tasks, baseGrammar, args)
+    propsimGrammarsAutomaticEqWeight = iterative_propsim(args, tasks, baseGrammar, automaticProperties, helmholtzFrontiers, saveDir=saveDir)
+
+    args["equalWeightProperties"] = False
     # _, automaticProperties = get_extractor(tasks, baseGrammar, args)
-    # propsimGrammarsAutomatic = iterative_propsim(args, tasks, baseGrammar, automaticProperties, helmholtzFrontiers, saveDir=saveDir)
+    propsimGrammarsAutomatic = iterative_propsim(args, tasks, baseGrammar, automaticProperties, helmholtzFrontiers, saveDir=saveDir)
 
     args["propToUse"] = "handwritten"
+    args["equalWeightProperties"] = True
     _, handwrittenProperties = get_extractor(tasks, baseGrammar, args)
-    propsimGrammarsHandwritten = iterative_propsim(args, tasks, baseGrammar, handwrittenProperties, helmholtzFrontiers, saveDir=saveDir)    
-    
+    propsimGrammarsHandwrittenEqWeight = iterative_propsim(args, tasks, baseGrammar, handwrittenProperties, helmholtzFrontiers, saveDir=saveDir)    
+   
+    args["propToUse"] = "handwritten"
+    args["equalWeightProperties"] = False
+    #_, handwrittenProperties = get_extractor(tasks, baseGrammar, args)
+    propsimGrammarsHandwritten = iterative_propsim(args, tasks, baseGrammar, handwrittenProperties, helmholtzFrontiers, saveDir=saveDir)
+ 
     # # editDistGrammars = getGrammarsFromEditDistSim(tasks, baseGrammar, sampledFrontiers, args["nSim"])
     # generate helmholtzfitted grammar
     helmholtzGrammar = baseGrammar.insideOutside(helmholtzFrontiers, pseudoCounts=1) 
-    grammars = [propsimGrammarsHandwritten, helmholtzGrammar, baseGrammar]
-    modelNames = ["propsimGrammarsHandwritten", "helmholtzFitted", "uniform"]
+    grammars = [propsimGrammarsHandwritten, propsimGrammarsHandwrittenEqWeight, propsimGrammarsAutomatic, propsimGrammarsAutomaticEqWeight, helmholtzGrammar, baseGrammar]
+    modelNames = ["propsimGrammarsHandwritten", "propsimGrammarsHandwrittenEqWeight", "propsimGrammarsAutomatic", "propsimGrammarsAutomaticEqWeight", "helmholtzFitted", "uniform"]
 
     if args["enumerationProxy"]:
         modelToLogPosteriors = enumerationProxy(grammars, tasks, modelNames, verbose=True)

@@ -44,6 +44,7 @@ def getTaskSimilarFrontier(
     onlyUseTrueProperties=True, 
     recomputeTasksWithTaskSpecificInputs=False,
     computePriorFromTasks=False,
+    weightByPropertyPrior=True,
     verbose=False):
     """
     Returns:
@@ -56,7 +57,8 @@ def getTaskSimilarFrontier(
     try:
         simDf, matchingFrontiers, _ = createSimilarTasksDf(allTasks, taskIdx, allFrontiers, properties, propertySimTasksMatrix, propertyToPriorDistribution, valuesToInt, 
             onlyUseTrueProperties=onlyUseTrueProperties, filterSimilarProperties=filterSimilarProperties, maxFractionSame=maxFractionSame, 
-            recomputeTasksWithTaskSpecificInputs=recomputeTasksWithTaskSpecificInputs, computePriorFromTasks=computePriorFromTasks, verbose=verbose)
+            recomputeTasksWithTaskSpecificInputs=recomputeTasksWithTaskSpecificInputs, computePriorFromTasks=computePriorFromTasks, 
+            weightByPropertyPrior=weightByPropertyPrior, verbose=verbose)
     except ZeroPropertiesFound:
         return allFrontiers, [1 for i in range(len(allFrontiers))], False
 
@@ -157,6 +159,7 @@ def createSimilarTasksDf(
     maxFractionSame, 
     recomputeTasksWithTaskSpecificInputs, 
     computePriorFromTasks,
+    weightByPropertyPrior,
     verbose=False):
     """
     Args:
@@ -228,7 +231,7 @@ def createSimilarTasksDf(
 
     data = propertySimTasksMatrix[:, [propertyToIdx[p] for p in properties]]
     df = pd.DataFrame(data=data)
-    if propertyToPriorDistribution is not None:
+    if weightByPropertyPrior:
         simSeries = df.apply(lambda row: _getPriorBasedSimilarityScore(taskSig, row, propertyToPriorDistribution[:, [propertyToIdx[p] for p in properties]]), axis=1)
     else:
         simSeries = df.apply(lambda row: _getSimilarityScore(taskSig, row, onlyUseTrueProperties), axis=1)
@@ -308,6 +311,7 @@ def getPropSimGrammars(
     maxFractionSame, 
     valuesToInt,
     propSimIteration,
+    weightByPropertyPrior,
     verbose):
 
     """
@@ -339,7 +343,7 @@ def getPropSimGrammars(
         if task in tasksToSolve:
             similarFrontiers, weights, solved = getTaskSimilarFrontier(task2Frontiers[task], task2Properties[task], propertySimTasksMatrix, valuesToInt, allTasks, taskIdx, task2Grammar[task], 
                 filterSimilarProperties=filterSimilarProperties, maxFractionSame=maxFractionSame, nSim=nSim, propertyToPriorDistribution=propertyToPriorDistribution, 
-                onlyUseTrueProperties=onlyUseTrueProperties, recomputeTasksWithTaskSpecificInputs=recomputeTasksWithTaskSpecificInputs, computePriorFromTasks=computePriorFromTasks, verbose=verbose)
+                onlyUseTrueProperties=onlyUseTrueProperties, recomputeTasksWithTaskSpecificInputs=recomputeTasksWithTaskSpecificInputs, computePriorFromTasks=computePriorFromTasks, weightByPropertyPrior=weightByPropertyPrior, verbose=verbose)
 
             task2SimilarFrontiers[task] = similarFrontiers
             
