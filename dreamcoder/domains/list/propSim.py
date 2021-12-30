@@ -5,7 +5,7 @@ from dreamcoder.compression import induceGrammar
 from dreamcoder.grammar import Grammar
 from dreamcoder.fragmentGrammar import FragmentGrammar
 from dreamcoder.program import Program
-from dreamcoder.utilities import vprint, numberOfCPUs
+from dreamcoder.utilities import vprint, numberOfCPUs, parallelMap
 
 from dreamcoder.domains.list.utilsProperties import createFrontiersWithInputsFromTask
 
@@ -339,7 +339,10 @@ def getPropSimGrammars(
     if not recomputeTasksWithTaskSpecificInputs and computePriorFromTasks and propSimIteration == 0:
         propertySimTasksMatrix, propertyToPriorDistribution = _getSimTaskMatrixAndPropertyPriors(allTasks, sampledFrontiers[tasksToSolve[0]], properties, valuesToInt, True)
 
-    for taskIdx,task in enumerate(allTasks):    
+    # for taskIdx,task in enumerate(allTasks):
+
+    def getTaskFittedGrammar(taskTuple):
+        taskIdx, task = taskTuple
         if task in tasksToSolve:
             similarFrontiers, weights, solved = getTaskSimilarFrontier(task2Frontiers[task], task2Properties[task], propertySimTasksMatrix, valuesToInt, allTasks, taskIdx, task2Grammar[task], 
                 filterSimilarProperties=filterSimilarProperties, maxFractionSame=maxFractionSame, nSim=nSim, propertyToPriorDistribution=propertyToPriorDistribution, 
@@ -385,9 +388,25 @@ def getPropSimGrammars(
                 taskGrammar = task2Grammar[task].insideOutside(similarFrontiers, pseudoCounts, iterations=1, frontierWeights=weights, weightByPrior=weightByPrior)
             
             vprint("\nGrammar after fitting for task {}:\n{}".format(task, taskGrammar), verbose)
-            task2FittedGrammar[task] = taskGrammar
+            # task2FittedGrammar[task] = taskGrammar
+            # if solved:
+            #     tasksSolved.add(task)
+            return taskGrammar, solved, similarFrontiers
+        else:
+            return None, None, None
+
+    results = parallelMap(
+        numberOfCPUs(),
+        getTaskFittedGrammar,
+        list(enumerate(allTasks)), memorySensitive=False)
+
+    for t,result in zip(allTasks, results):
+        grammar, solved, similarFrontiers = result
+        if grammar is not None:
+            task2FittedGrammar[t] = grammar
             if solved:
-                tasksSolved.add(task)
+                tasksSolved.add(t)
+            task2SimilarFrontiers[t] = similarFrontiers            
 
     return task2FittedGrammar, tasksSolved, task2SimilarFrontiers
 
