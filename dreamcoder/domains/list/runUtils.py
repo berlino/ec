@@ -64,6 +64,7 @@ def list_options(parser):
         "dummy"
         ])
     parser.add_argument("--hidden", type=int, default=64)
+    parser.add_argument("--randomGrammarWeights", action="store_true", default=False)
 
     # Arguments relating to propSim
     parser.add_argument("--equalWeightProperties", action="store_true", default=False)

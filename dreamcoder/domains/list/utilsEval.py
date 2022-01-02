@@ -4,6 +4,7 @@ import dill
 from dreamcoder.domains.list.utilsPlotting import plotFrontiers
 from dreamcoder.enumeration import multicoreEnumeration
 from dreamcoder.grammar import Grammar
+from dreamcoder.utilities import vprint
 
 def getRecognizerTaskGrammars(trainedRecognizer, tasks):
     grammars = {task: trainedRecognizer.grammarOfTask(task)
