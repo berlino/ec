@@ -16,6 +16,9 @@ def iterative_propsim(args, tasks, baseGrammar, properties, initSampledFrontiers
     #################################
 
     taskFittedGrammars = []
+    # used only for taskOfProgram method
+    featureExtractor = LearnedFeatureExtractor(tasks=tasks, testingTasks=[], cuda=args["cuda"], grammar=baseGrammar, featureExtractorArgs=args)
+
     for propSimIteration in range(args["propNumIters"]):
         print("\nLoading helmholtz tasks for iteration {}".format(propSimIteration))
 
@@ -39,14 +42,15 @@ def iterative_propsim(args, tasks, baseGrammar, properties, initSampledFrontiers
         #################################
 
         try:
-            propSimFilename = "propSim_propToUse={}_numHelmFrontiers_{}_nSim={}_weightedSim={}_taskSpecificInputs={}_compressSimilar={}_equalWprop={}_seed={}_grammars.pkl".format(
-            args["propToUse"], args["numHelmFrontiers"], args["nSim"], args["weightedSim"], args["taskSpecificInputs"], args["compressSimilar"], args["equalWeightProperties"], args["seed"])
+            propSimFilename = "propSim_propToUse={}_numHelmFrontiers_{}_nSim={}_weightedSim={}_onlyTrueProp=_{}_taskSpecificInputs={}_compressSimilar={}_equalWprop={}_seed={}_grammars.pkl".format(
+            args["propToUse"], args["numHelmFrontiers"], args["nSim"], args["weightedSim"], args["onlyUseTrueProperties"], args["taskSpecificInputs"], args["compressSimilar"], args["equalWeightProperties"], args["seed"])
             # directory = DATA_DIR + "grammars/{}_primitives/enumerated_{}:{}".format(args["libraryName"], args["hmfSeed"], args["helmholtzFrontiers"].split(":")[0])
             # directory += ":{}/".format(args["numHelmFrontiers"]) if args["numHelmFrontiers"] is not None else "/"
             path = "{}_{}".format(saveDir, propSimFilename)
             task2FittedGrammar = dill.load(open(path, "rb"))
             # we don't save this so assume 0 tasks solved
             tasksSolved = []
+            print("Loaded propsim grammars from pkl file at: {}".format(path))
 
         except FileNotFoundError:
             print("Couldn't find pickled fitted propsim grammars at path: {}\nRegenerating".format(path))
@@ -62,7 +66,7 @@ def iterative_propsim(args, tasks, baseGrammar, properties, initSampledFrontiers
                args["propPseudocounts"], 
                args["weightedSim"], 
                compressSimilar=args["compressSimilar"], 
-               weightByPrior=False, 
+               weightByPrior=args["weightByPrior"], 
                recomputeTasksWithTaskSpecificInputs=args["taskSpecificInputs"],
                computePriorFromTasks=args["computePriorFromTasks"], 
                filterSimilarProperties=args["filterSimilarProperties"], 
@@ -96,12 +100,16 @@ def iterative_propsim(args, tasks, baseGrammar, properties, initSampledFrontiers
 def main(args):
        
     print("cuda: {}".format(torch.cuda.is_available())) 
+    random.seed(args["seed"])
 
     # Load tasks, DSL and grammar
     tasks = get_tasks(args["dataset"])
     tasks = tasks[2:3] if args["singleTask"] else tasks
     prims = get_primitives(args["libraryName"])
     baseGrammar = Grammar.uniform([p for p in prims])
+    if args["randomGrammarWeights"]:
+        baseGrammar = baseGrammar.randomWeights(lambda *a: random.random())
+    print("baseGrammar", baseGrammar)
 
     if "josh_rich" in args["libraryName"]:
         # now that we've loaded the primitives we can parse the ground truth program string
@@ -119,7 +127,8 @@ def main(args):
         datasetName = args["dataset"]
         # this is only used for its taskOfProgram method to generate synthetic tasks
         featureExtractor = LearnedFeatureExtractor(tasks=tasks, testingTasks=[], cuda=args["cuda"], grammar=baseGrammar, featureExtractorArgs=args)
-        helmholtzFrontiers, saveDir = enumerateHelmholtzOcaml(tasks, baseGrammar, enumerationTimeout=1, CPUs=40, featureExtractor=featureExtractor, save=True, libraryName=args["libraryName"], datasetName=datasetName)
+        libraryName = "{}_randomWeights_seed_{}".format(args["libraryName"], args["seed"]) if args["randomGrammarWeights"] else args["libraryName"]
+        helmholtzFrontiers, saveDir = enumerateHelmholtzOcaml(tasks, baseGrammar, enumerationTimeout=60, CPUs=args["CPUs"], featureExtractor=featureExtractor, save=True, libraryName=libraryName, datasetName=datasetName)
     
     helmholtzFrontiers = helmholtzFrontiers[:args["numHelmFrontiers"]]
     
@@ -149,16 +158,18 @@ def main(args):
  
     # # editDistGrammars = getGrammarsFromEditDistSim(tasks, baseGrammar, sampledFrontiers, args["nSim"])
     # generate helmholtzfitted grammar
+
     helmholtzGrammars = getHelmholtzGrammar(baseGrammar, helmholtzFrontiers, tasks, insideOutside=1)
 
     # grammars = [propsimGrammarsHandwritten, propsimGrammarsHandwrittenEqWeight, propsimGrammarsAutomatic, propsimGrammarsAutomaticEqWeight, helmholtzGrammar, baseGrammar]
     # modelNames = ["propsimGrammarsHandwritten", "propsimGrammarsHandwrittenEqWeight", "propsimGrammarsAutomatic", "propsimGrammarsAutomaticEqWeight", "helmholtzFitted", "uniform"]
 
-    grammars, modelNames = [helmholtzGrammars, baseGrammar], ["helmholtzGrammar", "baseGrammar"]
+    grammars = [propsimGrammarsHandwritten, propsimGrammarsHandwrittenEqWeight, propsimGrammarsAutomaticEqWeight, propsimGrammarsAutomatic, helmholtzGrammar, baseGrammar]
+    modelNames = ["propsimGrammarsHandwritten", "propsimGrammarsHandwrittenEqWeight", "propsimGrammarsAutomaticEqWeight", "propsimGrammarsAutomaticEqWeight", "helmholtzFitted", "uniform"]
 
     if args["enumerationProxy"]:
         modelToLogPosteriors = enumerationProxy(grammars, tasks, modelNames, verbose=True)
-        plotProxyResults(modelToLogPosteriors, save=True)
+        plotProxyResults(modelToLogPosteriors, args["plotName"], save=True)
     else:
         enumerateFromGrammars(args, tasks, grammars, modelNames, args["save"], args["plotName"])
     return

@@ -51,19 +51,19 @@ def plotFrontiers(modelNames, filenames=None, times=False, enumerationResults=No
         plt.savefig("enumerationResults/{}.png".format(plotName))
     return
 
-def plotProxyResults(modelToLogPosteriors, save=True):
+def plotProxyResults(modelToLogPosteriors, plotName="enumerationProxy", save=True):
 
     plt.rcParams["axes.prop_cycle"] = plt.cycler("color", plt.cm.jet(np.linspace(0,1, len(modelToLogPosteriors.keys()))))
 
-    for modelName, logPosteriors in modelToLogPosteriors.items():
-        logPosteriors = sorted([-lp for lp in logPosteriors])
+    for modelName, task2logPosteriors in modelToLogPosteriors.items():
+        logPosteriors = sorted([-lp for _,lp in task2logPosteriors.items()])
         plt.plot(logPosteriors, [i / len(logPosteriors) for i in range(len(logPosteriors))], label=modelName, alpha=0.6)
 
     plt.ylim(bottom=0, top=1)
     plt.legend()
     plt.show()
     if save:
-        plt.savefig("enumerationResults/enumerationProxy.png")
+        plt.savefig("enumerationResults/{}.png".format(plotName))
     return
 
 

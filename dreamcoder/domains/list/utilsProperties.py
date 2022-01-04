@@ -120,6 +120,7 @@ def enumerateHelmholtzOcaml(tasks, grammar, enumerationTimeout, CPUs, featureExt
     
     if save:
         savePath = "{}/helmholtz_frontiers/{}_enumerated/{}_with_{}-inputs.pkl".format(DATA_DIR, libraryName, len(frontiers), datasetName)
+        os.makedirs("{}/helmholtz_frontiers/{}_enumerated".format(DATA_DIR, libraryName), exist_ok=True)
         dill.dump(frontiers, open(savePath, "wb"))
         print("Saving frontiers at: {}".format(savePath))
         return frontiers, savePath
