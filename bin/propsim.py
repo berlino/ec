@@ -13,6 +13,7 @@ from dreamcoder.domains.list.property import Property
 from dreamcoder.domains.list.propertySignatureExtractor import testPropertySignatureExtractorHandwritten
 from dreamcoder.domains.list.resultsProcessing import viewResults
 from dreamcoder.domains.list.sampleProperties import prop_sampling_options
+from dreamcoder.domains.list import utilsPlotting
 from dreamcoder.dreamcoder import commandlineArguments
 from dreamcoder.utilities import numberOfCPUs
 
@@ -26,3 +27,4 @@ if __name__ == '__main__':
         extras=lambda parser: list_options(prop_sampling_options(parser)),
         )
     main(args)
+    # utilsPlotting.main()
