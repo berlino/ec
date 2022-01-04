@@ -5,6 +5,7 @@ import torch
 
 from dreamcoder.type import arrow, tlist, tint
 from dreamcoder.recognition import RecognitionModel
+from dreamcoder.domains.list.utilsProperties import createFrontiersWithInputsFromTask
 
 ADD_P = 0.0001
 DEL_P = 0.0001
@@ -32,8 +33,14 @@ def _prefixEditDistance(got, expected):
                                 (log_add_p-LOG_ALPHABET)*(len(expected)-mi) + log_1madd_p)
         else:
             break
-    
     return lp
+
+def getHelmholtzGrammars(baseGrammar, helmholtzFrontiers, tasks, insideOutside=1):
+    grammars = {}
+    for t in tasks:
+        taskFrontiers = createFrontiersWithInputsFromTask(helmholtzFrontiers, t)
+        grammars[t] = baseGrammar.insideOutside(taskFrontiers)
+    return grammars
 
 def getGrammarsFromEditDistSim(tasks, baseGrammar, sampledFrontiers, nSim, weight=False, pseudoCounts=1):
 
