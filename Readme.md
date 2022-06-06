@@ -1,6 +1,6 @@
 #  language guided program synthesis results for LARC
 This repository is the official implementation for the language-guided program synthesis experiments in **Communicating Natural Programs to Humans and Machines** (Section 5, Executing Natual Programs). This repository and branch is a static branch designed to reproduce the results in the paper. The full LARC dataset can be found here: 
-https://samacquaviva.com/LARC/explore/
+https://github.com/samacqua/LARC
 
 ![banner](./docs/arc-data-collection.jpg "Banner")
 
