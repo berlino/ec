@@ -1,5 +1,7 @@
-#  Communicating Natural Programs to Humans and Machines
-This repository is the official implementation for the language-guided program synthesis experiments in **Communicating Natural Programs to Humans and Machines** (Section 5, Executing Natual Programs). The paper is currently under review. This repository and branch is a static branch designed to reproduce the results in the paper.
+#  language guided program synthesis results for LARC
+This repository is the official implementation for the language-guided program synthesis experiments in **Communicating Natural Programs to Humans and Machines** (Section 5, Executing Natual Programs). This repository and branch is a static branch designed to reproduce the results in the paper. The full LARC dataset can be found here: 
+
+https://samacquaviva.com/LARC/explore/
 
 ![banner](./docs/arc-data-collection.jpg "Banner")
 
@@ -17,7 +19,7 @@ pip install --upgrade setuptools;
 ```
 2. Install the requirements.
 ```
-pip install -r neurips_2022_requirements.txt
+pip install -r requirements.txt
 ```
 3. Download the T5 pre-trained language model. At an interactive prompt, run:
 ```
